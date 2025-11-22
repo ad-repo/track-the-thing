@@ -14,6 +14,7 @@ import { useSprintName } from '../contexts/SprintNameContext';
 import CustomThemeCreator from './CustomThemeCreator';
 import CustomBackgroundSettings from './CustomBackgroundSettings';
 import CustomEmojiManager from './CustomEmojiManager';
+import TextureSettings from './TextureSettings';
 
 interface Label {
   id: number;
@@ -920,6 +921,9 @@ const Settings = () => {
           onDelete={handleDeleteCustomBgImage}
           isUploading={isUploadingCustomBgImage}
         />
+
+        {/* UI Textures Section */}
+        <TextureSettings />
 
         {/* Label Management Section */}
         <section className="mb-6">

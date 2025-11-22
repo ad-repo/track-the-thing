@@ -89,6 +89,9 @@ export default function TextureSettings() {
   };
 
   const applyToSelectedElements = (pattern: PatternName) => {
+    console.log(`[TextureSettings] Applying pattern "${pattern}" to ${selectedElements.size} elements:`, Array.from(selectedElements));
+    
+    // Update all selected elements
     selectedElements.forEach(element => {
       setElementPattern(element, pattern);
     });

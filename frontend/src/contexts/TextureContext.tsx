@@ -193,10 +193,17 @@ export function TextureProvider({ children }: TextureProviderProps) {
         randomPatternPool,
       };
 
+      console.log('[TextureProvider] Saving to database:', {
+        texture_enabled: textureEnabled,
+        elementPatterns: Object.entries(elementPatterns).filter(([_, v]) => v !== null),
+      });
+
       await settingsApi.update({
         texture_enabled: textureEnabled,
         texture_settings: JSON.stringify(textureConfig),
       });
+      
+      console.log('[TextureProvider] Successfully saved to database');
     } catch (error) {
       console.error('[TextureProvider] Failed to save settings to database:', error);
     }
@@ -273,6 +280,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const setElementPattern = useCallback((element: ElementType, pattern: PatternName | null) => {
+    console.log(`[TextureProvider] Setting pattern for ${element}:`, pattern);
     setElementPatterns((prev) => ({
       ...prev,
       [element]: pattern,

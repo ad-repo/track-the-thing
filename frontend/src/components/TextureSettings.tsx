@@ -255,15 +255,32 @@ export default function TextureSettings() {
 
             {/* Global Settings Controls */}
             <div className="space-y-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-              <h3 className="text-md font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                Settings
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-md font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  Settings
+                </h3>
+                <button
+                  onClick={() => {
+                    updateGlobalSettings({ opacity: 0.5, scale: 1.0, density: 0.7, angle: 0, blendMode: 'overlay' });
+                  }}
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}
+                  title="Reset to high-visibility defaults"
+                >
+                  Reset Settings
+                </button>
+              </div>
 
               {/* Opacity */}
               <div>
                 <div className="flex justify-between mb-2">
                   <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                     Opacity
+                    {globalSettings.opacity < 0.3 && (
+                      <span className="ml-2 text-xs px-1 rounded" style={{ backgroundColor: 'var(--color-warning)', color: 'black' }}>
+                        Too low!
+                      </span>
+                    )}
                   </label>
                   <span className="text-sm font-mono" style={{ color: 'var(--color-text-secondary)' }}>
                     {Math.round(globalSettings.opacity * 100)}%

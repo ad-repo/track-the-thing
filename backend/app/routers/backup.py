@@ -87,6 +87,8 @@ async def export_data(db: Session = Depends(get_db)):
             'quarterly_start_date': app_settings.quarterly_start_date if app_settings else '',
             'quarterly_end_date': app_settings.quarterly_end_date if app_settings else '',
             'emoji_library': app_settings.emoji_library if app_settings else 'emoji-picker-react',
+            'texture_enabled': bool(app_settings.texture_enabled) if app_settings else False,
+            'texture_settings': app_settings.texture_settings if app_settings else '{}',
             'created_at': app_settings.created_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
             'updated_at': app_settings.updated_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
         },
@@ -462,6 +464,8 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                     existing_settings.quarterly_start_date = settings_data.get('quarterly_start_date', '')
                     existing_settings.quarterly_end_date = settings_data.get('quarterly_end_date', '')
                     existing_settings.emoji_library = settings_data.get('emoji_library', 'emoji-picker-react')
+                    existing_settings.texture_enabled = 1 if settings_data.get('texture_enabled', False) else 0
+                    existing_settings.texture_settings = settings_data.get('texture_settings', '{}')
                 else:
                     new_settings = models.AppSettings(
                         id=1,
@@ -472,6 +476,8 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         quarterly_start_date=settings_data.get('quarterly_start_date', ''),
                         quarterly_end_date=settings_data.get('quarterly_end_date', ''),
                         emoji_library=settings_data.get('emoji_library', 'emoji-picker-react'),
+                        texture_enabled=1 if settings_data.get('texture_enabled', False) else 0,
+                        texture_settings=settings_data.get('texture_settings', '{}'),
                         created_at=datetime.fromisoformat(settings_data['created_at'])
                         if 'created_at' in settings_data
                         else datetime.utcnow(),

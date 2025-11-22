@@ -28,9 +28,10 @@ export function useTexture(elementType: ElementType): CSSProperties {
   const textureStyles = useMemo(() => {
     const pattern = elementPatterns[elementType];
     
-    // Debug log to trace the flow
-    if (elementType === 'cards') {
-      console.log(`[TEXTURE DEBUG] cards: enabled=${textureEnabled}, pattern=${pattern}, hasPattern=${pattern !== null && pattern !== undefined}`);
+    // Debug log to trace the flow for settings (since that's what we're testing)
+    if (elementType === 'settings') {
+      console.log(`[TEXTURE DEBUG useTexture] settings: enabled=${textureEnabled}, pattern=${pattern}, hasPattern=${pattern !== null && pattern !== undefined}`);
+      console.log(`[TEXTURE DEBUG useTexture] settings: elementPatterns object:`, elementPatterns);
     }
     
     // No textures if disabled
@@ -40,6 +41,9 @@ export function useTexture(elementType: ElementType): CSSProperties {
 
     // Only show texture if this element has a pattern explicitly assigned
     if (!pattern) {
+      if (elementType === 'settings') {
+        console.log(`[TEXTURE DEBUG useTexture] settings: NO PATTERN, returning empty styles`);
+      }
       return {};
     }
 
@@ -51,8 +55,8 @@ export function useTexture(elementType: ElementType): CSSProperties {
       return {};
     }
 
-    if (elementType === 'cards') {
-      console.log(`[TEXTURE DEBUG] cards: SUCCESS - generated texture, opacity=${settings.opacity}, blend=${settings.blendMode}`);
+    if (elementType === 'settings') {
+      console.log(`[TEXTURE DEBUG useTexture] settings: SUCCESS - generated texture, opacity=${settings.opacity}, blend=${settings.blendMode}`);
     }
 
     const textureBackground = settings.colorTint

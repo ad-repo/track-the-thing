@@ -301,11 +301,13 @@ export function TextureProvider({ children }: TextureProviderProps) {
   const setElementPattern = useCallback((element: ElementType, pattern: PatternName | null) => {
     console.log(`[TEXTURE DEBUG] setElementPattern called: element=${element}, pattern=${pattern}`);
     setElementPatterns((prev) => {
+      console.log(`[TEXTURE DEBUG] Previous elementPatterns:`, prev);
       const updated = {
         ...prev,
         [element]: pattern,
       };
-      console.log(`[TEXTURE DEBUG] elementPatterns updated:`, updated);
+      console.log(`[TEXTURE DEBUG] New elementPatterns:`, updated);
+      console.log(`[TEXTURE DEBUG] Specifically, ${element} is now:`, updated[element]);
       return updated;
     });
   }, []);

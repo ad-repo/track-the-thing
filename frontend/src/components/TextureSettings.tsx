@@ -12,7 +12,7 @@ import {
   Pause,
 } from 'lucide-react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
-import { getAllPatterns, PatternName, TextureOptions } from '../services/textureGenerator';
+import { getAllPatterns, PatternName, TextureOptions, generateTexture } from '../services/textureGenerator';
 import { TexturePatternGrid } from './TexturePatternPreview';
 
 const ELEMENT_TYPES: { type: ElementType; label: string; icon: string }[] = [
@@ -183,7 +183,7 @@ export default function TextureSettings() {
                 <div
                   className="w-full h-full rounded-lg flex items-center justify-center"
                   style={{
-                    backgroundImage: `url(${require('../services/textureGenerator').generateTexture(globalPattern, globalSettings)})`,
+                    backgroundImage: `url(${generateTexture(globalPattern, globalSettings)})`,
                     backgroundSize: 'auto',
                     backgroundRepeat: 'repeat',
                   }}

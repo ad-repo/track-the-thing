@@ -97,6 +97,7 @@ docker-compose --env-file .dockerenv exec backend python migrations/run_migratio
 | 023 | **Sprint name setting** - adds sprint_name customization to app_settings | 2025-11-14 |
 | 024 | **Daily goal end time** - adds daily_goal_end_time to app_settings for countdown timer | 2025-11-14 |
 | 025 | **Reminders** - creates reminders table for date-time based reminders on entry cards | 2025-11-22 |
+|| 026 | **Texture settings** - adds texture_enabled and texture_settings to app_settings for UI texture system | 2025-11-22 |
 
 ## Creating New Migrations
 

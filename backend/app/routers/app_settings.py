@@ -29,6 +29,8 @@ def get_app_settings(db: Session = Depends(get_db)):
             emoji_library='emoji-picker-react',
             sprint_name='Sprint',
             daily_goal_end_time='17:00',
+            texture_enabled=0,
+            texture_settings='{}',
         )
         db.add(settings)
         db.commit()
@@ -45,6 +47,8 @@ def get_app_settings(db: Session = Depends(get_db)):
         'emoji_library': settings.emoji_library or 'emoji-picker-react',
         'sprint_name': settings.sprint_name or 'Sprint',
         'daily_goal_end_time': settings.daily_goal_end_time or '17:00',
+        'texture_enabled': bool(settings.texture_enabled),
+        'texture_settings': settings.texture_settings or '{}',
         'created_at': settings.created_at.isoformat(),
         'updated_at': settings.updated_at.isoformat(),
     }
@@ -68,6 +72,8 @@ def update_app_settings(settings_update: schemas.AppSettingsUpdate, db: Session 
             emoji_library=settings_update.emoji_library or 'emoji-picker-react',
             sprint_name=settings_update.sprint_name or 'Sprint',
             daily_goal_end_time=settings_update.daily_goal_end_time or '17:00',
+            texture_enabled=int(settings_update.texture_enabled) if settings_update.texture_enabled is not None else 0,
+            texture_settings=settings_update.texture_settings or '{}',
         )
         db.add(settings)
     else:
@@ -90,6 +96,10 @@ def update_app_settings(settings_update: schemas.AppSettingsUpdate, db: Session 
             settings.sprint_name = settings_update.sprint_name
         if settings_update.daily_goal_end_time is not None:
             settings.daily_goal_end_time = settings_update.daily_goal_end_time
+        if settings_update.texture_enabled is not None:
+            settings.texture_enabled = int(settings_update.texture_enabled)
+        if settings_update.texture_settings is not None:
+            settings.texture_settings = settings_update.texture_settings
 
     db.commit()
     db.refresh(settings)
@@ -104,6 +114,8 @@ def update_app_settings(settings_update: schemas.AppSettingsUpdate, db: Session 
         'emoji_library': settings.emoji_library or 'emoji-picker-react',
         'sprint_name': settings.sprint_name or 'Sprint',
         'daily_goal_end_time': settings.daily_goal_end_time or '17:00',
+        'texture_enabled': bool(settings.texture_enabled),
+        'texture_settings': settings.texture_settings or '{}',
         'created_at': settings.created_at.isoformat(),
         'updated_at': settings.updated_at.isoformat(),
     }

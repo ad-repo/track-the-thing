@@ -2,6 +2,9 @@ import { useMemo, CSSProperties } from 'react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
 import { generateTexture, PatternName } from '../services/textureGenerator';
 
+// VERSION CHECK - v3
+console.log('[useTexture.ts] CODE VERSION: v3 - 2024-11-22');
+
 interface TextureStyles {
   backgroundImage?: string;
   backgroundBlendMode?: string;
@@ -60,7 +63,9 @@ export function useTexture(elementType: ElementType): CSSProperties {
       styles.backgroundImage = `linear-gradient(${settings.colorTint}, ${settings.colorTint}), url(${textureDataURL})`;
     }
 
-    console.log(`[useTexture] ${elementType}: Returning styles:`, styles);
+    console.log(`[useTexture] ${elementType}: FINAL STYLES ==>`, JSON.stringify(styles, null, 2));
+    console.log(`[useTexture] ${elementType}: backgroundImage starts with:`, styles.backgroundImage?.substring(0, 50));
+    
     return styles;
   }, [textureEnabled, elementType, globalPattern, globalSettings, elementPatterns, elementSettings]);
 

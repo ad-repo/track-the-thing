@@ -75,6 +75,8 @@ interface TextureProviderProps {
 }
 
 export function TextureProvider({ children }: TextureProviderProps) {
+  console.log('[TextureProvider] Component mounting - CODE VERSION 2024-11-22-v2');
+  
   // Load initial state from localStorage
   const [textureEnabled, setTextureEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('texture_enabled');

@@ -50,6 +50,7 @@ export function useTexture(elementType: ElementType): CSSProperties {
       return {};
     }
 
+    // Create the texture background with explicit CSS properties
     const styles: TextureStyles = {
       backgroundImage: `url(${textureDataURL})`,
       backgroundBlendMode: settings.blendMode as any,
@@ -62,6 +63,11 @@ export function useTexture(elementType: ElementType): CSSProperties {
     if (settings.colorTint) {
       styles.backgroundImage = `linear-gradient(${settings.colorTint}, ${settings.colorTint}), url(${textureDataURL})`;
     }
+    
+    // CRITICAL: Ensure backgroundImage isn't being overridden
+    // Add !important through a style object won't work, so we need to ensure
+    // the image is actually valid and applied
+    console.log(`[useTexture] ${elementType}: Final backgroundImage property:`, styles.backgroundImage?.substring(0, 80));
 
     console.log(`[useTexture] ${elementType}: FINAL STYLES ==>`, JSON.stringify(styles, null, 2));
     console.log(`[useTexture] ${elementType}: backgroundImage starts with:`, styles.backgroundImage?.substring(0, 50));

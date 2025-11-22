@@ -26,13 +26,19 @@ export function useTexture(elementType: ElementType): CSSProperties {
   } = useTextures();
 
   const textureStyles = useMemo(() => {
+    const pattern = elementPatterns[elementType];
+    
+    // Debug log to trace the flow
+    if (elementType === 'cards') {
+      console.log(`[TEXTURE DEBUG] cards: enabled=${textureEnabled}, pattern=${pattern}, hasPattern=${pattern !== null && pattern !== undefined}`);
+    }
+    
     // No textures if disabled
     if (!textureEnabled) {
       return {};
     }
 
     // Only show texture if this element has a pattern explicitly assigned
-    const pattern = elementPatterns[elementType];
     if (!pattern) {
       return {};
     }
@@ -41,7 +47,12 @@ export function useTexture(elementType: ElementType): CSSProperties {
     const textureDataURL = generateTexture(pattern as PatternName, settings);
     
     if (!textureDataURL) {
+      console.error(`[TEXTURE DEBUG] ${elementType}: generation FAILED for pattern=${pattern}`);
       return {};
+    }
+
+    if (elementType === 'cards') {
+      console.log(`[TEXTURE DEBUG] cards: SUCCESS - generated texture, opacity=${settings.opacity}, blend=${settings.blendMode}`);
     }
 
     const textureBackground = settings.colorTint

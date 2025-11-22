@@ -14,7 +14,8 @@ import { useTextures, ElementType } from '../contexts/TextureContext';
 import { getAllPatterns, PatternName, TextureOptions, generateTexture } from '../services/textureGenerator';
 import { TexturePatternGrid } from './TexturePatternPreview';
 
-const ELEMENT_TYPES: { type: ElementType; label: string; icon: string }[] = [
+const ELEMENT_TYPES: { type: ElementType | 'all'; label: string; icon: string }[] = [
+  { type: 'all', label: 'All Elements', icon: '🌐' },
   { type: 'cards', label: 'Cards', icon: '🃏' },
   { type: 'calendar', label: 'Calendar', icon: '📅' },
   { type: 'lists', label: 'Lists', icon: '📝' },
@@ -62,15 +63,11 @@ export default function TextureSettings() {
     importConfiguration,
   } = useTextures();
 
-  const [showPerElement, setShowPerElement] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showRandomSettings, setShowRandomSettings] = useState(false);
-  const [editingElement, setEditingElement] = useState<ElementType | null>(null);
+  const [editingElement, setEditingElement] = useState<ElementType | 'all' | null>(null);
 
   const allPatterns = getAllPatterns();
-
-  // Count how many elements have custom patterns
-  const customElementCount = Object.values(elementPatterns).filter(p => p !== null).length;
 
   const handleExport = useCallback(() => {
     const config = exportConfiguration();
@@ -149,46 +146,111 @@ export default function TextureSettings() {
 
         {textureEnabled && (
           <>
-            {/* SECTION 1: Global Pattern (applies to ALL elements by default) */}
+            {/* Pattern Assignment */}
             <div className="space-y-3 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-md font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
-                  <Settings className="h-4 w-4" />
-                  Default Pattern (All Elements)
-                </h3>
-                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-primary)', color: 'var(--color-text-secondary)' }}>
-                  Current: {globalPattern}
-                </span>
-              </div>
+              <h3 className="text-md font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                <Settings className="h-4 w-4" />
+                Select Elements & Patterns
+              </h3>
               
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                This pattern applies to all UI elements by default. Override specific elements below.
+                Click an element to set its texture pattern. Use "All Elements" to set a default for everything.
               </p>
-
-              <TexturePatternGrid
-                patterns={allPatterns}
-                selectedPattern={globalPattern}
-                onSelectPattern={setGlobalPattern}
-                previewOptions={globalSettings}
-              />
-
-              {/* Live Preview */}
-              <div className="mt-4">
-                <div
-                  className="h-24 rounded-lg flex items-center justify-center"
-                  style={{
-                    backgroundColor: 'var(--color-bg-primary)',
-                    backgroundImage: `url(${generateTexture(globalPattern, globalSettings)})`,
-                    backgroundSize: 'auto',
-                    backgroundRepeat: 'repeat',
-                    border: '1px solid var(--color-border-primary)',
-                  }}
-                >
-                  <p className="text-sm font-medium px-3 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
-                    Preview
-                  </p>
-                </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {ELEMENT_TYPES.map(({ type, label, icon }) => {
+                  const isAll = type === 'all';
+                  const hasCustom = !isAll && elementPatterns[type as ElementType] !== null;
+                  const currentPattern = isAll ? globalPattern : (elementPatterns[type as ElementType] || globalPattern);
+                  
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => setEditingElement(editingElement === type ? null : type)}
+                      className="p-3 rounded-lg text-center transition-all relative"
+                      style={{
+                        backgroundColor: editingElement === type ? 'var(--color-accent)' + '60' : hasCustom ? 'var(--color-accent)' + '40' : 'var(--color-bg-primary)',
+                        color: 'var(--color-text-primary)',
+                        border: `2px solid ${editingElement === type ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
+                      }}
+                    >
+                      <div className="text-2xl mb-1">{icon}</div>
+                      <div className="text-xs font-medium">{label}</div>
+                      <div className="text-xs mt-1" style={{ color: hasCustom || isAll ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
+                        {currentPattern}
+                      </div>
+                      {hasCustom && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setElementPattern(type as ElementType, null);
+                          }}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: 'var(--color-error)', color: 'white' }}
+                          title="Remove custom pattern (use default)"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
+
+              {editingElement && (
+                <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)', border: '2px solid var(--color-accent)' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      {ELEMENT_TYPES.find(e => e.type === editingElement)?.label} Pattern
+                    </h4>
+                    <button
+                      onClick={() => setEditingElement(null)}
+                      className="text-xs px-2 py-1 rounded"
+                      style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)' }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                  
+                  <TexturePatternGrid
+                    patterns={allPatterns}
+                    selectedPattern={
+                      editingElement === 'all' 
+                        ? globalPattern 
+                        : (elementPatterns[editingElement] || globalPattern)
+                    }
+                    onSelectPattern={(pattern) => {
+                      if (editingElement === 'all') {
+                        setGlobalPattern(pattern);
+                      } else {
+                        setElementPattern(editingElement, pattern);
+                      }
+                    }}
+                    previewOptions={globalSettings}
+                  />
+
+                  {/* Live Preview */}
+                  <div className="mt-4">
+                    <div
+                      className="h-24 rounded-lg flex items-center justify-center"
+                      style={{
+                        backgroundColor: 'var(--color-bg-primary)',
+                        backgroundImage: `url(${generateTexture(
+                          editingElement === 'all' ? globalPattern : (elementPatterns[editingElement] || globalPattern),
+                          globalSettings
+                        )})`,
+                        backgroundSize: 'auto',
+                        backgroundRepeat: 'repeat',
+                        border: '1px solid var(--color-border-primary)',
+                      }}
+                    >
+                      <p className="text-sm font-medium px-3 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
+                        Preview
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Global Settings Controls */}
@@ -291,99 +353,6 @@ export default function TextureSettings() {
                   ))}
                 </select>
               </div>
-            </div>
-
-            {/* SECTION 2: Per-Element Overrides */}
-            <div className="space-y-3">
-              <button
-                onClick={() => setShowPerElement(!showPerElement)}
-                className="w-full flex items-center justify-between p-4 rounded-lg transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-                  <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Override Specific Elements
-                    {customElementCount > 0 && (
-                      <span className="ml-2 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}>
-                        {customElementCount} custom
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {showPerElement ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-              </button>
-
-              {showPerElement && (
-                <div className="p-4 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    Click an element to set a custom pattern. Elements without custom patterns use the default.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                    {ELEMENT_TYPES.map(({ type, label, icon }) => {
-                      const hasCustom = elementPatterns[type] !== null;
-                      return (
-                        <button
-                          key={type}
-                          onClick={() => setEditingElement(editingElement === type ? null : type)}
-                          className="p-3 rounded-lg text-center transition-all relative"
-                          style={{
-                            backgroundColor: hasCustom ? 'var(--color-accent)' + '40' : 'var(--color-bg-primary)',
-                            color: 'var(--color-text-primary)',
-                            border: `2px solid ${editingElement === type ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
-                          }}
-                        >
-                          <div className="text-2xl mb-1">{icon}</div>
-                          <div className="text-xs font-medium">{label}</div>
-                          {hasCustom && (
-                            <>
-                              <div className="text-xs mt-1" style={{ color: 'var(--color-accent)' }}>
-                                {elementPatterns[type]}
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setElementPattern(type, null);
-                                }}
-                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                                style={{ backgroundColor: 'var(--color-error)', color: 'white' }}
-                                title="Remove custom pattern"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {editingElement && (
-                    <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)', border: '2px solid var(--color-accent)' }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                          {ELEMENT_TYPES.find(e => e.type === editingElement)?.label} Pattern
-                        </h4>
-                        <button
-                          onClick={() => setEditingElement(null)}
-                          className="text-xs px-2 py-1 rounded"
-                          style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)' }}
-                        >
-                          Done
-                        </button>
-                      </div>
-                      
-                      <TexturePatternGrid
-                        patterns={allPatterns}
-                        selectedPattern={elementPatterns[editingElement] || globalPattern}
-                        onSelectPattern={(pattern) => setElementPattern(editingElement, pattern)}
-                        previewOptions={globalSettings}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Random Pattern Rotation */}

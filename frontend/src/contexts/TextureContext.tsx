@@ -159,7 +159,6 @@ export function TextureProvider({ children }: TextureProviderProps) {
       try {
         const settings = await settingsApi.get();
         
-        // If database has texture settings, use them
         if (settings.texture_settings) {
           try {
             const parsed = JSON.parse(settings.texture_settings);
@@ -173,12 +172,11 @@ export function TextureProvider({ children }: TextureProviderProps) {
             if (parsed.randomInterval) setRandomIntervalState(parsed.randomInterval);
             if (parsed.randomPatternPool) setRandomPatternPoolState(parsed.randomPatternPool);
           } catch (error) {
-            console.error('[TextureProvider] Failed to parse texture_settings from database:', error);
+            console.error('[TextureProvider] Failed to parse texture_settings:', error);
           }
         }
       } catch (error) {
-        console.error('[TextureProvider] Failed to load settings from database:', error);
-        // Continue with localStorage values
+        console.error('[TextureProvider] Failed to load from database:', error);
       }
     };
 
@@ -204,7 +202,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
         texture_settings: JSON.stringify(textureConfig),
       });
     } catch (error) {
-      console.error('[TextureProvider] Failed to save settings to database:', error);
+      console.error('[TextureProvider] Failed to save to database:', error);
     }
   }, [
     textureEnabled,

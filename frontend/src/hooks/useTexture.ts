@@ -9,7 +9,6 @@ interface TextureStyles {
   backgroundBlendMode?: string;
   backgroundSize?: string;
   backgroundRepeat?: string;
-  position?: 'relative';
 }
 
 /**
@@ -51,7 +50,6 @@ export function useTexture(elementType: ElementType): CSSProperties {
       backgroundSize: 'auto',
       backgroundRepeat: 'repeat',
       backgroundBlendMode: settings.blendMode as any,
-      position: 'relative',
     };
   }, [textureEnabled, elementType, globalSettings, elementPatterns, elementSettings]);
 

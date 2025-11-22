@@ -187,7 +187,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
     }, intervalMs);
 
     return () => clearInterval(intervalId);
-  }, [randomEnabled, randomInterval, randomPatternPool, textureEnabled]);
+  }, [randomEnabled, randomInterval, randomPatternPool, textureEnabled, nextRandomPattern]);
 
   const toggleTexture = useCallback(() => {
     setTextureEnabled((prev) => !prev);
@@ -239,12 +239,20 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const nextRandomPattern = useCallback(() => {
-    if (randomPatternPool.length === 0) return;
-
-    const currentIndex = randomPatternPool.indexOf(globalPattern);
-    const nextIndex = (currentIndex + 1) % randomPatternPool.length;
-    setGlobalPattern(randomPatternPool[nextIndex]);
-  }, [randomPatternPool, globalPattern, setGlobalPattern]);
+    setGlobalPatternState((currentPattern) => {
+      if (randomPatternPool.length === 0) return currentPattern;
+      
+      const currentIndex = randomPatternPool.indexOf(currentPattern);
+      const nextIndex = (currentIndex + 1) % randomPatternPool.length;
+      return randomPatternPool[nextIndex];
+    });
+    
+    // Update seed for new pattern
+    setGlobalSettings((prev) => ({
+      ...prev,
+      seed: Date.now(),
+    }));
+  }, [randomPatternPool]);
 
   const getPatternForElement = useCallback(
     (element: ElementType): PatternName => {

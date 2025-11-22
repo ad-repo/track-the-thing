@@ -18,8 +18,10 @@ interface TextureStyles {
 export function useTexture(elementType: ElementType): CSSProperties {
   const {
     textureEnabled,
-    getPatternForElement,
-    getSettingsForElement,
+    globalPattern,
+    globalSettings,
+    elementPatterns,
+    elementSettings,
   } = useTextures();
 
   const textureStyles = useMemo(() => {
@@ -27,8 +29,9 @@ export function useTexture(elementType: ElementType): CSSProperties {
       return {};
     }
 
-    const pattern = getPatternForElement(elementType);
-    const settings = getSettingsForElement(elementType);
+    // Get pattern and settings for this element
+    const pattern = elementPatterns[elementType] || globalPattern;
+    const settings = elementSettings[elementType] || globalSettings;
 
     // Generate the texture
     const textureDataURL = generateTexture(pattern as PatternName, settings);
@@ -47,7 +50,7 @@ export function useTexture(elementType: ElementType): CSSProperties {
     }
 
     return styles;
-  }, [textureEnabled, elementType, getPatternForElement, getSettingsForElement]);
+  }, [textureEnabled, elementType, globalPattern, globalSettings, elementPatterns, elementSettings]);
 
   return textureStyles;
 }

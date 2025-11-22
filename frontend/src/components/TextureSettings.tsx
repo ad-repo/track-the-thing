@@ -155,12 +155,15 @@ export default function TextureSettings() {
               <button
                 onClick={() => {
                   const allSelected = selectedElements.size === ELEMENT_TYPES.length;
+                  console.log('[TEXTURE DEBUG] Select All clicked, currently selected:', selectedElements.size, 'all?', allSelected);
                   if (allSelected) {
                     // Deselect all
+                    console.log('[TEXTURE DEBUG] Deselecting all elements');
                     setSelectedElements(new Set());
                   } else {
                     // Select all
                     const allElementTypes = new Set(ELEMENT_TYPES.map(e => e.type as ElementType));
+                    console.log('[TEXTURE DEBUG] Selecting all elements:', Array.from(allElementTypes));
                     setSelectedElements(allElementTypes);
                   }
                 }}
@@ -231,12 +234,15 @@ export default function TextureSettings() {
                     <button
                       key={type}
                       onClick={() => {
+                        console.log('[TEXTURE DEBUG] Element clicked:', type, 'currently selected?', isSelected);
                         const newSelection = new Set(selectedElements);
                         // Toggle this element in/out of selection
                         if (isSelected) {
                           newSelection.delete(type);
+                          console.log('[TEXTURE DEBUG] Deselected', type);
                         } else {
                           newSelection.add(type);
+                          console.log('[TEXTURE DEBUG] Selected', type);
                         }
                         setSelectedElements(newSelection);
                       }}
@@ -286,6 +292,7 @@ export default function TextureSettings() {
                     selectedPattern={elementPatterns[Array.from(selectedElements)[0]] || globalPattern}
                     onSelectPattern={(pattern) => {
                       // Apply to all selected elements
+                      console.log('[TEXTURE DEBUG] Pattern clicked:', pattern, 'applying to', selectedElements.size, 'elements:', Array.from(selectedElements));
                       selectedElements.forEach(element => {
                         setElementPattern(element, pattern);
                       });

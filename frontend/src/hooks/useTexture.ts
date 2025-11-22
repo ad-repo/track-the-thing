@@ -31,8 +31,21 @@ export function useTexture(elementType: ElementType): CSSProperties {
       return {};
     }
 
-    // Get pattern and settings for this element
-    const pattern = elementPatterns[elementType] || globalPattern;
+    // Check if any individual elements have custom patterns
+    const hasIndividualPatterns = Object.values(elementPatterns).some(p => p !== null);
+    
+    // If individual patterns are set, only show texture if this element has one
+    // Otherwise, use the global pattern
+    let pattern: PatternName | null;
+    if (hasIndividualPatterns) {
+      pattern = elementPatterns[elementType];
+      if (!pattern) {
+        return {}; // No texture for this element
+      }
+    } else {
+      pattern = globalPattern;
+    }
+
     const settings = elementSettings[elementType] || globalSettings;
 
     // Generate the texture

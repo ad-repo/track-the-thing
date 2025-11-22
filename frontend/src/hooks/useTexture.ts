@@ -28,6 +28,7 @@ export function useTexture(elementType: ElementType): CSSProperties {
     console.log(`[useTexture] ${elementType}: enabled=${textureEnabled}, pattern=${elementPatterns[elementType] || globalPattern}`);
     
     if (!textureEnabled) {
+      console.log(`[useTexture] ${elementType}: Textures disabled, returning empty styles`);
       return {};
     }
 
@@ -37,9 +38,17 @@ export function useTexture(elementType: ElementType): CSSProperties {
 
     // Generate the texture
     const textureDataURL = generateTexture(pattern as PatternName, settings);
+    
+    console.log(`[useTexture] ${elementType}: Generated texture data URL (length: ${textureDataURL?.length || 0})`);
+    console.log(`[useTexture] ${elementType}: Opacity: ${settings.opacity}, Scale: ${settings.scale}, Density: ${settings.density}`);
+
+    if (!textureDataURL) {
+      console.error(`[useTexture] ${elementType}: Failed to generate texture data URL!`);
+      return {};
+    }
 
     const styles: TextureStyles = {
-      backgroundImage: textureDataURL ? `url(${textureDataURL})` : undefined,
+      backgroundImage: `url(${textureDataURL})`,
       backgroundBlendMode: settings.blendMode as any,
       backgroundSize: 'auto',
       backgroundRepeat: 'repeat',
@@ -47,11 +56,11 @@ export function useTexture(elementType: ElementType): CSSProperties {
     };
 
     // Apply color tint if specified
-    if (settings.colorTint && textureDataURL) {
+    if (settings.colorTint) {
       styles.backgroundImage = `linear-gradient(${settings.colorTint}, ${settings.colorTint}), url(${textureDataURL})`;
     }
 
-    console.log(`[useTexture] ${elementType}: Generated texture with pattern "${pattern}"`);
+    console.log(`[useTexture] ${elementType}: Returning styles:`, styles);
     return styles;
   }, [textureEnabled, elementType, globalPattern, globalSettings, elementPatterns, elementSettings]);
 

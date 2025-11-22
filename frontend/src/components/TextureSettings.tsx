@@ -124,7 +124,7 @@ export default function TextureSettings() {
                 Enable UI Textures
               </h3>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Master control for texture system. Select elements below to apply patterns.
+                Master control for texture system. Click elements below to toggle textures on/off.
               </p>
             </div>
             <button
@@ -147,43 +147,6 @@ export default function TextureSettings() {
             </button>
           </div>
           
-          {textureEnabled && (
-            <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--color-border-primary)' }}>
-              <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                Select All Elements
-              </span>
-              <button
-                onClick={() => {
-                  const allSelected = selectedElements.size === ELEMENT_TYPES.length;
-                  console.log('[TEXTURE DEBUG] Select All clicked, currently selected:', selectedElements.size, 'all?', allSelected);
-                  if (allSelected) {
-                    // Deselect all
-                    console.log('[TEXTURE DEBUG] Deselecting all elements');
-                    setSelectedElements(new Set());
-                  } else {
-                    // Select all
-                    const allElementTypes = new Set(ELEMENT_TYPES.map(e => e.type as ElementType));
-                    console.log('[TEXTURE DEBUG] Selecting all elements:', Array.from(allElementTypes));
-                    setSelectedElements(allElementTypes);
-                  }
-                }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-all"
-                style={{
-                  backgroundColor: selectedElements.size === ELEMENT_TYPES.length ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                  borderColor: 'var(--color-border-primary)',
-                  borderWidth: '1px',
-                }}
-              >
-                <span
-                  className="inline-block h-4 w-4 transform rounded-full transition-transform"
-                  style={{
-                    backgroundColor: 'var(--color-bg-primary)',
-                    transform: selectedElements.size === ELEMENT_TYPES.length ? 'translateX(1.5rem)' : 'translateX(0.25rem)',
-                  }}
-                />
-              </button>
-            </div>
-          )}
         </div>
 
         {textureEnabled && (
@@ -212,10 +175,7 @@ export default function TextureSettings() {
               })()}
               
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {selectedElements.size > 0
-                  ? `${selectedElements.size} element(s) selected. Apply a pattern below to add textures to them.`
-                  : 'No elements selected. Select elements and apply a pattern to show textures on them.'
-                }
+                Click any element to toggle its texture. Active elements show the current pattern. Change the pattern below.
               </p>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -225,39 +185,35 @@ export default function TextureSettings() {
                   // Element is active if textures are enabled AND it has a pattern assigned
                   const isActive = textureEnabled && hasPattern;
                   
-                  // Show the element's pattern or indicate it's inactive
-                  const currentPattern = elementPatterns[type] || 'none';
-                  
-                  const isSelected = selectedElements.has(type);
+                  // Show the element's pattern or indicate it's off
+                  const currentPattern = elementPatterns[type] || 'off';
                   
                   return (
                     <button
                       key={type}
                       onClick={() => {
-                        console.log('[TEXTURE DEBUG] Element clicked:', type, 'currently selected?', isSelected);
-                        const newSelection = new Set(selectedElements);
-                        // Toggle this element in/out of selection
-                        if (isSelected) {
-                          newSelection.delete(type);
-                          console.log('[TEXTURE DEBUG] Deselected', type);
+                        console.log('[TEXTURE DEBUG] Element clicked:', type, 'currently has pattern?', hasPattern);
+                        // Toggle pattern on/off directly
+                        if (hasPattern) {
+                          // Has pattern - remove it
+                          console.log('[TEXTURE DEBUG] Removing pattern from', type);
+                          setElementPattern(type, null);
                         } else {
-                          newSelection.add(type);
-                          console.log('[TEXTURE DEBUG] Selected', type);
+                          // No pattern - apply global pattern
+                          console.log('[TEXTURE DEBUG] Applying global pattern to', type);
+                          setElementPattern(type, globalPattern);
                         }
-                        setSelectedElements(newSelection);
                       }}
-                      title={isSelected ? 'Click to deselect' : isActive ? `Active: ${currentPattern}. Click to customize` : 'Click to select and apply pattern'}
-                      className="p-3 rounded-lg text-center transition-all relative"
+                      title={isActive ? `Active: ${currentPattern}. Click to turn off` : 'Click to turn on texture'}
+                      className="p-3 rounded-lg text-center transition-all relative hover:scale-105"
                       style={{
-                        backgroundColor: isSelected 
-                          ? 'var(--color-accent)' + '40'  // Highlight when selected for editing
+                        backgroundColor: isActive 
+                          ? 'var(--color-accent)' + '20'  // Subtle highlight when active
                           : 'var(--color-bg-primary)',
                         color: 'var(--color-text-primary)',
-                        border: isSelected 
-                          ? `3px solid var(--color-accent)`  // Thicker border when selected
-                          : isActive 
-                            ? `2px solid var(--color-accent)`  // Accent border when active
-                            : `1px solid var(--color-border-primary)`,  // Default border
+                        border: isActive 
+                          ? `2px solid var(--color-accent)`  // Accent border when active
+                          : `1px solid var(--color-border-primary)`,  // Default border
                         opacity: textureEnabled ? 1 : 0.5,  // Dim everything when textures disabled
                         cursor: 'pointer',
                       }}
@@ -272,56 +228,21 @@ export default function TextureSettings() {
                 })}
               </div>
 
-              {selectedElements.size > 0 && (
-                <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)', border: '2px solid var(--color-accent)' }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                      Pattern for {selectedElements.size} Element{selectedElements.size > 1 ? 's' : ''}
-                    </h4>
-                    <button
-                      onClick={() => setSelectedElements(new Set())}
-                      className="text-xs px-2 py-1 rounded"
-                      style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)' }}
-                    >
-                      Done
-                    </button>
-                  </div>
-                  
-                  <TexturePatternGrid
-                    patterns={allPatterns}
-                    selectedPattern={elementPatterns[Array.from(selectedElements)[0]] || globalPattern}
-                    onSelectPattern={(pattern) => {
-                      // Apply to all selected elements
-                      console.log('[TEXTURE DEBUG] Pattern clicked:', pattern, 'applying to', selectedElements.size, 'elements:', Array.from(selectedElements));
-                      selectedElements.forEach(element => {
-                        setElementPattern(element, pattern);
-                      });
-                    }}
-                    previewOptions={globalSettings}
-                  />
-
-                  {/* Live Preview */}
-                  <div className="mt-4">
-                    <div
-                      className="h-24 rounded-lg flex items-center justify-center"
-                      style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        backgroundImage: `url(${generateTexture(
-                          elementPatterns[Array.from(selectedElements)[0]] || globalPattern,
-                          globalSettings
-                        )})`,
-                        backgroundSize: 'auto',
-                        backgroundRepeat: 'repeat',
-                        border: '1px solid var(--color-border-primary)',
-                      }}
-                    >
-                      <p className="text-sm font-medium px-3 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
-                        Preview
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Global Pattern Selector */}
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
+                  Pattern (applies when you click elements)
+                </h4>
+                <TexturePatternGrid
+                  patterns={allPatterns}
+                  selectedPattern={globalPattern}
+                  onSelectPattern={(pattern) => {
+                    console.log('[TEXTURE DEBUG] Global pattern changed to:', pattern);
+                    setGlobalPattern(pattern);
+                  }}
+                  previewOptions={globalSettings}
+                />
+              </div>
             </div>
 
             {/* Global Settings Controls */}

@@ -5,8 +5,10 @@ import { ListWithEntries } from '../types';
 import { listsApi } from '../api';
 import ListColumn from './ListColumn';
 import { Plus } from 'lucide-react';
+import { useTexture } from '../hooks/useTexture';
 
 export default function Lists() {
+  const textureStyles = useTexture('lists');
   const [searchParams, setSearchParams] = useSearchParams();
   const [lists, setLists] = useState<ListWithEntries[]>([]);
   const [loading, setLoading] = useState(true);

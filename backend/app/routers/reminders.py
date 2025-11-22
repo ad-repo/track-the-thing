@@ -16,9 +16,7 @@ router = APIRouter(prefix='/api/reminders', tags=['reminders'])
 @router.get('', response_model=list[schemas.ReminderWithEntry])
 def get_reminders(include_dismissed: bool = False, db: Session = Depends(get_db)):
     """Get all reminders (excludes dismissed by default), sorted by reminder_datetime"""
-    query = db.query(models.Reminder).options(
-        joinedload(models.Reminder.entry).joinedload(models.NoteEntry.daily_note)
-    )
+    query = db.query(models.Reminder).options(joinedload(models.Reminder.entry).joinedload(models.NoteEntry.daily_note))
 
     if not include_dismissed:
         query = query.filter(models.Reminder.is_dismissed == 0)
@@ -40,7 +38,9 @@ def get_reminders(include_dismissed: bool = False, db: Session = Depends(get_db)
                 'title': reminder.entry.title,
                 'content': reminder.entry.content,
                 'content_type': reminder.entry.content_type,
-            } if reminder.entry else None,
+            }
+            if reminder.entry
+            else None,
         }
         for reminder in reminders
     ]
@@ -75,7 +75,9 @@ def get_due_reminders(db: Session = Depends(get_db)):
                 'title': reminder.entry.title,
                 'content': reminder.entry.content,
                 'content_type': reminder.entry.content_type,
-            } if reminder.entry else None,
+            }
+            if reminder.entry
+            else None,
         }
         for reminder in reminders
     ]
@@ -118,7 +120,9 @@ def get_reminder_for_entry(entry_id: int, db: Session = Depends(get_db)):
             'is_important': bool(reminder.entry.is_important),
             'is_completed': bool(reminder.entry.is_completed),
             'is_pinned': bool(reminder.entry.is_pinned),
-        } if reminder.entry else None,
+        }
+        if reminder.entry
+        else None,
     }
 
 
@@ -138,7 +142,9 @@ def create_reminder(reminder_data: schemas.ReminderCreate, db: Session = Depends
         .first()
     )
     if existing_reminder:
-        raise HTTPException(status_code=400, detail='Active reminder already exists for this entry. Use PATCH to update.')
+        raise HTTPException(
+            status_code=400, detail='Active reminder already exists for this entry. Use PATCH to update.'
+        )
 
     # Check if a dismissed reminder exists - if so, update it instead of creating new
     dismissed_reminder = (
@@ -207,7 +213,9 @@ def create_reminder(reminder_data: schemas.ReminderCreate, db: Session = Depends
             'is_important': bool(new_reminder.entry.is_important),
             'is_completed': bool(new_reminder.entry.is_completed),
             'is_pinned': bool(new_reminder.entry.is_pinned),
-        } if new_reminder.entry else None,
+        }
+        if new_reminder.entry
+        else None,
     }
 
 
@@ -258,7 +266,9 @@ def update_reminder(reminder_id: int, reminder_update: schemas.ReminderUpdate, d
             'is_important': bool(reminder.entry.is_important),
             'is_completed': bool(reminder.entry.is_completed),
             'is_pinned': bool(reminder.entry.is_pinned),
-        } if reminder.entry else None,
+        }
+        if reminder.entry
+        else None,
     }
 
 
@@ -274,4 +284,3 @@ def delete_reminder(reminder_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {'message': 'Reminder deleted', 'id': reminder_id}
-

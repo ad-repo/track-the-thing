@@ -174,7 +174,7 @@ class NoteEntry(Base):
         back_populates='entry',
         uselist=False,
         cascade='all, delete-orphan',
-        primaryjoin='and_(NoteEntry.id==Reminder.entry_id, Reminder.is_dismissed==0)'
+        primaryjoin='and_(NoteEntry.id==Reminder.entry_id, Reminder.is_dismissed==0)',
     )
 
 

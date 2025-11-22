@@ -423,15 +423,17 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                 # For now, we'll skip reminders that reference non-existent entries
                 for reminder_data in data['reminders']:
                     # Check if the entry exists
-                    entry_exists = db.query(models.NoteEntry).filter(
-                        models.NoteEntry.id == reminder_data['entry_id']
-                    ).first()
+                    entry_exists = (
+                        db.query(models.NoteEntry).filter(models.NoteEntry.id == reminder_data['entry_id']).first()
+                    )
 
                     if entry_exists:
                         # Check if reminder already exists for this entry
-                        existing_reminder = db.query(models.Reminder).filter(
-                            models.Reminder.entry_id == reminder_data['entry_id']
-                        ).first()
+                        existing_reminder = (
+                            db.query(models.Reminder)
+                            .filter(models.Reminder.entry_id == reminder_data['entry_id'])
+                            .first()
+                        )
 
                         if not existing_reminder:
                             new_reminder = models.Reminder(

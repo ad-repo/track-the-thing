@@ -348,5 +348,3 @@ class CustomEmojiResponse(CustomEmojiBase):
 
     class Config:
         from_attributes = True
-
-

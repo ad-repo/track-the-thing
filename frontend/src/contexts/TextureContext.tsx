@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { PatternName, TextureOptions, getAllPatterns } from '../services/textureGenerator';
+import { settingsApi } from '../api';
 
 export type ElementType =
   | 'cards'
@@ -144,38 +145,112 @@ export function TextureProvider({ children }: TextureProviderProps) {
     return saved ? JSON.parse(saved) : getAllPatterns();
   });
 
-  // Persist to localStorage
+  // Load settings from database on mount
+  useEffect(() => {
+    const loadFromDatabase = async () => {
+      try {
+        const settings = await settingsApi.get();
+        
+        // If database has texture settings, use them
+        if (settings.texture_settings) {
+          try {
+            const parsed = JSON.parse(settings.texture_settings);
+            
+            if (parsed.textureEnabled !== undefined) setTextureEnabled(parsed.textureEnabled);
+            if (parsed.globalPattern) setGlobalPatternState(parsed.globalPattern);
+            if (parsed.globalSettings) setGlobalSettings(parsed.globalSettings);
+            if (parsed.elementPatterns) setElementPatterns(parsed.elementPatterns);
+            if (parsed.elementSettings) setElementSettings(parsed.elementSettings);
+            if (parsed.randomEnabled !== undefined) setRandomEnabledState(parsed.randomEnabled);
+            if (parsed.randomInterval) setRandomIntervalState(parsed.randomInterval);
+            if (parsed.randomPatternPool) setRandomPatternPoolState(parsed.randomPatternPool);
+            
+            console.log('[TextureProvider] Loaded settings from database');
+          } catch (error) {
+            console.error('[TextureProvider] Failed to parse texture_settings from database:', error);
+          }
+        }
+      } catch (error) {
+        console.error('[TextureProvider] Failed to load settings from database:', error);
+        // Continue with localStorage values
+      }
+    };
+
+    loadFromDatabase();
+  }, []);
+
+  // Save to database whenever settings change
+  const saveToDatabase = useCallback(async () => {
+    try {
+      const textureConfig = {
+        textureEnabled,
+        globalPattern,
+        globalSettings,
+        elementPatterns,
+        elementSettings,
+        randomEnabled,
+        randomInterval,
+        randomPatternPool,
+      };
+
+      await settingsApi.update({
+        texture_enabled: textureEnabled,
+        texture_settings: JSON.stringify(textureConfig),
+      });
+    } catch (error) {
+      console.error('[TextureProvider] Failed to save settings to database:', error);
+    }
+  }, [
+    textureEnabled,
+    globalPattern,
+    globalSettings,
+    elementPatterns,
+    elementSettings,
+    randomEnabled,
+    randomInterval,
+    randomPatternPool,
+  ]);
+
+  // Persist to localStorage (backup) and database
   useEffect(() => {
     localStorage.setItem('texture_enabled', JSON.stringify(textureEnabled));
-  }, [textureEnabled]);
+    saveToDatabase();
+  }, [textureEnabled, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_global_pattern', JSON.stringify(globalPattern));
-  }, [globalPattern]);
+    saveToDatabase();
+  }, [globalPattern, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_global_settings', JSON.stringify(globalSettings));
-  }, [globalSettings]);
+    saveToDatabase();
+  }, [globalSettings, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_element_patterns', JSON.stringify(elementPatterns));
-  }, [elementPatterns]);
+    saveToDatabase();
+  }, [elementPatterns, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_element_settings', JSON.stringify(elementSettings));
-  }, [elementSettings]);
+    saveToDatabase();
+  }, [elementSettings, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_enabled', JSON.stringify(randomEnabled));
-  }, [randomEnabled]);
+    saveToDatabase();
+  }, [randomEnabled, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_interval', JSON.stringify(randomInterval));
-  }, [randomInterval]);
+    saveToDatabase();
+  }, [randomInterval, saveToDatabase]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_pool', JSON.stringify(randomPatternPool));
-  }, [randomPatternPool]);
+    saveToDatabase();
+  }, [randomPatternPool, saveToDatabase]);
 
   const toggleTexture = useCallback(() => {
     setTextureEnabled((prev) => !prev);

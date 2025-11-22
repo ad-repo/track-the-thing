@@ -10,6 +10,7 @@ import {
   Shuffle,
   Play,
   Pause,
+  Check,
 } from 'lucide-react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
 import { getAllPatterns, PatternName, TextureOptions, generateTexture } from '../services/textureGenerator';
@@ -68,11 +69,30 @@ export default function TextureSettings() {
   } = useTextures();
 
   const [expandedElement, setExpandedElement] = useState<ElementType | null>(null);
+  const [selectedElements, setSelectedElements] = useState<Set<ElementType>>(new Set());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showElementSettings, setShowElementSettings] = useState(false);
   const [showRandomSettings, setShowRandomSettings] = useState(false);
 
   const allPatterns = getAllPatterns();
+
+  const toggleElementSelection = (element: ElementType) => {
+    setSelectedElements(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(element)) {
+        newSet.delete(element);
+      } else {
+        newSet.add(element);
+      }
+      return newSet;
+    });
+  };
+
+  const applyToSelectedElements = (pattern: PatternName) => {
+    selectedElements.forEach(element => {
+      setElementPattern(element, pattern);
+    });
+  };
 
   const handleExport = useCallback(() => {
     const config = exportConfiguration();
@@ -424,55 +444,74 @@ export default function TextureSettings() {
               </button>
 
               {showElementSettings && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                  {ELEMENT_TYPES.map(({ type, label, icon }) => {
-                    const hasCustom = elementPatterns[type] !== null || elementSettings[type] !== null;
-                    return (
-                      <button
-                        key={type}
-                        onClick={() => setExpandedElement(expandedElement === type ? null : type)}
-                        className="p-3 rounded-lg text-center transition-all"
-                        style={{
-                          backgroundColor: hasCustom ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                          color: hasCustom ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
-                          border: `2px solid ${expandedElement === type ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
+                <>
+                  <div className="p-3 rounded-lg mb-3" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      💡 Click elements to select multiple, then choose a pattern to apply to all selected elements
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                    {ELEMENT_TYPES.map(({ type, label, icon }) => {
+                      const hasCustom = elementPatterns[type] !== null || elementSettings[type] !== null;
+                      const isSelected = selectedElements.has(type);
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => toggleElementSelection(type)}
+                          className="p-3 rounded-lg text-center transition-all relative"
+                          style={{
+                            backgroundColor: isSelected ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' + '40' : 'var(--color-bg-secondary)',
+                            color: isSelected ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                            border: `2px solid ${isSelected ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
+                            boxShadow: isSelected ? '0 0 12px rgba(var(--color-accent-rgb), 0.3)' : 'none',
+                          }}
+                        >
+                          {isSelected && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-success)' }}>
+                              <Check className="w-3 h-3" style={{ color: 'white' }} />
+                            </div>
+                          )}
+                          <div className="text-2xl mb-1">{icon}</div>
+                          <div className="text-xs font-medium">{label}</div>
+                          {hasCustom && !isSelected && <div className="text-xs mt-1">Custom</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedElements.size > 0 && (
+                    <div className="p-4 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '2px solid var(--color-accent)' }}>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                          Apply Pattern to {selectedElements.size} Selected Element{selectedElements.size > 1 ? 's' : ''}
+                        </h4>
+                        <button
+                          onClick={() => setSelectedElements(new Set())}
+                          className="text-xs px-2 py-1 rounded transition-colors"
+                          style={{
+                            backgroundColor: 'var(--color-bg-primary)',
+                            color: 'var(--color-text-secondary)',
+                          }}
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                      
+                      <TexturePatternGrid
+                        patterns={allPatterns}
+                        selectedPattern={globalPattern}
+                        onSelectPattern={(pattern) => {
+                          applyToSelectedElements(pattern);
+                          setSelectedElements(new Set());
                         }}
-                      >
-                        <div className="text-2xl mb-1">{icon}</div>
-                        <div className="text-xs font-medium">{label}</div>
-                        {hasCustom && <div className="text-xs mt-1">Custom</div>}
-                      </button>
-                    );
-                  })}
-                </div>
+                        previewOptions={globalSettings}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
-              {expandedElement && showElementSettings && (
-                <div className="p-4 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                      {ELEMENT_TYPES.find((e) => e.type === expandedElement)?.label} Settings
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setElementPattern(expandedElement, null);
-                        updateElementSettings(expandedElement, null);
-                      }}
-                      className="text-xs px-2 py-1 rounded transition-colors"
-                      style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        color: 'var(--color-text-secondary)',
-                      }}
-                    >
-                      Use Global
-                    </button>
-                  </div>
-                  {/* Pattern selection for this element would go here - simplified for space */}
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    Custom pattern support coming soon
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Advanced Options */}

@@ -42,14 +42,13 @@ export function useTexture(elementType: ElementType): CSSProperties {
       return {};
     }
 
-    // Use the background shorthand to layer texture over any existing background
-    // This ensures the texture and background color work together properly
+    // Use backgroundImage instead of background shorthand to preserve backgroundColor
     const textureBackground = settings.colorTint
       ? `linear-gradient(${settings.colorTint}, ${settings.colorTint}), url(${textureDataURL})`
       : `url(${textureDataURL})`;
 
     const styles: TextureStyles = {
-      background: textureBackground,
+      backgroundImage: textureBackground,
       backgroundSize: 'auto',
       backgroundRepeat: 'repeat',
       backgroundBlendMode: settings.blendMode as any,

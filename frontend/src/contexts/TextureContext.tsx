@@ -14,7 +14,8 @@ export type ElementType =
   | 'header'
   | 'buttons'
   | 'settings'
-  | 'reports';
+  | 'reports'
+  | 'search';
 
 interface TextureContextType {
   // Master toggle
@@ -112,6 +113,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
           buttons: null,
           settings: null,
           reports: null,
+          search: null,
         };
   });
 
@@ -132,6 +134,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
           buttons: null,
           settings: null,
           reports: null,
+          search: null,
         };
   });
 
@@ -376,6 +379,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
       buttons: null,
       settings: null,
       reports: null,
+      search: null,
     });
     setElementSettings({
       cards: null,
@@ -390,6 +394,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
       buttons: null,
       settings: null,
       reports: null,
+      search: null,
     });
     setRandomEnabledState(false);
     setRandomIntervalState(5);

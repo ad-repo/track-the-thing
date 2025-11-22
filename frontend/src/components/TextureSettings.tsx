@@ -28,6 +28,7 @@ const ELEMENT_TYPES: { type: ElementType | 'all'; label: string; icon: string }[
   { type: 'buttons', label: 'Buttons', icon: '🔘' },
   { type: 'settings', label: 'Settings', icon: '⚙️' },
   { type: 'reports', label: 'Reports', icon: '📈' },
+  { type: 'search', label: 'Search', icon: '🔍' },
 ];
 
 const BLEND_MODES = [

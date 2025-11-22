@@ -192,15 +192,10 @@ export default function TextureSettings() {
                     <button
                       key={type}
                       onClick={() => {
-                        console.log('[TEXTURE DEBUG] Element clicked:', type, 'currently has pattern?', hasPattern);
                         // Toggle pattern on/off directly
                         if (hasPattern) {
-                          // Has pattern - remove it
-                          console.log('[TEXTURE DEBUG] Removing pattern from', type);
                           setElementPattern(type, null);
                         } else {
-                          // No pattern - apply global pattern
-                          console.log('[TEXTURE DEBUG] Applying global pattern to', type);
                           setElementPattern(type, globalPattern);
                         }
                       }}
@@ -236,10 +231,7 @@ export default function TextureSettings() {
                 <TexturePatternGrid
                   patterns={allPatterns}
                   selectedPattern={globalPattern}
-                  onSelectPattern={(pattern) => {
-                    console.log('[TEXTURE DEBUG] Global pattern changed to:', pattern);
-                    setGlobalPattern(pattern);
-                  }}
+                  onSelectPattern={setGlobalPattern}
                   previewOptions={globalSettings}
                 />
               </div>

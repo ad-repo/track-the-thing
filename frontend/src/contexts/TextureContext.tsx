@@ -158,26 +158,15 @@ export function TextureProvider({ children }: TextureProviderProps) {
     const loadFromDatabase = async () => {
       try {
         const settings = await settingsApi.get();
-        console.log('[TEXTURE DEBUG] Loaded from DB:', { 
-          texture_enabled: settings.texture_enabled, 
-          texture_settings_length: settings.texture_settings?.length 
-        });
         
         if (settings.texture_settings) {
           try {
             const parsed = JSON.parse(settings.texture_settings);
-            console.log('[TEXTURE DEBUG] Parsed settings:', {
-              textureEnabled: parsed.textureEnabled,
-              elementPatterns: parsed.elementPatterns
-            });
             
             if (parsed.textureEnabled !== undefined) setTextureEnabled(parsed.textureEnabled);
             if (parsed.globalPattern) setGlobalPatternState(parsed.globalPattern);
             if (parsed.globalSettings) setGlobalSettings(parsed.globalSettings);
-            if (parsed.elementPatterns) {
-              console.log('[TEXTURE DEBUG] Setting elementPatterns to:', parsed.elementPatterns);
-              setElementPatterns(parsed.elementPatterns);
-            }
+            if (parsed.elementPatterns) setElementPatterns(parsed.elementPatterns);
             if (parsed.elementSettings) setElementSettings(parsed.elementSettings);
             if (parsed.randomEnabled !== undefined) setRandomEnabledState(parsed.randomEnabled);
             if (parsed.randomInterval) setRandomIntervalState(parsed.randomInterval);
@@ -299,17 +288,10 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const setElementPattern = useCallback((element: ElementType, pattern: PatternName | null) => {
-    console.log(`[TEXTURE DEBUG] setElementPattern called: element=${element}, pattern=${pattern}`);
-    setElementPatterns((prev) => {
-      console.log(`[TEXTURE DEBUG] Previous elementPatterns:`, prev);
-      const updated = {
-        ...prev,
-        [element]: pattern,
-      };
-      console.log(`[TEXTURE DEBUG] New elementPatterns:`, updated);
-      console.log(`[TEXTURE DEBUG] Specifically, ${element} is now:`, updated[element]);
-      return updated;
-    });
+    setElementPatterns((prev) => ({
+      ...prev,
+      [element]: pattern,
+    }));
   }, []);
 
   const updateElementSettings = useCallback(

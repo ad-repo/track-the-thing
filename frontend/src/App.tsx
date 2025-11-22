@@ -10,7 +10,6 @@ import Reports from './components/Reports';
 import Search from './components/Search';
 import { SplashScreen } from './components/SplashScreen';
 import ReminderAlert from './components/ReminderAlert';
-import TextureTest from './components/TextureTest';
 import { format, addDays } from 'date-fns';
 import { TimezoneProvider } from './contexts/TimezoneContext';
 import { useReminderPolling } from './hooks/useReminderPolling';
@@ -131,10 +130,6 @@ const AppContent = () => {
             <Route
               path="/settings"
               element={<Settings />}
-            />
-            <Route
-              path="/texture-test"
-              element={<TextureTest />}
             />
           </Routes>
         </div>

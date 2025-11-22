@@ -38,10 +38,10 @@ export type PatternName =
 
 const DEFAULT_OPTIONS: TextureOptions = {
   scale: 1.0,
-  opacity: 0.5, // Temporarily increased from 0.15 for visibility testing
-  density: 0.7, // Increased from 0.5 for more visible pattern
+  opacity: 0.2,
+  density: 0.5,
   angle: 0,
-  blendMode: 'overlay', // Changed from 'multiply' for better visibility
+  blendMode: 'multiply',
   seed: Date.now(),
 };
 

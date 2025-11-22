@@ -54,10 +54,10 @@ interface TextureContextType {
 
 const DEFAULT_SETTINGS: TextureOptions = {
   scale: 1.0,
-  opacity: 0.5, // Temporarily increased from 0.15 for visibility testing
-  density: 0.7, // Increased from 0.5 for more visible pattern
+  opacity: 0.2,
+  density: 0.5,
   angle: 0,
-  blendMode: 'overlay', // Changed from 'multiply' for better visibility
+  blendMode: 'multiply',
   seed: Date.now(),
 };
 
@@ -76,7 +76,6 @@ interface TextureProviderProps {
 }
 
 export function TextureProvider({ children }: TextureProviderProps) {
-  console.log('[TextureProvider] Component mounting - CODE VERSION 2024-11-22-v2');
   
   // Load initial state from localStorage
   const [textureEnabled, setTextureEnabled] = useState<boolean>(() => {
@@ -164,8 +163,6 @@ export function TextureProvider({ children }: TextureProviderProps) {
             if (parsed.randomEnabled !== undefined) setRandomEnabledState(parsed.randomEnabled);
             if (parsed.randomInterval) setRandomIntervalState(parsed.randomInterval);
             if (parsed.randomPatternPool) setRandomPatternPoolState(parsed.randomPatternPool);
-            
-            console.log('[TextureProvider] Loaded settings from database');
           } catch (error) {
             console.error('[TextureProvider] Failed to parse texture_settings from database:', error);
           }
@@ -193,17 +190,10 @@ export function TextureProvider({ children }: TextureProviderProps) {
         randomPatternPool,
       };
 
-      console.log('[TextureProvider] Saving to database:', {
-        texture_enabled: textureEnabled,
-        elementPatterns: Object.entries(elementPatterns).filter(([_, v]) => v !== null),
-      });
-
       await settingsApi.update({
         texture_enabled: textureEnabled,
         texture_settings: JSON.stringify(textureConfig),
       });
-      
-      console.log('[TextureProvider] Successfully saved to database');
     } catch (error) {
       console.error('[TextureProvider] Failed to save settings to database:', error);
     }
@@ -291,7 +281,6 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const setElementPattern = useCallback((element: ElementType, pattern: PatternName | null) => {
-    console.log(`[TextureProvider] Setting pattern for ${element}:`, pattern);
     setElementPatterns((prev) => ({
       ...prev,
       [element]: pattern,

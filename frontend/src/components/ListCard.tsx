@@ -31,12 +31,16 @@ const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView }: ListC
     return str.startsWith('/api/uploads/') || str.startsWith('http');
   };
 
-  // Fix all absolute API URLs in HTML content to use the actual API_URL
+  // Fix all API URLs in HTML content to use the actual API_URL
   const fixImageUrls = (html: string): string => {
     // Replace localhost:8000
     let fixed = html.replace(/http:\/\/localhost:8000/g, API_URL);
     // Replace any IP:8000 patterns (like 192.168.0.186:8000)
     fixed = fixed.replace(/http:\/\/[\d.]+:8000/g, API_URL);
+    // Fix relative URLs - replace src="/api/uploads/ with src="API_URL/api/uploads/
+    fixed = fixed.replace(/src="(\/api\/uploads\/[^"]*)"/g, `src="${API_URL}$1"`);
+    // Also fix in case of single quotes
+    fixed = fixed.replace(/src='(\/api\/uploads\/[^']*)'/g, `src='${API_URL}$1'`);
     return fixed;
   };
 

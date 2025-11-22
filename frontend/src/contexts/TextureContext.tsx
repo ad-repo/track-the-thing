@@ -12,7 +12,9 @@ export type ElementType =
   | 'panels'
   | 'sidebar'
   | 'header'
-  | 'buttons';
+  | 'buttons'
+  | 'settings'
+  | 'reports';
 
 interface TextureContextType {
   // Master toggle
@@ -108,6 +110,8 @@ export function TextureProvider({ children }: TextureProviderProps) {
           sidebar: null,
           header: null,
           buttons: null,
+          settings: null,
+          reports: null,
         };
   });
 
@@ -126,6 +130,8 @@ export function TextureProvider({ children }: TextureProviderProps) {
           sidebar: null,
           header: null,
           buttons: null,
+          settings: null,
+          reports: null,
         };
   });
 
@@ -368,6 +374,8 @@ export function TextureProvider({ children }: TextureProviderProps) {
       sidebar: null,
       header: null,
       buttons: null,
+      settings: null,
+      reports: null,
     });
     setElementSettings({
       cards: null,
@@ -380,6 +388,8 @@ export function TextureProvider({ children }: TextureProviderProps) {
       sidebar: null,
       header: null,
       buttons: null,
+      settings: null,
+      reports: null,
     });
     setRandomEnabledState(false);
     setRandomIntervalState(5);

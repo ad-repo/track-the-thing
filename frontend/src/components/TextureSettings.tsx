@@ -26,6 +26,8 @@ const ELEMENT_TYPES: { type: ElementType | 'all'; label: string; icon: string }[
   { type: 'sidebar', label: 'Sidebar', icon: '📐' },
   { type: 'header', label: 'Header', icon: '📊' },
   { type: 'buttons', label: 'Buttons', icon: '🔘' },
+  { type: 'settings', label: 'Settings', icon: '⚙️' },
+  { type: 'reports', label: 'Reports', icon: '📈' },
 ];
 
 const BLEND_MODES = [
@@ -65,7 +67,7 @@ export default function TextureSettings() {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showRandomSettings, setShowRandomSettings] = useState(false);
-  const [editingElement, setEditingElement] = useState<ElementType | 'all' | null>(null);
+  const [selectedElements, setSelectedElements] = useState<Set<ElementType | 'all'>>(new Set());
 
   const allPatterns = getAllPatterns();
 
@@ -163,15 +165,37 @@ export default function TextureSettings() {
                   const hasCustom = !isAll && elementPatterns[type as ElementType] !== null;
                   const currentPattern = isAll ? globalPattern : (elementPatterns[type as ElementType] || globalPattern);
                   
+                  const isSelected = selectedElements.has(type);
+                  
                   return (
                     <button
                       key={type}
-                      onClick={() => setEditingElement(editingElement === type ? null : type)}
+                      onClick={() => {
+                        const newSelection = new Set(selectedElements);
+                        if (type === 'all') {
+                          // Clicking "All Elements" clears other selections and selects only "all"
+                          if (isSelected) {
+                            newSelection.delete('all');
+                          } else {
+                            newSelection.clear();
+                            newSelection.add('all');
+                          }
+                        } else {
+                          // Clicking individual element: remove "all" if present, toggle this element
+                          newSelection.delete('all');
+                          if (isSelected) {
+                            newSelection.delete(type);
+                          } else {
+                            newSelection.add(type);
+                          }
+                        }
+                        setSelectedElements(newSelection);
+                      }}
                       className="p-3 rounded-lg text-center transition-all relative"
                       style={{
-                        backgroundColor: editingElement === type ? 'var(--color-accent)' + '60' : hasCustom ? 'var(--color-accent)' + '40' : 'var(--color-bg-primary)',
+                        backgroundColor: isSelected ? 'var(--color-accent)' + '60' : hasCustom ? 'var(--color-accent)' + '40' : 'var(--color-bg-primary)',
                         color: 'var(--color-text-primary)',
-                        border: `2px solid ${editingElement === type ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
+                        border: `2px solid ${isSelected ? 'var(--color-accent)' : hasCustom ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
                       }}
                     >
                       <div className="text-2xl mb-1">{icon}</div>
@@ -197,14 +221,17 @@ export default function TextureSettings() {
                 })}
               </div>
 
-              {editingElement && (
+              {selectedElements.size > 0 && (
                 <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)', border: '2px solid var(--color-accent)' }}>
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                      {ELEMENT_TYPES.find(e => e.type === editingElement)?.label} Pattern
+                      {selectedElements.has('all') 
+                        ? 'All Elements Pattern'
+                        : `Pattern for ${selectedElements.size} Element${selectedElements.size > 1 ? 's' : ''}`
+                      }
                     </h4>
                     <button
-                      onClick={() => setEditingElement(null)}
+                      onClick={() => setSelectedElements(new Set())}
                       className="text-xs px-2 py-1 rounded"
                       style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)' }}
                     >
@@ -215,15 +242,20 @@ export default function TextureSettings() {
                   <TexturePatternGrid
                     patterns={allPatterns}
                     selectedPattern={
-                      editingElement === 'all' 
+                      selectedElements.has('all') 
                         ? globalPattern 
-                        : (elementPatterns[editingElement] || globalPattern)
+                        : (Array.from(selectedElements)[0] !== 'all' ? elementPatterns[Array.from(selectedElements)[0] as ElementType] || globalPattern : globalPattern)
                     }
                     onSelectPattern={(pattern) => {
-                      if (editingElement === 'all') {
+                      if (selectedElements.has('all')) {
                         setGlobalPattern(pattern);
                       } else {
-                        setElementPattern(editingElement, pattern);
+                        // Apply to all selected elements
+                        selectedElements.forEach(element => {
+                          if (element !== 'all') {
+                            setElementPattern(element, pattern);
+                          }
+                        });
                       }
                     }}
                     previewOptions={globalSettings}
@@ -236,7 +268,9 @@ export default function TextureSettings() {
                       style={{
                         backgroundColor: 'var(--color-bg-primary)',
                         backgroundImage: `url(${generateTexture(
-                          editingElement === 'all' ? globalPattern : (elementPatterns[editingElement] || globalPattern),
+                          selectedElements.has('all') 
+                            ? globalPattern 
+                            : (Array.from(selectedElements)[0] !== 'all' ? elementPatterns[Array.from(selectedElements)[0] as ElementType] || globalPattern : globalPattern),
                           globalSettings
                         )})`,
                         backgroundSize: 'auto',

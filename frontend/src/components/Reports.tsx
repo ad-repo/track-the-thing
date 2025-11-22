@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTransparentLabels } from '../contexts/TransparentLabelsContext';
 import { formatTimestamp } from '../utils/timezone';
+import { useTexture } from '../hooks/useTexture';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -42,6 +43,7 @@ interface Week {
 }
 
 const Reports = () => {
+  const textureStyles = useTexture('reports');
   const { timezone } = useTimezone();
   const { transparentLabels } = useTransparentLabels();
   const navigate = useNavigate();
@@ -529,7 +531,7 @@ const Reports = () => {
 
       <div 
         className="rounded-lg shadow-lg p-6 mb-6"
-        style={{ backgroundColor: 'var(--color-bg-primary)' }}
+        style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}
       >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">

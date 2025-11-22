@@ -243,7 +243,7 @@ export default function Lists() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)', ...textureStyles }}>
         {/* Lists Container */}
         <div 
           ref={scrollContainerRef}

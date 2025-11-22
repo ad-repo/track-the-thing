@@ -587,7 +587,7 @@ const Settings = () => {
               <h3 className="font-medium mb-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>Display Options</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {/* Show Daily Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Daily Goals</span>
                   <button
                     onClick={() => setShowDailyGoals(!showDailyGoals)}
@@ -609,7 +609,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Sprint Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Sprint Goals</span>
                   <button
                     onClick={() => setShowSprintGoals(!showSprintGoals)}
@@ -631,7 +631,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Quarterly Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Quarterly Goals</span>
                   <button
                     onClick={() => setShowQuarterlyGoals(!showQuarterlyGoals)}
@@ -653,7 +653,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Day Labels */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Day Labels</span>
                   <button
                     onClick={() => setShowDayLabels(!showDayLabels)}

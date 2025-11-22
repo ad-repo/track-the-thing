@@ -280,6 +280,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const setGlobalPattern = useCallback((pattern: PatternName) => {
+    console.log('[TextureContext] setGlobalPattern called with:', pattern);
     setGlobalPatternState(pattern);
     // Update seed for reproducible randomness
     setGlobalSettings((prev) => ({

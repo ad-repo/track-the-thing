@@ -580,6 +580,7 @@ const DailyView = () => {
                     selectedLabels={note?.labels || []}
                     onLabelsChange={() => loadDailyNote(true)}
                   />
+                  <hr className="mt-4" style={{ borderColor: 'var(--color-border-primary)' }} />
                 </div>
               )}
               

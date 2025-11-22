@@ -2,15 +2,6 @@ import { useMemo, CSSProperties } from 'react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
 import { generateTexture, PatternName } from '../services/textureGenerator';
 
-
-interface TextureStyles {
-  background?: string;
-  backgroundImage?: string;
-  backgroundBlendMode?: string;
-  backgroundSize?: string;
-  backgroundRepeat?: string;
-}
-
 /**
  * Hook to apply textures to UI elements
  * @param elementType - The type of element (cards, calendar, etc.)
@@ -49,7 +40,6 @@ export function useTexture(elementType: ElementType): CSSProperties {
       backgroundImage: textureBackground,
       backgroundSize: 'auto',
       backgroundRepeat: 'repeat',
-      backgroundBlendMode: settings.blendMode as any,
     };
   }, [textureEnabled, elementType, globalSettings, elementPatterns, elementSettings]);
 

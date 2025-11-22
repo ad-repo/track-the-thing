@@ -8,10 +8,9 @@ import {
   Upload,
   RotateCcw,
   Shuffle,
-  X,
 } from 'lucide-react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
-import { getAllPatterns, PatternName, TextureOptions, generateTexture, getPatternDisplayName } from '../services/textureGenerator';
+import { getAllPatterns, generateTexture, getPatternDisplayName } from '../services/textureGenerator';
 import { TexturePatternGrid } from './TexturePatternPreview';
 
 const ELEMENT_TYPES: { type: ElementType; label: string; icon: string }[] = [
@@ -73,8 +72,11 @@ export default function TextureSettings() {
 
   // Generate preview texture (memoized for performance)
   const previewTextureURL = useMemo(() => {
+    console.log('[TextureSettings] Generating preview for pattern:', globalPattern);
     return generateTexture(globalPattern, globalSettings);
   }, [globalPattern, globalSettings]);
+  
+  console.log('[TextureSettings] Current globalPattern:', globalPattern);
 
   const handleExport = useCallback(() => {
     const config = exportConfiguration();
@@ -389,7 +391,7 @@ export default function TextureSettings() {
                   onChange={(e) => updateGlobalSettings({ density: parseFloat(e.target.value) })}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, var(--color-accent) ${globalSettings.density * 100}%, var(--color-border-primary) ${globalSettings.density * 100}%)`,
+                    background: `linear-gradient(to right, var(--color-accent) ${((globalSettings.density - 0.1) / 0.9) * 100}%, var(--color-border-primary) ${((globalSettings.density - 0.1) / 0.9) * 100}%)`,
                   }}
                 />
               </div>

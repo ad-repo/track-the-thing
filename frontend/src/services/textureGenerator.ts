@@ -1310,26 +1310,12 @@ export function getAllPatterns(): PatternName[] {
 export function getPatternDisplayName(pattern: PatternName): string {
   const names: Record<PatternName, string> = {
     'noise': 'Noise/Grain',
-    'dots': 'Dots',
-    'lines': 'Lines',
-    'grid': 'Grid',
-    'wood': 'Wood Grain',
-    'water': 'Water',
-    'paper': 'Paper',
-    'stone': 'Stone',
-    'rust': 'Rusted Metal',
-    'concrete': 'Broken Concrete',
-    'brushed-metal': 'Brushed Metal',
-    'carbon-fiber': 'Carbon Fiber',
-    'chain-link': 'Chain Link',
-    'diamond-plate': 'Diamond Plate',
-    'rivets': 'Rivets',
-    'corrugated': 'Corrugated Metal',
-    'cross-hatch': 'Cross-Hatch',
-    'hexagons': 'Hexagons',
-    'waves': 'Waves',
-    'perlin': 'Perlin Noise',
-    'random': 'Random',
+    'rusted-metal': 'Rusted Metal',
+    'wood-oak': 'Oak Wood',
+    'water-ocean': 'Ocean Water',
+    'water-shallow': 'Shallow Water',
+    'water-pool': 'Pool Water',
+    'water-deep': 'Deep Water',
   };
   return names[pattern] || pattern;
 }

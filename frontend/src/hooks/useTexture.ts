@@ -25,6 +25,8 @@ export function useTexture(elementType: ElementType): CSSProperties {
   } = useTextures();
 
   const textureStyles = useMemo(() => {
+    console.log(`[useTexture] ${elementType}: enabled=${textureEnabled}, pattern=${elementPatterns[elementType] || globalPattern}`);
+    
     if (!textureEnabled) {
       return {};
     }
@@ -49,6 +51,7 @@ export function useTexture(elementType: ElementType): CSSProperties {
       styles.backgroundImage = `linear-gradient(${settings.colorTint}, ${settings.colorTint}), url(${textureDataURL})`;
     }
 
+    console.log(`[useTexture] ${elementType}: Generated texture with pattern "${pattern}"`);
     return styles;
   }, [textureEnabled, elementType, globalPattern, globalSettings, elementPatterns, elementSettings]);
 

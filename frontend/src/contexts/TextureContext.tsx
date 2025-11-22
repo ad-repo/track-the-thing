@@ -218,46 +218,57 @@ export function TextureProvider({ children }: TextureProviderProps) {
     randomPatternPool,
   ]);
 
-  // Persist to localStorage (backup) and database
+  // Persist to localStorage immediately
   useEffect(() => {
     localStorage.setItem('texture_enabled', JSON.stringify(textureEnabled));
-    saveToDatabase();
-  }, [textureEnabled, saveToDatabase]);
+  }, [textureEnabled]);
 
   useEffect(() => {
     localStorage.setItem('texture_global_pattern', JSON.stringify(globalPattern));
-    saveToDatabase();
-  }, [globalPattern, saveToDatabase]);
+  }, [globalPattern]);
 
   useEffect(() => {
     localStorage.setItem('texture_global_settings', JSON.stringify(globalSettings));
-    saveToDatabase();
-  }, [globalSettings, saveToDatabase]);
+  }, [globalSettings]);
 
   useEffect(() => {
     localStorage.setItem('texture_element_patterns', JSON.stringify(elementPatterns));
-    saveToDatabase();
-  }, [elementPatterns, saveToDatabase]);
+  }, [elementPatterns]);
 
   useEffect(() => {
     localStorage.setItem('texture_element_settings', JSON.stringify(elementSettings));
-    saveToDatabase();
-  }, [elementSettings, saveToDatabase]);
+  }, [elementSettings]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_enabled', JSON.stringify(randomEnabled));
-    saveToDatabase();
-  }, [randomEnabled, saveToDatabase]);
+  }, [randomEnabled]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_interval', JSON.stringify(randomInterval));
-    saveToDatabase();
-  }, [randomInterval, saveToDatabase]);
+  }, [randomInterval]);
 
   useEffect(() => {
     localStorage.setItem('texture_random_pool', JSON.stringify(randomPatternPool));
-    saveToDatabase();
-  }, [randomPatternPool, saveToDatabase]);
+  }, [randomPatternPool]);
+
+  // Debounced save to database - only save once when settings change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveToDatabase();
+    }, 1000); // Wait 1 second after last change
+
+    return () => clearTimeout(timer);
+  }, [
+    textureEnabled,
+    globalPattern,
+    globalSettings,
+    elementPatterns,
+    elementSettings,
+    randomEnabled,
+    randomInterval,
+    randomPatternPool,
+    saveToDatabase,
+  ]);
 
   const toggleTexture = useCallback(() => {
     setTextureEnabled((prev) => !prev);

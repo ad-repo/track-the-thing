@@ -538,9 +538,24 @@ const Settings = () => {
   };
 
 
+  console.log('[Settings] Rendering. textureStyles:', textureStyles);
+  
   return (
     <div className="max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-lg shadow-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
+      <div 
+        className="rounded-lg shadow-lg p-5" 
+        style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}
+        ref={(el) => {
+          if (el) {
+            console.log('[Settings] Actual DOM styles:', {
+              backgroundImage: el.style.backgroundImage,
+              backgroundSize: el.style.backgroundSize,
+              backgroundRepeat: el.style.backgroundRepeat,
+              backgroundBlendMode: el.style.backgroundBlendMode,
+            });
+          }
+        }}
+      >
         <div className="flex items-center gap-3 mb-5">
           <SettingsIcon className="h-8 w-8" style={{ color: 'var(--color-text-secondary)' }} />
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Settings</h1>

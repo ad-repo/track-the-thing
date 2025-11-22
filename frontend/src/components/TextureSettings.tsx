@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { 
   Sparkles, 
   Settings, 
@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
-import { getAllPatterns, PatternName, TextureOptions, generateTexture } from '../services/textureGenerator';
+import { getAllPatterns, PatternName, TextureOptions, generateTexture, getPatternDisplayName } from '../services/textureGenerator';
 import { TexturePatternGrid } from './TexturePatternPreview';
 
 const ELEMENT_TYPES: { type: ElementType; label: string; icon: string }[] = [
@@ -70,6 +70,11 @@ export default function TextureSettings() {
   const [selectedElements, setSelectedElements] = useState<Set<ElementType>>(new Set());
 
   const allPatterns = getAllPatterns();
+
+  // Generate preview texture (memoized for performance)
+  const previewTextureURL = useMemo(() => {
+    return generateTexture(globalPattern, globalSettings);
+  }, [globalPattern, globalSettings]);
 
   const handleExport = useCallback(() => {
     const config = exportConfiguration();
@@ -166,8 +171,14 @@ export default function TextureSettings() {
                   <div className="mb-3 px-3 py-2 rounded" style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)' }}>
                     <p className="text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>
                       {hasIndividualPatterns 
-                        ? `Per-Element Mode: ${activeCount} element${activeCount > 1 ? 's' : ''} showing textures`
-                        : 'Global Mode: All elements showing textures'
+                        ? `Per-Element Mode: ${activeCount} element${activeCount > 1 ? 's have' : ' has'} textures`
+                        : 'Global Mode: No per-element textures assigned'
+                      }
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                      {selectedElements.size > 0
+                        ? `${selectedElements.size} element${selectedElements.size > 1 ? 's' : ''} selected - click a pattern to apply`
+                        : 'Click element buttons to select, then choose a pattern'
                       }
                     </p>
                   </div>
@@ -175,39 +186,51 @@ export default function TextureSettings() {
               })()}
               
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                Click any element to toggle its texture. Active elements show the current pattern. Change the pattern below.
+                Click elements to toggle textures on/off. Elements with a dot (•) can be updated by clicking a pattern below.
               </p>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                 {ELEMENT_TYPES.map(({ type, label, icon }) => {
                   const hasPattern = elementPatterns[type] !== null;
+                  const isSelected = selectedElements.has(type);
                   
-                  // Element is active if textures are enabled AND it has a pattern assigned
-                  const isActive = textureEnabled && hasPattern;
-                  
-                  // Show the element's pattern or indicate it's off
-                  const currentPattern = elementPatterns[type] || 'off';
+                  // Show the element's current pattern
+                  const currentPattern = elementPatterns[type];
+                  const displayText = hasPattern ? getPatternDisplayName(currentPattern!) : 'off';
                   
                   return (
                     <button
                       key={type}
                       onClick={() => {
-                        // Toggle pattern on/off directly
+                        console.log(`[TextureSettings] Clicked ${type}, hasPattern: ${hasPattern}`);
+                        // Toggle pattern on/off for this element
                         if (hasPattern) {
+                          // Turn off - remove pattern
+                          console.log(`[TextureSettings] Removing pattern from ${type}`);
                           setElementPattern(type, null);
+                          // Also remove from selection
+                          setSelectedElements((prev) => {
+                            const newSet = new Set(prev);
+                            newSet.delete(type);
+                            return newSet;
+                          });
                         } else {
+                          // Turn on - apply current global pattern
+                          console.log(`[TextureSettings] Adding pattern ${globalPattern} to ${type}`);
                           setElementPattern(type, globalPattern);
+                          // Add to selection so user can change pattern
+                          setSelectedElements((prev) => new Set(prev).add(type));
                         }
                       }}
-                      title={isActive ? `Active: ${currentPattern}. Click to turn off` : 'Click to turn on texture'}
+                      title={hasPattern ? `Click to turn off ${displayText}` : 'Click to turn on'}
                       className="p-3 rounded-lg text-center transition-all relative hover:scale-105"
                       style={{
-                        backgroundColor: isActive 
-                          ? 'var(--color-accent)' + '20'  // Subtle highlight when active
+                        backgroundColor: hasPattern
+                          ? 'var(--color-accent)' + '25'  // Highlight when has pattern
                           : 'var(--color-bg-primary)',
                         color: 'var(--color-text-primary)',
-                        border: isActive 
-                          ? `2px solid var(--color-accent)`  // Accent border when active
+                        border: hasPattern
+                          ? `2px solid var(--color-accent)`  // Accent border when has pattern
                           : `1px solid var(--color-border-primary)`,  // Default border
                         opacity: textureEnabled ? 1 : 0.5,  // Dim everything when textures disabled
                         cursor: 'pointer',
@@ -215,26 +238,65 @@ export default function TextureSettings() {
                     >
                       <div className="text-2xl mb-1">{icon}</div>
                       <div className="text-xs font-medium">{label}</div>
-                      <div className="text-xs mt-1" style={{ color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
-                        {isActive ? currentPattern : 'inactive'}
+                      <div className="text-xs mt-1 font-semibold" style={{ color: hasPattern ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}>
+                        {displayText}
                       </div>
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }} />
+                      )}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Global Pattern Selector */}
+              {/* Pattern Selector */}
               <div className="mt-4">
-                <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-primary)' }}>
-                  Pattern (applies when you click elements)
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    Select Pattern
+                  </h4>
+                  {selectedElements.size > 0 && (
+                    <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}>
+                      {selectedElements.size} element{selectedElements.size > 1 ? 's' : ''} selected
+                    </span>
+                  )}
+                </div>
                 <TexturePatternGrid
                   patterns={allPatterns}
                   selectedPattern={globalPattern}
-                  onSelectPattern={setGlobalPattern}
+                  onSelectPattern={(pattern) => {
+                    console.log(`[TextureSettings] Pattern clicked: ${pattern}, selected elements:`, selectedElements);
+                    // Update global pattern
+                    setGlobalPattern(pattern);
+                    // Apply pattern to all selected elements (those with the dot)
+                    if (selectedElements.size > 0) {
+                      console.log(`[TextureSettings] Applying ${pattern} to selected elements:`, Array.from(selectedElements));
+                      selectedElements.forEach((element) => {
+                        setElementPattern(element, pattern);
+                      });
+                    }
+                  }}
                   previewOptions={globalSettings}
                 />
               </div>
+            </div>
+
+            {/* Live Texture Preview Bar */}
+            <div className="space-y-3 p-5 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <h3 className="text-md font-semibold flex items-center gap-2 mb-3" style={{ color: 'var(--color-text-primary)' }}>
+                <Sparkles className="h-4 w-4" />
+                Current Texture Preview
+              </h3>
+              <div 
+                className="w-full h-32 rounded-lg relative overflow-hidden"
+                style={{
+                  backgroundColor: 'var(--color-bg-primary)',
+                  backgroundImage: `url(${previewTextureURL})`,
+                  backgroundSize: 'auto',
+                  backgroundRepeat: 'repeat',
+                  border: '2px solid var(--color-border-primary)',
+                }}
+              />
             </div>
 
             {/* Global Settings Controls */}

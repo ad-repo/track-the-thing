@@ -15,6 +15,7 @@ import { TimezoneProvider } from './contexts/TimezoneContext';
 import { useReminderPolling } from './hooks/useReminderPolling';
 import { remindersApi } from './api';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { TextureProvider } from './contexts/TextureContext';
 import { CustomBackgroundProvider } from './contexts/CustomBackgroundContext';
 import { TransparentLabelsProvider } from './contexts/TransparentLabelsContext';
 import { FullScreenProvider, useFullScreen } from './contexts/FullScreenContext';
@@ -156,28 +157,30 @@ function App() {
 
   return (
     <ThemeProvider>
-      <TimezoneProvider>
-        <CustomBackgroundProvider>
-          <TransparentLabelsProvider>
-            <EmojiLibraryProvider>
-              <DailyGoalsProvider>
-                <SprintGoalsProvider>
-                  <SprintNameProvider>
-                    <QuarterlyGoalsProvider>
-                      <DayLabelsProvider>
-                        <FullScreenProvider>
-                          {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-                          <AppContent />
-                        </FullScreenProvider>
-                      </DayLabelsProvider>
-                    </QuarterlyGoalsProvider>
-                  </SprintNameProvider>
-                </SprintGoalsProvider>
-              </DailyGoalsProvider>
-            </EmojiLibraryProvider>
-          </TransparentLabelsProvider>
-        </CustomBackgroundProvider>
-      </TimezoneProvider>
+      <TextureProvider>
+        <TimezoneProvider>
+          <CustomBackgroundProvider>
+            <TransparentLabelsProvider>
+              <EmojiLibraryProvider>
+                <DailyGoalsProvider>
+                  <SprintGoalsProvider>
+                    <SprintNameProvider>
+                      <QuarterlyGoalsProvider>
+                        <DayLabelsProvider>
+                          <FullScreenProvider>
+                            {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+                            <AppContent />
+                          </FullScreenProvider>
+                        </DayLabelsProvider>
+                      </QuarterlyGoalsProvider>
+                    </SprintNameProvider>
+                  </SprintGoalsProvider>
+                </DailyGoalsProvider>
+              </EmojiLibraryProvider>
+            </TransparentLabelsProvider>
+          </CustomBackgroundProvider>
+        </TimezoneProvider>
+      </TextureProvider>
     </ThemeProvider>
   );
 }

@@ -5,10 +5,8 @@ import { ListWithEntries } from '../types';
 import { listsApi } from '../api';
 import ListColumn from './ListColumn';
 import { Plus } from 'lucide-react';
-import { useTexture } from '../hooks/useTexture';
 
 export default function Lists() {
-  const textureStyles = useTexture('lists');
   const [searchParams, setSearchParams] = useSearchParams();
   const [lists, setLists] = useState<ListWithEntries[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,7 +241,7 @@ export default function Lists() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)', ...textureStyles }}>
+      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)' }}>
         {/* Lists Container */}
         <div 
           ref={scrollContainerRef}

@@ -157,16 +157,22 @@ export function TextureProvider({ children }: TextureProviderProps) {
   useEffect(() => {
     const loadFromDatabase = async () => {
       try {
+        console.log('[TextureProvider] Loading settings from database...');
         const settings = await settingsApi.get();
+        console.log('[TextureProvider] Loaded settings:', settings);
         
         if (settings.texture_settings) {
           try {
             const parsed = JSON.parse(settings.texture_settings);
+            console.log('[TextureProvider] Parsed texture settings:', parsed);
             
             if (parsed.textureEnabled !== undefined) setTextureEnabled(parsed.textureEnabled);
             if (parsed.globalPattern) setGlobalPatternState(parsed.globalPattern);
             if (parsed.globalSettings) setGlobalSettings(parsed.globalSettings);
-            if (parsed.elementPatterns) setElementPatterns(parsed.elementPatterns);
+            if (parsed.elementPatterns) {
+              console.log('[TextureProvider] Setting element patterns:', parsed.elementPatterns);
+              setElementPatterns(parsed.elementPatterns);
+            }
             if (parsed.elementSettings) setElementSettings(parsed.elementSettings);
             if (parsed.randomEnabled !== undefined) setRandomEnabledState(parsed.randomEnabled);
             if (parsed.randomInterval) setRandomIntervalState(parsed.randomInterval);
@@ -197,10 +203,12 @@ export function TextureProvider({ children }: TextureProviderProps) {
         randomPatternPool,
       };
 
+      console.log('[TextureProvider] Saving to database:', textureConfig);
       await settingsApi.update({
         texture_enabled: textureEnabled,
         texture_settings: JSON.stringify(textureConfig),
       });
+      console.log('[TextureProvider] Saved successfully');
     } catch (error) {
       console.error('[TextureProvider] Failed to save to database:', error);
     }
@@ -272,6 +280,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
   }, []);
 
   const setGlobalPattern = useCallback((pattern: PatternName) => {
+    console.log('[TextureContext] setGlobalPattern called with:', pattern);
     setGlobalPatternState(pattern);
     // Update seed for reproducible randomness
     setGlobalSettings((prev) => ({
@@ -361,7 +370,7 @@ export function TextureProvider({ children }: TextureProviderProps) {
   );
 
   const resetToDefaults = useCallback(() => {
-    setTextureEnabled(false);
+    // Keep textureEnabled state - don't disable textures when resetting
     setGlobalPatternState('noise');
     setGlobalSettings(DEFAULT_SETTINGS);
     setElementPatterns({

@@ -538,9 +538,24 @@ const Settings = () => {
   };
 
 
+  console.log('[Settings] Rendering. textureStyles:', textureStyles);
+  
   return (
     <div className="max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-lg shadow-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
+      <div 
+        className="rounded-lg shadow-lg p-5" 
+        style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}
+        ref={(el) => {
+          if (el) {
+            console.log('[Settings] Actual DOM styles:', {
+              backgroundImage: el.style.backgroundImage,
+              backgroundSize: el.style.backgroundSize,
+              backgroundRepeat: el.style.backgroundRepeat,
+              backgroundBlendMode: el.style.backgroundBlendMode,
+            });
+          }
+        }}
+      >
         <div className="flex items-center gap-3 mb-5">
           <SettingsIcon className="h-8 w-8" style={{ color: 'var(--color-text-secondary)' }} />
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Settings</h1>
@@ -572,7 +587,7 @@ const Settings = () => {
               <h3 className="font-medium mb-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>Display Options</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {/* Show Daily Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Daily Goals</span>
                   <button
                     onClick={() => setShowDailyGoals(!showDailyGoals)}
@@ -594,7 +609,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Sprint Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Sprint Goals</span>
                   <button
                     onClick={() => setShowSprintGoals(!showSprintGoals)}
@@ -616,7 +631,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Quarterly Goals */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Quarterly Goals</span>
                   <button
                     onClick={() => setShowQuarterlyGoals(!showQuarterlyGoals)}
@@ -638,7 +653,7 @@ const Settings = () => {
                 </div>
 
                 {/* Show Day Labels */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Day Labels</span>
                   <button
                     onClick={() => setShowDayLabels(!showDayLabels)}

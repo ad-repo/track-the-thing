@@ -14,6 +14,7 @@ import ReminderModal from './ReminderModal';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { formatTimestamp } from '../utils/timezone';
 import { kanbanApi, listsApi, remindersApi } from '../api';
+import { useTexture } from '../hooks/useTexture';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -45,6 +46,7 @@ interface NoteEntryCardProps {
 const NoteEntryCard = ({ entry, onUpdate, onDelete, onLabelsUpdate, onListsUpdate, onMoveToTop, isSelected = false, onSelectionChange, selectionMode = false, currentDate }: NoteEntryCardProps) => {
   const { timezone } = useTimezone();
   const navigate = useNavigate();
+  const textureStyles = useTexture('cards');
   const [title, setTitle] = useState(entry.title || '');
   const [content, setContent] = useState(entry.content);
   const [isSaving, setIsSaving] = useState(false);
@@ -496,7 +498,8 @@ const NoteEntryCard = ({ entry, onUpdate, onDelete, onLabelsUpdate, onListsUpdat
       style={{
         backgroundColor: 'var(--color-card-bg)',
         borderColor: isSelected ? 'var(--color-accent)' : 'var(--color-card-border)',
-        boxShadow: isSelected ? '0 0 0 2px var(--color-accent)' : undefined
+        boxShadow: isSelected ? '0 0 0 2px var(--color-accent)' : undefined,
+        ...textureStyles, // Moved to AFTER backgroundColor so it takes precedence
       }}
     >
       {/* Saving Indicator - Fixed Position */}

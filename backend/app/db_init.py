@@ -35,23 +35,27 @@ def ensure_database() -> Path:
 
     Base.metadata.create_all(bind=engine)
 
-    with Session(engine) as session:
-        settings = session.query(models.AppSettings).filter(models.AppSettings.id == 1).first()
-        if not settings:
-            settings = models.AppSettings(
-                id=1,
-                sprint_goals='',
-                quarterly_goals='',
-                sprint_start_date='',
-                sprint_end_date='',
-                quarterly_start_date='',
-                quarterly_end_date='',
-                emoji_library='emoji-picker-react',
-                sprint_name='Sprint',
-                daily_goal_end_time='17:00',
-            )
-            session.add(settings)
-            session.commit()
+    try:
+        with Session(engine) as session:
+            settings = session.query(models.AppSettings).filter(models.AppSettings.id == 1).first()
+            if not settings:
+                settings = models.AppSettings(
+                    id=1,
+                    sprint_goals='',
+                    quarterly_goals='',
+                    sprint_start_date='',
+                    sprint_end_date='',
+                    quarterly_start_date='',
+                    quarterly_end_date='',
+                    emoji_library='emoji-picker-react',
+                    sprint_name='Sprint',
+                    daily_goal_end_time='17:00',
+                )
+                session.add(settings)
+                session.commit()
+    except Exception as e:
+        # If querying fails (e.g. missing columns), migrations will handle it
+        print(f'Note: Could not initialize AppSettings (migrations may be needed): {e}')
 
     print(f'✓ Database ready at {db_path}')
     return db_path

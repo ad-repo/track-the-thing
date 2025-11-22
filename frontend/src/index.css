@@ -1063,3 +1063,33 @@ em-emoji-picker,
   color: var(--color-text-primary) !important;
   border-color: var(--color-border-primary) !important;
 }
+
+/* Texture system animations */
+@keyframes scale-in {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+/* Smooth fade for texture transitions */
+@keyframes texture-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.texture-fade {
+  animation: texture-fade 0.3s ease-in;
+}

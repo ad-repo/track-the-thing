@@ -2,8 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { Calendar, Settings, FileText, Search, BookOpen, Columns, Trello } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useTimezone } from '../contexts/TimezoneContext';
+import { useTexture } from '../hooks/useTexture';
 
 const Navigation = () => {
+  const textureStyles = useTexture('navigation');
   const location = useLocation();
   const { timezone } = useTimezone();
   const now = new Date();
@@ -11,7 +13,7 @@ const Navigation = () => {
   const dayName = formatInTimeZone(now, timezone, 'EEEE'); // Full day name like "Monday"
 
   return (
-    <nav className="shadow-sm" style={{ backgroundColor: 'var(--color-card-bg)', borderBottom: '1px solid var(--color-border-primary)' }}>
+    <nav className="shadow-sm" style={{ backgroundColor: 'var(--color-card-bg)', borderBottom: '1px solid var(--color-border-primary)', ...textureStyles }}>
       <div className="container mx-auto px-2 sm:px-4 max-w-7xl">
         <div className="flex items-center justify-center gap-4 h-14 sm:h-16">
           <Link 

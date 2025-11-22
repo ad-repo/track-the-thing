@@ -71,6 +71,8 @@ export interface AppSettings {
   emoji_library: string;
   sprint_name: string;
   daily_goal_end_time: string;
+  texture_enabled: boolean;
+  texture_settings: string;
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +87,8 @@ export interface AppSettingsUpdate {
   emoji_library?: string;
   sprint_name?: string;
   daily_goal_end_time?: string;
+  texture_enabled?: boolean;
+  texture_settings?: string;
 }
 
 export interface Goal {

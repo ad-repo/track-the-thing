@@ -214,6 +214,18 @@ A modern, powerful daily workspace application for capturing and organizing your
 - **Tile or Cover**: Choose between tiled pattern or centered/covered background
 - **Unified Toggle Styles**: Consistent toggle button design across all settings
 - **Theme Variables**: CSS custom properties for consistent styling
+- **UI Textures**: Add subtle texture patterns to UI elements
+  - **20+ Texture Patterns**: Basic (noise, dots, lines, grid), Natural (wood, water, paper, stone), Industrial (rust, concrete, brushed metal, carbon fiber, chain link, diamond plate, rivets, corrugated), Geometric (cross-hatch, hexagons, waves, perlin)
+  - **Fine-Grained Controls**: Adjust opacity (0-100%), scale (0.5-2x), density (10-100%), rotation (0-360°)
+  - **Blend Modes**: 12 blend modes for different visual effects (normal, multiply, screen, overlay, etc.)
+  - **Per-Element Settings**: Apply different textures to cards, calendar, lists, kanban, modals, navigation, panels, sidebar, header, and buttons
+  - **Random Pattern Rotation**: Automatically cycle through patterns with configurable intervals (1-60 minutes)
+  - **Live Preview**: Real-time preview of texture settings before applying
+  - **Export/Import**: Save and share texture configurations
+  - **Smooth Animations**: Polished transitions and hover effects
+  - **Independent System**: Works alongside themes and background images without interference
+  - **Canvas-Based Generation**: Efficient texture rendering with caching
+  - **localStorage Persistence**: Settings saved locally and synced via backup/restore
 
 ## 🛠️ Tech Stack
 

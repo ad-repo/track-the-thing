@@ -6,6 +6,7 @@ import { Star, Check, Bell, X, Clock } from 'lucide-react';
 import { notesApi, goalsApi, remindersApi } from '../api';
 import type { DailyNote, Goal, Reminder } from '../types';
 import { useSprintName } from '../contexts/SprintNameContext';
+import { useTexture } from '../hooks/useTexture';
 import 'react-calendar/dist/Calendar.css';
 
 interface CalendarViewProps {
@@ -17,6 +18,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { sprintName } = useSprintName();
+  const textureStyles = useTexture('calendar');
   const [notes, setNotes] = useState<DailyNote[]>([]);
   const [sprintGoals, setSprintGoals] = useState<Goal[]>([]);
   const [quarterlyGoals, setQuarterlyGoals] = useState<Goal[]>([]);
@@ -275,7 +277,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
 
   return (
     <div className="max-w-5xl mx-auto page-fade-in px-4" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+      <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
         <h1 className="text-3xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>🗓️ Calendar View</h1>
         
         <div style={{ minHeight: '400px' }}>

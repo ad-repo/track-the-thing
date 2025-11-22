@@ -14,12 +14,14 @@ import { useSprintGoals } from '../contexts/SprintGoalsContext';
 import { useSprintName } from '../contexts/SprintNameContext';
 import { useQuarterlyGoals } from '../contexts/QuarterlyGoalsContext';
 import { useDayLabels } from '../contexts/DayLabelsContext';
+import { useTexture } from '../hooks/useTexture';
 
 const DailyView = () => {
   const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isFullScreen } = useFullScreen();
+  const textureStyles = useTexture('header');
   const { showDailyGoals } = useDailyGoals();
   const { showSprintGoals } = useSprintGoals();
   const { sprintName } = useSprintName();
@@ -509,7 +511,7 @@ const DailyView = () => {
       {/* Header */}
       <div 
         className="rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8"
-        style={{ backgroundColor: 'var(--color-card-bg)' }}
+        style={{ backgroundColor: 'var(--color-card-bg)', ...textureStyles }}
       >
         <div className="flex items-center justify-between mb-4">
           <button

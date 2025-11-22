@@ -161,7 +161,7 @@ class NoteEntry(NoteEntryBase):
     is_important: bool = False
     is_completed: bool = False
     is_pinned: bool = False
-    reminder: 'ReminderResponse | None' = None
+    reminder: ReminderResponse | None = None
 
     class Config:
         from_attributes = True
@@ -269,6 +269,8 @@ class AppSettingsUpdate(BaseModel):
     emoji_library: str | None = None
     sprint_name: str | None = None
     daily_goal_end_time: str | None = None
+    texture_enabled: bool | None = None
+    texture_settings: str | None = None
 
 
 class AppSettingsResponse(BaseModel):
@@ -282,6 +284,8 @@ class AppSettingsResponse(BaseModel):
     emoji_library: str = 'emoji-picker-react'
     sprint_name: str = 'Sprint'
     daily_goal_end_time: str = '17:00'
+    texture_enabled: bool = False
+    texture_settings: str = '{}'
     created_at: str
     updated_at: str
 
@@ -344,5 +348,3 @@ class CustomEmojiResponse(CustomEmojiBase):
 
     class Config:
         from_attributes = True
-
-

@@ -6,6 +6,7 @@ import AddEntryToListModal from './AddEntryToListModal';
 import CreateEntryModal from './CreateEntryModal';
 import { listsApi } from '../api';
 import LabelSelector from './LabelSelector';
+import { useTexture } from '../hooks/useTexture';
 
 interface ListColumnProps {
   list: List;
@@ -19,6 +20,7 @@ interface ListColumnProps {
 }
 
 const ListColumn = ({ list, entries, onUpdate, onDelete, onDragStart, onDragEnd, isDragging, isKanbanView }: ListColumnProps) => {
+  const textureStyles = useTexture(isKanbanView ? 'kanban' : 'lists');
   const [isDragOver, setIsDragOver] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -125,6 +127,7 @@ const ListColumn = ({ list, entries, onUpdate, onDelete, onDragStart, onDragEnd,
         data-testid={`list-column-${list.id}`}
         className="flex-shrink-0 w-96 rounded-xl shadow-lg flex flex-col transition-all"
         style={{
+          ...textureStyles,
           backgroundColor: isDragOver ? `${list.color}15` : 'var(--color-card-bg)',
           border: isDragOver ? `3px dashed ${list.color}` : '1px solid var(--color-border)',
           boxShadow: isDragOver 

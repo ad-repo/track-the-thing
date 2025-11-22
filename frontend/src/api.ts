@@ -21,6 +21,7 @@ import type {
   ReminderCreate,
   ReminderUpdate,
   AppSettings,
+  AppSettingsUpdate,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -304,6 +305,11 @@ export const remindersApi = {
 export const settingsApi = {
   get: async (): Promise<AppSettings> => {
     const response = await api.get<AppSettings>('/api/settings');
+    return response.data;
+  },
+
+  update: async (settings: AppSettingsUpdate): Promise<AppSettings> => {
+    const response = await api.patch<AppSettings>('/api/settings', settings);
     return response.data;
   },
 };

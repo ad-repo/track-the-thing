@@ -87,6 +87,8 @@ async def export_data(db: Session = Depends(get_db)):
             'quarterly_start_date': app_settings.quarterly_start_date if app_settings else '',
             'quarterly_end_date': app_settings.quarterly_end_date if app_settings else '',
             'emoji_library': app_settings.emoji_library if app_settings else 'emoji-picker-react',
+            'texture_enabled': bool(app_settings.texture_enabled) if app_settings else False,
+            'texture_settings': app_settings.texture_settings if app_settings else '{}',
             'created_at': app_settings.created_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
             'updated_at': app_settings.updated_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
         },
@@ -413,7 +415,7 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         stats['custom_emojis_skipped'] += 1
 
             # Import reminders if present
-            # Note: Reminders are imported after all entries are created, 
+            # Note: Reminders are imported after all entries are created,
             # so entry_id references will be valid
             if 'reminders' in data:
                 # First, we need to create a mapping from old entry IDs to new entry IDs
@@ -421,15 +423,17 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                 # For now, we'll skip reminders that reference non-existent entries
                 for reminder_data in data['reminders']:
                     # Check if the entry exists
-                    entry_exists = db.query(models.NoteEntry).filter(
-                        models.NoteEntry.id == reminder_data['entry_id']
-                    ).first()
+                    entry_exists = (
+                        db.query(models.NoteEntry).filter(models.NoteEntry.id == reminder_data['entry_id']).first()
+                    )
 
                     if entry_exists:
                         # Check if reminder already exists for this entry
-                        existing_reminder = db.query(models.Reminder).filter(
-                            models.Reminder.entry_id == reminder_data['entry_id']
-                        ).first()
+                        existing_reminder = (
+                            db.query(models.Reminder)
+                            .filter(models.Reminder.entry_id == reminder_data['entry_id'])
+                            .first()
+                        )
 
                         if not existing_reminder:
                             new_reminder = models.Reminder(
@@ -462,6 +466,8 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                     existing_settings.quarterly_start_date = settings_data.get('quarterly_start_date', '')
                     existing_settings.quarterly_end_date = settings_data.get('quarterly_end_date', '')
                     existing_settings.emoji_library = settings_data.get('emoji_library', 'emoji-picker-react')
+                    existing_settings.texture_enabled = 1 if settings_data.get('texture_enabled', False) else 0
+                    existing_settings.texture_settings = settings_data.get('texture_settings', '{}')
                 else:
                     new_settings = models.AppSettings(
                         id=1,
@@ -472,6 +478,8 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         quarterly_start_date=settings_data.get('quarterly_start_date', ''),
                         quarterly_end_date=settings_data.get('quarterly_end_date', ''),
                         emoji_library=settings_data.get('emoji_library', 'emoji-picker-react'),
+                        texture_enabled=1 if settings_data.get('texture_enabled', False) else 0,
+                        texture_settings=settings_data.get('texture_settings', '{}'),
                         created_at=datetime.fromisoformat(settings_data['created_at'])
                         if 'created_at' in settings_data
                         else datetime.utcnow(),

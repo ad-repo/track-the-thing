@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, and_
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -92,6 +92,8 @@ class AppSettings(Base):
     emoji_library = Column(String, default='emoji-picker-react')  # Emoji picker library preference
     sprint_name = Column(String, default='Sprint')  # Custom name for sprint goals
     daily_goal_end_time = Column(String, default='17:00')  # End time for daily goal countdown (HH:MM format)
+    texture_enabled = Column(Integer, default=0)  # UI texture system enabled (0/1 as boolean)
+    texture_settings = Column(Text, default='{}')  # JSON string for texture configuration
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -168,11 +170,11 @@ class NoteEntry(Base):
     labels = relationship('Label', secondary=entry_labels, back_populates='entries')
     lists = relationship('List', secondary=entry_lists, back_populates='entries')
     reminder = relationship(
-        'Reminder', 
-        back_populates='entry', 
-        uselist=False, 
+        'Reminder',
+        back_populates='entry',
+        uselist=False,
         cascade='all, delete-orphan',
-        primaryjoin='and_(NoteEntry.id==Reminder.entry_id, Reminder.is_dismissed==0)'
+        primaryjoin='and_(NoteEntry.id==Reminder.entry_id, Reminder.is_dismissed==0)',
     )
 
 

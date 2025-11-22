@@ -14,6 +14,8 @@ import { useSprintName } from '../contexts/SprintNameContext';
 import CustomThemeCreator from './CustomThemeCreator';
 import CustomBackgroundSettings from './CustomBackgroundSettings';
 import CustomEmojiManager from './CustomEmojiManager';
+import TextureSettings from './TextureSettings';
+import { useTexture } from '../hooks/useTexture';
 
 interface Label {
   id: number;
@@ -92,6 +94,7 @@ const ConfirmationDialog = ({
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const Settings = () => {
+  const textureStyles = useTexture('settings');
   const [isImporting, setIsImporting] = useState(false);
   const [isDownloadingFiles, setIsDownloadingFiles] = useState(false);
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
@@ -537,7 +540,7 @@ const Settings = () => {
 
   return (
     <div className="max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-lg shadow-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+      <div className="rounded-lg shadow-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
         <div className="flex items-center gap-3 mb-5">
           <SettingsIcon className="h-8 w-8" style={{ color: 'var(--color-text-secondary)' }} />
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Settings</h1>
@@ -920,6 +923,9 @@ const Settings = () => {
           onDelete={handleDeleteCustomBgImage}
           isUploading={isUploadingCustomBgImage}
         />
+
+        {/* UI Textures Section */}
+        <TextureSettings />
 
         {/* Label Management Section */}
         <section className="mb-6">

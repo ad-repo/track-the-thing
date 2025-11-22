@@ -6,6 +6,7 @@ import type { NoteEntry, Label, List } from '../types';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTransparentLabels } from '../contexts/TransparentLabelsContext';
 import { formatTimestamp } from '../utils/timezone';
+import { useTexture } from '../hooks/useTexture';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -15,6 +16,7 @@ interface SearchHistoryItem {
 }
 
 const Search = () => {
+  const textureStyles = useTexture('search');
   const { timezone } = useTimezone();
   const { transparentLabels } = useTransparentLabels();
   const [searchQuery, setSearchQuery] = useState('');
@@ -176,7 +178,7 @@ const Search = () => {
 
   return (
     <div className="max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-lg shadow-lg p-6 mb-6" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+      <div className="rounded-lg shadow-lg p-6 mb-6" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
         <div className="flex items-center gap-3 mb-6">
           <SearchIcon className="h-8 w-8" style={{ color: 'var(--color-text-secondary)' }} />
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Search</h1>

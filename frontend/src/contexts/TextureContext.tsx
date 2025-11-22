@@ -175,20 +175,6 @@ export function TextureProvider({ children }: TextureProviderProps) {
     localStorage.setItem('texture_random_pool', JSON.stringify(randomPatternPool));
   }, [randomPatternPool]);
 
-  // Random pattern rotation
-  useEffect(() => {
-    if (!randomEnabled || !textureEnabled || randomPatternPool.length === 0) {
-      return;
-    }
-
-    const intervalMs = randomInterval * 60 * 1000;
-    const intervalId = setInterval(() => {
-      nextRandomPattern();
-    }, intervalMs);
-
-    return () => clearInterval(intervalId);
-  }, [randomEnabled, randomInterval, randomPatternPool, textureEnabled, nextRandomPattern]);
-
   const toggleTexture = useCallback(() => {
     setTextureEnabled((prev) => !prev);
   }, []);
@@ -253,6 +239,20 @@ export function TextureProvider({ children }: TextureProviderProps) {
       seed: Date.now(),
     }));
   }, [randomPatternPool]);
+
+  // Random pattern rotation - placed after nextRandomPattern is defined
+  useEffect(() => {
+    if (!randomEnabled || !textureEnabled || randomPatternPool.length === 0) {
+      return;
+    }
+
+    const intervalMs = randomInterval * 60 * 1000;
+    const intervalId = setInterval(() => {
+      nextRandomPattern();
+    }, intervalMs);
+
+    return () => clearInterval(intervalId);
+  }, [randomEnabled, randomInterval, randomPatternPool, textureEnabled, nextRandomPattern]);
 
   const getPatternForElement = useCallback(
     (element: ElementType): PatternName => {

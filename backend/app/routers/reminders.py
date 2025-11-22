@@ -5,7 +5,7 @@ API routes for reminder management
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
@@ -139,7 +139,7 @@ def create_reminder(reminder_data: schemas.ReminderCreate, db: Session = Depends
     )
     if existing_reminder:
         raise HTTPException(status_code=400, detail='Active reminder already exists for this entry. Use PATCH to update.')
-    
+
     # Check if a dismissed reminder exists - if so, update it instead of creating new
     dismissed_reminder = (
         db.query(models.Reminder)
@@ -147,14 +147,14 @@ def create_reminder(reminder_data: schemas.ReminderCreate, db: Session = Depends
         .filter(models.Reminder.is_dismissed == 1)
         .first()
     )
-    
+
     if dismissed_reminder:
         # Reactivate the dismissed reminder with new datetime
         dismissed_reminder.reminder_datetime = reminder_data.reminder_datetime
         dismissed_reminder.is_dismissed = 0
         dismissed_reminder.updated_at = datetime.utcnow()
         db.commit()
-        
+
         # Load relationships
         new_reminder = (
             db.query(models.Reminder)
@@ -171,11 +171,11 @@ def create_reminder(reminder_data: schemas.ReminderCreate, db: Session = Depends
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
-        
+
         db.add(new_reminder)
         db.commit()
         db.refresh(new_reminder)
-        
+
         # Load entry and daily_note relationships
         new_reminder = (
             db.query(models.Reminder)

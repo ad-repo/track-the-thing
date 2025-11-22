@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, and_
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -170,9 +170,9 @@ class NoteEntry(Base):
     labels = relationship('Label', secondary=entry_labels, back_populates='entries')
     lists = relationship('List', secondary=entry_lists, back_populates='entries')
     reminder = relationship(
-        'Reminder', 
-        back_populates='entry', 
-        uselist=False, 
+        'Reminder',
+        back_populates='entry',
+        uselist=False,
         cascade='all, delete-orphan',
         primaryjoin='and_(NoteEntry.id==Reminder.entry_id, Reminder.is_dismissed==0)'
     )

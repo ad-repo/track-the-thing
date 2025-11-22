@@ -415,7 +415,7 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         stats['custom_emojis_skipped'] += 1
 
             # Import reminders if present
-            # Note: Reminders are imported after all entries are created, 
+            # Note: Reminders are imported after all entries are created,
             # so entry_id references will be valid
             if 'reminders' in data:
                 # First, we need to create a mapping from old entry IDs to new entry IDs

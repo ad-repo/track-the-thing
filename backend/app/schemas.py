@@ -161,7 +161,7 @@ class NoteEntry(NoteEntryBase):
     is_important: bool = False
     is_completed: bool = False
     is_pinned: bool = False
-    reminder: 'ReminderResponse | None' = None
+    reminder: ReminderResponse | None = None
 
     class Config:
         from_attributes = True

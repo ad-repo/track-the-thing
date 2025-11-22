@@ -277,7 +277,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
 
   return (
     <div className="max-w-5xl mx-auto page-fade-in px-4" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="rounded-xl shadow-xl p-6" style={{ ...textureStyles, backgroundColor: 'var(--color-bg-primary)' }}>
+      <div className="rounded-xl shadow-xl p-6" style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}>
         <h1 className="text-3xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>🗓️ Calendar View</h1>
         
         <div style={{ minHeight: '400px' }}>

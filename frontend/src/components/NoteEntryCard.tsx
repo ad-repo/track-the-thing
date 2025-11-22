@@ -492,14 +492,19 @@ const NoteEntryCard = ({ entry, onUpdate, onDelete, onLabelsUpdate, onListsUpdat
     }
   };
 
+  // Debug: Log texture styles to verify they're being passed
+  if (textureStyles && Object.keys(textureStyles).length > 0) {
+    console.log('[NoteEntryCard] Applying texture styles:', textureStyles);
+  }
+
   return (
     <div 
       className={`rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl ${isSelected ? 'ring-2' : ''} relative`}
       style={{
-        ...textureStyles,
         backgroundColor: 'var(--color-card-bg)',
         borderColor: isSelected ? 'var(--color-accent)' : 'var(--color-card-border)',
-        boxShadow: isSelected ? '0 0 0 2px var(--color-accent)' : undefined
+        boxShadow: isSelected ? '0 0 0 2px var(--color-accent)' : undefined,
+        ...textureStyles, // Moved to AFTER backgroundColor so it takes precedence
       }}
     >
       {/* Saving Indicator - Fixed Position */}

@@ -511,7 +511,7 @@ const DailyView = () => {
       {/* Header */}
       <div 
         className="rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8"
-        style={{ ...textureStyles, backgroundColor: 'var(--color-card-bg)' }}
+        style={{ backgroundColor: 'var(--color-card-bg)', ...textureStyles }}
       >
         <div className="flex items-center justify-between mb-4">
           <button

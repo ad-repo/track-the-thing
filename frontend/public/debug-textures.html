@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Texture Debug Inspector</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        pre { background: #2a2a2a; padding: 10px; overflow: auto; max-height: 400px; }
+        .warning { color: #ff6b6b; }
+        .success { color: #4CAF50; }
+    </style>
+</head>
+<body>
+    <h1>Texture DOM Inspector</h1>
+    <button onclick="inspectTextures()">Inspect Texture Elements</button>
+    <div id="output"></div>
+
+    <script>
+        function inspectTextures() {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+            
+            // Find all elements with position: relative (from texture styles)
+            const allElements = document.querySelectorAll('*');
+            let foundElements = [];
+            
+            allElements.forEach(el => {
+                const styles = window.getComputedStyle(el);
+                const bgImage = styles.backgroundImage;
+                
+                if (bgImage && bgImage.includes('data:image')) {
+                    foundElements.push({
+                        element: el,
+                        tag: el.tagName,
+                        classes: el.className,
+                        bgImage: bgImage.substring(0, 100) + '...',
+                        bgSize: styles.backgroundSize,
+                        bgRepeat: styles.backgroundRepeat,
+                        bgBlendMode: styles.backgroundBlendMode,
+                        bgColor: styles.backgroundColor,
+                        opacity: styles.opacity,
+                        position: styles.position,
+                        zIndex: styles.zIndex
+                    });
+                }
+            });
+            
+            if (foundElements.length === 0) {
+                output.innerHTML = '<p class="warning">❌ NO ELEMENTS FOUND WITH DATA URL BACKGROUNDS!</p>';
+                output.innerHTML += '<p>This means the texture styles are NOT being applied to the DOM.</p>';
+            } else {
+                output.innerHTML = `<p class="success">✅ Found ${foundElements.length} elements with texture backgrounds!</p>`;
+                foundElements.forEach((item, i) => {
+                    output.innerHTML += `
+                        <hr>
+                        <h3>Element ${i + 1}: ${item.tag}</h3>
+                        <pre>
+Classes: ${item.classes}
+Background Image: ${item.bgImage}
+Background Size: ${item.bgSize}
+Background Repeat: ${item.bgRepeat}
+Background Blend Mode: ${item.bgBlendMode}
+Background Color: ${item.bgColor}
+Opacity: ${item.opacity}
+Position: ${item.position}
+Z-Index: ${item.zIndex}
+                        </pre>
+                    `;
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+

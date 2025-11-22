@@ -4,8 +4,10 @@ import { ListWithEntries } from '../types';
 import { kanbanApi, listsApi } from '../api';
 import ListColumn from './ListColumn';
 import { Plus } from 'lucide-react';
+import { useTexture } from '../hooks/useTexture';
 
 export default function Kanban() {
+  const textureStyles = useTexture('kanban');
   const [boards, setBoards] = useState<ListWithEntries[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +199,7 @@ export default function Kanban() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)', ...textureStyles }}>
         {/* Kanban Board Container */}
         <div 
           ref={scrollContainerRef}

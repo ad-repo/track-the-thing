@@ -836,7 +836,7 @@ const Reports = () => {
       {/* Selected Entries Report Section */}
       <div 
         className="rounded-lg shadow-lg p-6 mt-6"
-        style={{ backgroundColor: 'var(--color-bg-primary)' }}
+        style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}
       >
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">

@@ -6,9 +6,9 @@
 ## Critical: CI Compliance
 
 ### Before Every Commit
-1. Run the local CI test script
+1. Run the local CI test script unless the user says not to
 2. Verify exit code is 0 (all checks pass)
-3. Only commit if all checks pass
+3. Only commit if all checks pass or the user tells me to
 
 ### When CI Fails
 - **DO NOT GUESS** - Look at actual CI error logs
@@ -18,6 +18,7 @@
 - Only push if local checks pass
 
 ### Enforcement
+- User overridde always takes presedence 
 - Never push code without verifying it passes all checks locally
 - Never run different commands than what CI runs
 - Multiple CI failures due to not testing locally is unacceptable

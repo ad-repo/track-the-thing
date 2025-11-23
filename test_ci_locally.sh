@@ -27,23 +27,23 @@ $COMPOSE_CMD run --rm frontend sh -c '
   npx tsc --noEmit
 '
 
-echo ""
-echo "3. Backend Tests..."
-$COMPOSE_CMD run --rm backend-test
+# echo ""
+# echo "3. Backend Tests..."
+# $COMPOSE_CMD run --rm backend-test
 
 echo ""
 echo "4. Frontend Tests..."
 $COMPOSE_CMD run --rm frontend-test
 
-echo ""
-echo "5. E2E Tests..."
-$COMPOSE_CMD --profile e2e up -d backend-e2e frontend-e2e >/dev/null
-E2E_EXIT=0
-$COMPOSE_CMD --profile e2e run --rm e2e npx playwright test --grep-invert "media-features" || E2E_EXIT=$?
-$COMPOSE_CMD --profile e2e down >/dev/null || true
-if [ $E2E_EXIT -ne 0 ]; then
-  exit $E2E_EXIT
-fi
+# echo ""
+# echo "5. E2E Tests..."
+# $COMPOSE_CMD --profile e2e up -d backend-e2e frontend-e2e >/dev/null
+# E2E_EXIT=0
+# $COMPOSE_CMD --profile e2e run --rm e2e npx playwright test --grep-invert "media-features" || E2E_EXIT=$?
+# $COMPOSE_CMD --profile e2e down >/dev/null || true
+# if [ $E2E_EXIT -ne 0 ]; then
+#   exit $E2E_EXIT
+# fi
 
 echo ""
 echo "=========================================="

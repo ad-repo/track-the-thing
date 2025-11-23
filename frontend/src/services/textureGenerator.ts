@@ -1308,7 +1308,7 @@ export function getAllPatterns(): PatternName[] {
  * Get pattern display name
  */
 export function getPatternDisplayName(pattern: PatternName): string {
-  const names: Record<PatternName, string> = {
+  const names: Partial<Record<PatternName, string>> = {
     'noise': 'Noise/Grain',
     'rusted-metal': 'Rusted Metal',
     'wood-oak': 'Oak Wood',

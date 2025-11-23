@@ -41,9 +41,22 @@ interface NoteEntryCardProps {
   onSelectionChange?: (id: number, selected: boolean) => void;
   selectionMode?: boolean;
   currentDate?: string; // YYYY-MM-DD format
+  onTitleUpdate?: (id: number, title: string) => void;
 }
 
-const NoteEntryCard = ({ entry, onUpdate, onDelete, onLabelsUpdate, onListsUpdate, onMoveToTop, isSelected = false, onSelectionChange, selectionMode = false, currentDate }: NoteEntryCardProps) => {
+const NoteEntryCard = ({
+  entry,
+  onUpdate,
+  onDelete,
+  onLabelsUpdate,
+  onListsUpdate,
+  onMoveToTop,
+  isSelected = false,
+  onSelectionChange,
+  selectionMode = false,
+  currentDate,
+  onTitleUpdate,
+}: NoteEntryCardProps) => {
   const { timezone } = useTimezone();
   const navigate = useNavigate();
   const textureStyles = useTexture('cards');
@@ -157,6 +170,8 @@ const NoteEntryCard = ({ entry, onUpdate, onDelete, onLabelsUpdate, onListsUpdat
 
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
+    onTitleUpdate?.(entry.id, newTitle);
+    onTitleUpdate?.(entry.id, newTitle);
     setIsSaving(true);
 
     // Debounce the save

@@ -114,6 +114,12 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
     }
   };
 
+  const handleTitleUpdate = (entryId: number, title: string) => {
+    if (entryRef.current) {
+      setEntryState({ ...entryRef.current, title });
+    }
+  };
+
   const handleListsUpdate = () => {
     onSuccess();
   };
@@ -186,6 +192,7 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
               onUpdate={handleEntryUpdate}
               onDelete={handleEntryDelete}
               onLabelsUpdate={handleLabelsUpdate}
+              onTitleUpdate={handleTitleUpdate}
               onListsUpdate={handleListsUpdate}
               selectionMode={false}
               isSelected={false}

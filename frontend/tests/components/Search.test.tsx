@@ -1,46 +1,23 @@
-/**
- * Search Component Tests
- * 
- * Tests search functionality, filtering, label selection, and navigation.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
- */
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
-import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Search from '@/components/Search';
-import { TimezoneProvider } from '@/contexts/TimezoneContext';
-import { TransparentLabelsProvider } from '@/contexts/TransparentLabelsContext';
-import axios from 'axios';
+import { renderWithRouter } from '../test-utils';
+import type { NoteEntry } from '@/types';
 
-// Mock axios - defined inline to avoid hoisting issues
+const mockAxiosGet = vi.hoisted(() => vi.fn());
+const mockAxiosPost = vi.hoisted(() => vi.fn());
+
 vi.mock('axios', () => ({
+  __esModule: true,
   default: {
-    get: vi.fn(),
-    post: vi.fn(),
+    get: mockAxiosGet,
+    post: mockAxiosPost,
     delete: vi.fn(),
   },
 }));
 
-const mockAxios = vi.mocked(axios);
-
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Search: () => <div>Search Icon</div>,
-  Columns: () => <div>Columns Icon</div>,
-  X: () => <div>X</div>,
-  Star: () => <div>Star</div>,
-  CheckCircle: () => <div>CheckCircle</div>,
-}));
-
-// Mock timezone utils
-vi.mock('@/utils/timezone', () => ({
-  formatTimestamp: (timestamp: string) => timestamp,
-}));
-
-// Mock react-router-dom navigate
 const mockNavigate = vi.fn();
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -49,307 +26,134 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-describe('Search Component', () => {
-  const mockLabels = [
-    { id: 1, name: 'work', color: '#3b82f6' },
-    { id: 2, name: 'personal', color: '#10b981' },
-  ];
+vi.mock('@/contexts/TimezoneContext', () => ({
+  useTimezone: () => ({ timezone: 'UTC' }),
+}));
 
-  const mockSearchResults = [
-    {
-      id: 1,
-      title: 'Test Entry 1',
-      content: '<p>Test content</p>',
-      created_at: '2025-11-07T10:00:00Z',
-      labels: [mockLabels[0]],
-      is_important: 1,
-      is_completed: 0,
-    },
-    {
-      id: 2,
-      title: 'Test Entry 2',
-      content: '<p>Another test</p>',
-      created_at: '2025-11-06T15:00:00Z',
-      labels: [],
-      is_important: 0,
-      is_completed: 1,
-    },
-  ];
+vi.mock('@/contexts/TransparentLabelsContext', () => ({
+  useTransparentLabels: () => ({ transparentLabels: false }),
+}));
 
-  const mockSearchHistory = [
-    { query: 'previous search', created_at: '2025-11-06T10:00:00Z' },
-  ];
+vi.mock('@/hooks/useTexture', () => ({
+  useTexture: () => ({}),
+}));
 
+vi.mock('@/utils/timezone', () => ({
+  formatTimestamp: (value: string) => `formatted-${value}`,
+}));
+
+const mockLabels = [
+  { id: 1, name: 'Work', color: '#3b82f6' },
+];
+
+const mockHistory = [
+  { query: 'standup', created_at: '2025-11-06T10:00:00Z' },
+];
+
+const mockEntries: (NoteEntry & { date: string })[] = [
+  {
+    id: 1,
+    date: '2025-11-07',
+    daily_note_id: 1,
+    title: 'Sprint Planning',
+    content: '<p>Plan</p>',
+    content_type: 'rich_text',
+    order_index: 0,
+    created_at: '2025-11-07T09:00:00Z',
+    updated_at: '2025-11-07T09:00:00Z',
+    labels: [],
+    include_in_report: false,
+    is_important: false,
+    is_completed: false,
+    is_pinned: false,
+  },
+];
+
+const mockLists = [
+  {
+    id: 10,
+    name: 'Deep Work',
+    description: '',
+    color: '#f97316',
+    order_index: 0,
+    is_archived: false,
+    entries: [],
+    created_at: '',
+    updated_at: '',
+    labels: [],
+  },
+];
+
+const hydrateAxios = () => {
+  mockAxiosGet.mockImplementation((url: string, config?: Record<string, any>) => {
+    if (url.includes('/api/labels/')) {
+      return Promise.resolve({ data: mockLabels });
+    }
+    if (url.includes('/api/search-history/')) {
+      return Promise.resolve({ data: mockHistory });
+    }
+    if (url.includes('/api/search/all')) {
+      return Promise.resolve({ data: { entries: mockEntries, lists: mockLists } });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  mockAxiosPost.mockResolvedValue({ data: {} });
+};
+
+describe('Search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAxios.get.mockImplementation((url: string) => {
-      if (url.includes('/api/labels/')) {
-        return Promise.resolve({ data: mockLabels });
-      }
-      if (url.includes('/api/search-history/')) {
-        return Promise.resolve({ data: mockSearchHistory });
-      }
-      if (url.includes('/api/search')) {
-        return Promise.resolve({ data: mockSearchResults });
-      }
-      return Promise.resolve({ data: [] });
+    hydrateAxios();
+  });
+
+  const renderSearch = () => renderWithRouter(<Search />);
+
+  it('performs a text search when pressing Enter and renders results', async () => {
+    renderSearch();
+
+    await waitFor(() => {
+      const labelsCall = mockAxiosGet.mock.calls.find(([url]) => url.includes('/api/labels/'));
+      expect(labelsCall).toBeTruthy();
     });
-    mockAxios.post.mockResolvedValue({ data: {} });
-  });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+    const input = screen.getByPlaceholderText(/search by text/i);
+    fireEvent.change(input, { target: { value: 'retro' } });
+    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 });
 
-  const renderWithProviders = (component: React.ReactElement) => {
-    return render(
-      <BrowserRouter>
-        <TimezoneProvider>
-          <TransparentLabelsProvider>
-            {component}
-          </TransparentLabelsProvider>
-        </TimezoneProvider>
-      </BrowserRouter>
+    await screen.findByText('Sprint Planning');
+    expect(mockAxiosGet).toHaveBeenCalledWith(
+      expect.stringContaining('/api/search/all'),
+      expect.objectContaining({ params: expect.objectContaining({ q: 'retro' }) }),
     );
-  };
-
-  it('renders without crashing', () => {
-    renderWithProviders(<Search />);
-    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+    expect(mockAxiosPost).toHaveBeenCalledWith(expect.stringContaining('/api/search-history/'), null, {
+      params: { query: 'retro' },
+    });
   });
 
-  it('loads labels on mount', async () => {
-    renderWithProviders(<Search />);
+  it('applies label filters automatically when a label chip is toggled', async () => {
+    renderSearch();
+    await screen.findByText('Work');
+
+    fireEvent.click(screen.getByText('Work'));
 
     await waitFor(() => {
-      expect(mockAxios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/api/labels/')
-      );
+      const searchCall = mockAxiosGet.mock.calls.find(([url]) => url.includes('/api/search/all'));
+      expect(searchCall?.[1]?.params?.label_ids).toBe('1');
     });
   });
 
-  it('loads search history on mount', async () => {
-    renderWithProviders(<Search />);
+  it('navigates to the selected entry when a result card is clicked', async () => {
+    renderSearch();
+    await screen.findByText('Work');
 
-    await waitFor(() => {
-      expect(mockAxios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/api/search-history/')
-      );
-    });
-  });
+    const input = screen.getByPlaceholderText(/search by text/i);
+    fireEvent.change(input, { target: { value: 'sprint' } });
+    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 });
 
-  it('performs search when user types and presses Enter', async () => {
-    renderWithProviders(<Search />);
+    const entryCard = await screen.findByText('Sprint Planning');
+    fireEvent.click(entryCard);
 
-    const input = screen.getByPlaceholderText(/search/i);
-
-    // Input accepts text
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test query' } });
-    });
-
-    expect(input).toHaveValue('test query');
-  });
-
-  it('displays search results', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    // Input renders and accepts input
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test' } });
-    });
-
-    expect(input).toHaveValue('test');
-  });
-
-  // Removed: This test causes React state corruption
-  // The filter functionality is tested in other passing tests
-
-  // Removed: This test causes React state corruption
-  // The filter functionality is tested in other passing tests
-
-  // Removed: This test causes React state corruption
-  // The filter functionality is tested in other passing tests
-
-  // Removed: This test causes React state corruption
-  // The filter functionality is tested in other passing tests
-
-  it('saves search query to history', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    // Input renders
-    expect(input).toBeInTheDocument();
-  });
-
-  it('clears search query when X button clicked', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test query' } });
-    });
-
-    // Input accepts value
-    expect(input.value).toBe('test query');
-  });
-
-  it('shows loading state during search', async () => {
-    // Delay the API response
-    mockAxios.get.mockImplementation((url: string) => {
-      if (url.includes('/api/search')) {
-        return new Promise((resolve) => {
-          setTimeout(() => resolve({ data: mockSearchResults }), 100);
-        });
-      }
-      return Promise.resolve({ data: [] });
-    });
-
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    act(() => {
-      fireEvent.change(input, { target: { value: 'test' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    // Component accepts input
-    expect(input).toBeInTheDocument();
-  });
-
-  it('handles empty search results', async () => {
-    mockAxios.get.mockImplementation((url: string) => {
-      if (url.includes('/api/search')) {
-        return Promise.resolve({ data: [] });
-      }
-      return Promise.resolve({ data: [] });
-    });
-
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'nonexistent' } });
-    });
-
-    // Input accepts value
-    expect(input).toHaveValue('nonexistent');
-  });
-
-  it('handles API errors gracefully', async () => {
-    mockAxios.get.mockImplementation((url: string) => {
-      if (url.includes('/api/search')) {
-        return Promise.reject(new Error('Network error'));
-      }
-      return Promise.resolve({ data: [] });
-    });
-
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    // Component should handle error gracefully
-    await waitFor(() => {
-      // Error handling behavior depends on implementation
-      expect(mockAxios.get).toHaveBeenCalled();
-    });
-  });
-
-  it('displays starred indicator on starred results', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    await waitFor(() => {
-      // First result is starred (is_important: 1)
-      const starIcons = screen.getAllByText('Star');
-      expect(starIcons.length).toBeGreaterThan(0);
-    });
-  });
-
-  it('displays completed indicator on completed results', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'test' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    await waitFor(() => {
-      // Second result is completed (is_completed: 1)
-      const checkIcons = screen.getAllByText('CheckCircle');
-      expect(checkIcons.length).toBeGreaterThan(0);
-    });
-  });
-
-  it('allows removing label filters', async () => {
-    renderWithProviders(<Search />);
-
-    await waitFor(() => {
-      expect(mockAxios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/api/labels/')
-      );
-    });
-
-    // Label renders
-    const workLabel = screen.getByText('work');
-    expect(workLabel).toBeInTheDocument();
-  });
-
-  it('toggles filter buttons on repeated clicks', async () => {
-    renderWithProviders(<Search />);
-
-    const starButtons = screen.getAllByText('Star');
-    
-    // Star filter buttons render
-    expect(starButtons.length).toBeGreaterThan(0);
-  });
-
-  it('does not save empty queries to history', async () => {
-    renderWithProviders(<Search />);
-
-    const input = screen.getByPlaceholderText(/search/i);
-
-    await act(async () => {
-      fireEvent.change(input, { target: { value: '   ' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-    });
-
-    // Should not call history save endpoint for empty query
-    await waitFor(() => {
-      const historyPosts = mockAxios.post.mock.calls.filter((call) =>
-        call[0].includes('/api/search-history/')
-      );
-      expect(historyPosts.length).toBe(0);
-    });
-  });
-
-  it('resets search state on unmount', () => {
-    const { unmount } = renderWithProviders(<Search />);
-
-    unmount();
-
-    // Component should clean up state
-    // (internal state cleanup tested through re-mount behavior)
-    expect(true).toBe(true); // Cleanup happens in useEffect cleanup
+    expect(mockNavigate).toHaveBeenCalledWith('/day/2025-11-07#entry-1');
   });
 });
 

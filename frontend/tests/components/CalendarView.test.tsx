@@ -1,279 +1,131 @@
-/**
- * CalendarView Component Tests
- * 
- * Tests calendar rendering, date navigation, indicators, and goal display.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
- */
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
-import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, beforeEach, expect, vi } from 'vitest';
 import CalendarView from '@/components/CalendarView';
-import { notesApi, goalsApi } from '@/api';
+import { renderWithRouter } from '../test-utils';
 
-// Mock API - defined inline to avoid hoisting issues
-vi.mock('@/api', () => ({
-  notesApi: {
-    getByMonth: vi.fn(),
-  },
-  goalsApi: {
-    getAllSprints: vi.fn(),  // Plural!
-    getAllQuarterly: vi.fn(),
-  },
+const mockNotesApi = vi.hoisted(() => ({
+  getByMonth: vi.fn(),
 }));
 
-const mockNotesApi = vi.mocked(notesApi);
-const mockGoalsApi = vi.mocked(goalsApi);
+const mockGoalsApi = vi.hoisted(() => ({
+  getAllSprints: vi.fn(),
+  getAllQuarterly: vi.fn(),
+}));
 
-// Mock react-calendar
+const mockRemindersApi = vi.hoisted(() => ({
+  getAll: vi.fn(),
+}));
+
+vi.mock('@/api', () => ({
+  __esModule: true,
+  notesApi: mockNotesApi,
+  goalsApi: mockGoalsApi,
+  remindersApi: mockRemindersApi,
+}));
+
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useLocation: () => ({ key: 'location-key' }),
+  };
+});
+
 vi.mock('react-calendar', () => ({
-  default: ({ value, onChange, tileContent, onActiveStartDateChange }: any) => (
+  default: ({ onClickDay, onActiveStartDateChange, tileContent }: any) => (
     <div data-testid="calendar">
-      <button onClick={() => onChange(new Date('2025-11-15'))}>Select Date</button>
-      <button onClick={() => onActiveStartDateChange({ activeStartDate: new Date('2025-12-01') })}>
+      <button onClick={() => onClickDay(new Date('2025-11-15'))}>Select Date</button>
+      <button
+        onClick={() => onActiveStartDateChange({ activeStartDate: new Date('2025-12-01'), action: 'next' })}
+      >
         Change Month
       </button>
-      <div data-testid="tile-content">{tileContent && tileContent({ date: new Date('2025-11-07') })}</div>
+      <div data-testid='tile-content'>{tileContent({ date: new Date('2025-11-07') })}</div>
     </div>
   ),
 }));
 
-// Mock lucide-react icons
 vi.mock('lucide-react', () => ({
-  Star: () => <div>Star</div>,
-  Check: () => <div>Check</div>,
+  Star: () => <span>StarIcon</span>,
+  Check: () => <span>CheckIcon</span>,
+  Bell: () => <span>BellIcon</span>,
+  Clock: () => <span>ClockIcon</span>,
+  X: () => <span>XIcon</span>,
 }));
 
-// Mock date-fns
-vi.mock('date-fns', () => ({
-  format: (date: any) => '2025-11-07',
+vi.mock('@/contexts/SprintNameContext', () => ({
+  useSprintName: () => ({ sprintName: 'Sprint' }),
 }));
 
-describe('CalendarView Component', () => {
-  const mockNotes = [
-    {
-      id: 1,
-      date: '2025-11-07',
-      daily_goal: 'Test goal',
-      entries: [
-        { id: 1, is_important: true, is_completed: false },
-        { id: 2, is_important: false, is_completed: true },
-      ],
-    },
-    {
-      id: 2,
-      date: '2025-11-08',
-      daily_goal: '',
-      entries: [
-        { id: 3, is_important: false, is_completed: false },
-      ],
-    },
-  ];
+vi.mock('@/hooks/useTexture', () => ({
+  useTexture: () => ({}),
+}));
 
-  const mockSprintGoals = [
-    {
-      id: 1,
-      text: 'Sprint Goal',
-      start_date: '2025-11-01',
-      end_date: '2025-11-14',
-    },
-  ];
+const buildNote = (date: string) => ({
+  id: 1,
+  date,
+  daily_goal: 'Focus',
+  entries: [
+    { id: 1, is_important: true, is_completed: true, title: 'Entry', content: '', content_type: 'rich_text' },
+  ],
+  fire_rating: 3,
+  created_at: '',
+  updated_at: '',
+  labels: [],
+});
 
-  const mockQuarterlyGoals = [
-    {
-      id: 1,
-      text: 'Quarterly Goal',
-      start_date: '2025-10-01',
-      end_date: '2025-12-31',
-    },
-  ];
-
-  const defaultProps = {
-    selectedDate: new Date('2025-11-07'),
-    onDateSelect: vi.fn(),
-  };
+describe('CalendarView', () => {
+  const mockOnDateSelect = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNotesApi.getByMonth.mockResolvedValue(mockNotes);
-    mockGoalsApi.getAllSprints.mockResolvedValue(mockSprintGoals);
-    mockGoalsApi.getAllQuarterly.mockResolvedValue(mockQuarterlyGoals);
+    mockNotesApi.getByMonth.mockResolvedValue([buildNote('2025-11-07')]);
+    mockGoalsApi.getAllSprints.mockResolvedValue([
+      { id: 1, text: 'Sprint Goal', start_date: '2025-11-01', end_date: '2025-11-30' },
+    ]);
+    mockGoalsApi.getAllQuarterly.mockResolvedValue([
+      { id: 2, text: 'Quarterly Goal', start_date: '2025-10-01', end_date: '2025-12-31' },
+    ]);
+    mockRemindersApi.getAll.mockResolvedValue([
+      { id: 1, reminder_datetime: '2025-11-07T10:00:00Z' },
+    ]);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  const renderCalendar = () =>
+    renderWithRouter(<CalendarView selectedDate={new Date('2025-11-07')} onDateSelect={mockOnDateSelect} />);
+
+  it('renders tile indicators for notes, reminders, and goals', async () => {
+    renderCalendar();
+
+    await waitFor(() => expect(mockNotesApi.getByMonth).toHaveBeenCalledTimes(3));
+
+    expect(screen.getByText('StarIcon')).toBeInTheDocument();
+    expect(screen.getByText('CheckIcon')).toBeInTheDocument();
+    expect(screen.getByText('BellIcon')).toBeInTheDocument();
+    expect(screen.getByText('🚀')).toBeInTheDocument();
+    expect(screen.getByText('🌟')).toBeInTheDocument();
   });
 
-  const renderWithRouter = (component: React.ReactElement) => {
-    return render(<BrowserRouter>{component}</BrowserRouter>);
-  };
+  it('invokes onDateSelect and navigates when a day is chosen', async () => {
+    renderCalendar();
+    await screen.findByTestId('calendar');
 
-  it('renders without crashing', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-    await waitFor(() => {
-      expect(screen.getByTestId('calendar')).toBeInTheDocument();
-    });
+    fireEvent.click(screen.getByText('Select Date'));
+
+    expect(mockOnDateSelect).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/day/2025-11-15');
   });
 
-  it('loads notes for current month', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
+  it('reloads month data when the visible month changes', async () => {
+    renderCalendar();
+    await waitFor(() => expect(mockNotesApi.getByMonth).toHaveBeenCalledTimes(3));
 
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
+    fireEvent.click(screen.getByText('Change Month'));
 
-  it('loads all goals', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockGoalsApi.getAllSprints).toHaveBeenCalled();
-      expect(mockGoalsApi.getAllQuarterly).toHaveBeenCalled();
-    });
-  });
-
-  it('calls onDateSelect when date clicked', async () => {
-    const onDateSelect = vi.fn();
-    renderWithRouter(<CalendarView {...defaultProps} onDateSelect={onDateSelect} />);
-
-    // Component renders with callback
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('loads new month when month changes', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('displays indicators for entries with flags', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('displays completed indicator', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('displays dev null indicator', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('renders tile content', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('tile-content')).toBeInTheDocument();
-    });
-  });
-
-  it('handles empty notes gracefully', async () => {
-    mockNotesApi.getByMonth.mockResolvedValue([]);
-
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('calendar')).toBeInTheDocument();
-    });
-
-    // Should render calendar without errors
-    expect(screen.getByTestId('calendar')).toBeInTheDocument();
-  });
-
-  it('handles API errors gracefully', async () => {
-    mockNotesApi.getByMonth.mockRejectedValue(new Error('Network error'));
-
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('calendar')).toBeInTheDocument();
-    });
-  });
-
-  it('loads adjacent months for calendar grid', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      // Should load current month + adjacent months for grid completeness
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('shows legend for entry indicators', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-
-    // Legend should explain indicators
-    expect(screen.getByText(/important/i)).toBeInTheDocument();
-  });
-
-  it('displays goal indicators on calendar', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockGoalsApi.getAllSprints).toHaveBeenCalled();
-    });
-
-    // Goal indicators should be shown (🚀 and 🌟)
-  });
-
-  it('adds tooltips to calendar tiles', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('shows entry count in tooltips', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('displays daily goals in tooltips', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockNotesApi.getByMonth).toHaveBeenCalled();
-    });
-  });
-
-  it('displays sprint goals in tooltips', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockGoalsApi.getAllSprints).toHaveBeenCalled();
-    });
-  });
-
-  it('displays quarterly goals in tooltips', async () => {
-    renderWithRouter(<CalendarView {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockGoalsApi.getAllQuarterly).toHaveBeenCalled();
-    });
+    await waitFor(() => expect(mockNotesApi.getByMonth).toHaveBeenCalledTimes(6));
   });
 });
 

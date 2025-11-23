@@ -11,40 +11,56 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
 import React from 'react';
 import RichTextEditor from '@/components/RichTextEditor';
+import { fetchLinkPreview } from '@/extensions/LinkPreview';
+import * as TipTapReact from '@tiptap/react';
 
 // Mock @tiptap/react
+const createChainApi = () => {
+  const api: any = {
+    run: vi.fn(() => api),
+    focus: vi.fn(() => api),
+    setLink: vi.fn(() => api),
+    unsetLink: vi.fn(() => api),
+    insertContent: vi.fn(() => api),
+    setTextSelection: vi.fn(() => api),
+    extendMarkRange: vi.fn(() => api),
+  };
+
+  return api;
+};
+
+const chainApi = createChainApi();
+
+const resolvedPos = {
+  parent: { type: { name: 'paragraph' }, content: { size: 0 } },
+  depth: 0,
+  before: () => 0,
+  node: () => ({ type: { name: 'paragraph' } }),
+};
+
+const editorMock: any = {
+  chain: vi.fn(() => chainApi),
+  isActive: vi.fn(() => false),
+  getAttributes: vi.fn(() => ({})),
+  getHTML: vi.fn(() => '<p>Test content</p>'),
+  getText: vi.fn(() => ''),
+  can: vi.fn(() => ({ undo: () => true, redo: () => true })),
+  destroy: vi.fn(),
+  on: vi.fn(),
+  off: vi.fn(),
+  state: {
+    selection: { from: 0, to: 0, empty: true, $from: resolvedPos },
+    schema: { marks: {} },
+  },
+};
+
 vi.mock('@tiptap/react', () => ({
-  useEditor: vi.fn(() => ({
-    commands: {
-      setContent: vi.fn(),
-      toggleBold: vi.fn(),
-      toggleItalic: vi.fn(),
-      toggleStrikethrough: vi.fn(),
-      toggleCode: vi.fn(),
-      toggleHeading: vi.fn(),
-      toggleBulletList: vi.fn(),
-      toggleOrderedList: vi.fn(),
-      toggleTaskList: vi.fn(),
-      toggleBlockquote: vi.fn(),
-      setLink: vi.fn(),
-      unsetLink: vi.fn(),
-      setImage: vi.fn(),
-      setCodeBlock: vi.fn(),
-      setColor: vi.fn(),
-      setFontFamily: vi.fn(),
-      undo: vi.fn(),
-      redo: vi.fn(),
-      insertContent: vi.fn(),
-    },
-    isActive: vi.fn(() => false),
-    getHTML: vi.fn(() => '<p>Test content</p>'),
-    getAttributes: vi.fn(() => ({})),
-    can: vi.fn(() => ({ undo: () => true, redo: () => true })),
-    destroy: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
+  useEditor: vi.fn(() => editorMock),
   EditorContent: ({ editor }: any) => <div data-testid="editor-content">Editor</div>,
+  __TEST__: {
+    editorMock,
+    chainApi,
+  },
 }));
 
 // Mock useSpeechRecognition hook
@@ -108,6 +124,8 @@ vi.mock('@/extensions/LinkPreview', () => ({
     title: 'Test Title',
     description: 'Test Description',
     image: 'test.jpg',
+    site_name: 'example.com',
+    url: 'https://example.com',
   }),
 }));
 
@@ -119,6 +137,20 @@ describe('RichTextEditor Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    chainApi.focus.mockClear();
+    chainApi.setLink.mockClear();
+    chainApi.unsetLink.mockClear();
+    chainApi.insertContent.mockClear();
+    chainApi.setTextSelection.mockClear();
+    chainApi.extendMarkRange.mockClear();
+    chainApi.run.mockClear();
+
+    Object.assign(editorMock.state, {
+      selection: { from: 1, to: 3, empty: false, $from: resolvedPos },
+      schema: { marks: {} },
+    });
+    editorMock.isActive.mockReturnValue(false);
+    editorMock.getAttributes.mockReturnValue({});
   });
 
   afterEach(() => {
@@ -245,24 +277,43 @@ describe('RichTextEditor Component', () => {
     expect(container).toBeInTheDocument();
   });
 
-  it('handles link insertion', async () => {
-    const { container } = render(<RichTextEditor {...defaultProps} />);
-    
-    // Component renders without crashing
-    expect(container).toBeInTheDocument();
+  it('opens modal and inserts normalized link', async () => {
+    render(<RichTextEditor {...defaultProps} />);
+
+    const linkButton = screen.getByText('Link');
+    fireEvent.mouseDown(linkButton);
+
+    const input = screen.getByPlaceholderText('https://example.com');
+    fireEvent.change(input, { target: { value: 'example.com/path' } });
+
+    const submit = screen.getByText('Add Link');
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(chainApi.setLink).toHaveBeenCalledWith({ href: 'https://example.com/path' });
+    });
   });
 
-  it('handles image upload', async () => {
+  it('inserts link preview through modal', async () => {
     render(<RichTextEditor {...defaultProps} />);
-    
-    const imageButton = screen.getByText('Image');
-    
-    await act(async () => {
-      fireEvent.click(imageButton);
+
+    const previewButton = screen.getByText('ExternalLink');
+    fireEvent.mouseDown(previewButton);
+
+    const input = screen.getByPlaceholderText('https://example.com');
+    fireEvent.change(input, { target: { value: 'https://preview.test/article' } });
+
+    fireEvent.click(screen.getByText('Insert Preview'));
+
+    await waitFor(() => {
+      expect(fetchLinkPreview).toHaveBeenCalledWith('https://preview.test/article');
     });
 
-    // Image upload UI should appear
-    // (exact behavior depends on implementation)
+    expect(chainApi.insertContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'linkPreview',
+      }),
+    );
   });
 
   it('renders font size selector', () => {

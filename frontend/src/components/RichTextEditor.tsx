@@ -1,5 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, FormEvent } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -11,7 +11,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontFamily from '@tiptap/extension-font-family';
 import { createLowlight, common } from 'lowlight';
-import { Node } from '@tiptap/core';
+import { Node, getMarkRange } from '@tiptap/core';
 import {
   Bold,
   Italic,
@@ -126,6 +126,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const [showJsonFormatted, setShowJsonFormatted] = useState(false);
   const [originalContent, setOriginalContent] = useState<string>('');
   const [yamlError, setYamlError] = useState<string | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkInputValue, setLinkInputValue] = useState('');
+  const [linkModalError, setLinkModalError] = useState<string | null>(null);
+  const [editingExistingLink, setEditingExistingLink] = useState(false);
+  const [linkModalMode, setLinkModalMode] = useState<'link' | 'preview'>('link');
+  const linkSelectionRef = useRef<{ from: number; to: number } | null>(null);
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -135,6 +141,9 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const supportsMediaDevices = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
   const canUseMediaCapture = supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile);
   const showMediaButtons = supportsMediaDevices;
+  const isPreviewMode = linkModalMode === 'preview';
+  const linkModalTitle = isPreviewMode ? 'Add Link Preview' : editingExistingLink ? 'Edit Link' : 'Add Link';
+  const linkModalSubmitLabel = isPreviewMode ? 'Insert Preview' : editingExistingLink ? 'Update Link' : 'Add Link';
   
   const editor = useEditor({
     extensions: [
@@ -662,11 +671,111 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     editor.chain().focus().toggleCodeBlock().run();
   };
 
+  const normalizeLinkUrl = (value: string) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const tryUrl = (candidate: string) => {
+      try {
+        const url = new URL(candidate);
+        if (url.protocol === 'http:' || url.protocol === 'https:') {
+          return url.toString();
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    return tryUrl(trimmed) ?? tryUrl(`https://${trimmed}`);
+  };
+
   const addLink = () => {
-    const url = window.prompt('Enter URL:');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
+    if (!editor) return;
+
+    setLinkModalMode('link');
+
+    const { from, to, $from } = editor.state.selection;
+    let selectionRange = { from, to };
+
+    if (editor.isActive('link')) {
+      const linkType = editor.state.schema.marks.link;
+      const range = linkType ? getMarkRange($from, linkType) : null;
+      if (range) {
+        selectionRange = range;
+      }
     }
+
+    linkSelectionRef.current = selectionRange;
+
+    const currentLink = editor.isActive('link') ? editor.getAttributes('link') : null;
+    setLinkInputValue(currentLink?.href || '');
+    setEditingExistingLink(Boolean(currentLink?.href));
+    setLinkModalError(null);
+    setShowLinkModal(true);
+  };
+
+  const closeLinkModal = () => {
+    setShowLinkModal(false);
+    setLinkModalError(null);
+    setLinkInputValue('');
+    setEditingExistingLink(false);
+    setLinkModalMode('link');
+    linkSelectionRef.current = null;
+  };
+
+  const handleLinkModalSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!editor) return;
+
+    const trimmed = linkInputValue.trim();
+    if (!trimmed) {
+      if (linkModalMode === 'link' && editingExistingLink) {
+        handleRemoveLink();
+        return;
+      }
+      setLinkModalError('Enter a URL to insert.');
+      return;
+    }
+
+    const normalizedUrl = normalizeLinkUrl(trimmed);
+    if (!normalizedUrl) {
+      setLinkModalError('Enter a valid http(s) URL.');
+      return;
+    }
+
+    if (linkModalMode === 'preview') {
+      await insertLinkPreview(normalizedUrl);
+      closeLinkModal();
+      return;
+    }
+
+    const selection = linkSelectionRef.current;
+    if (selection && selection.from !== selection.to) {
+      editor.chain().focus().setTextSelection(selection).setLink({ href: normalizedUrl }).run();
+    } else {
+      editor
+        .chain()
+        .focus()
+        .insertContent(`<a href="${normalizedUrl}" target="_blank" rel="noopener noreferrer">${normalizedUrl}</a> `)
+        .run();
+    }
+
+    closeLinkModal();
+  };
+
+  const handleRemoveLink = () => {
+    if (!editor) return;
+
+    const selection = linkSelectionRef.current;
+    if (selection && selection.from !== selection.to) {
+      editor.chain().focus().setTextSelection(selection).unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    }
+
+    closeLinkModal();
   };
 
   const addImage = () => {
@@ -757,45 +866,57 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     }
   };
 
-  const addLinkPreview = async () => {
-    const url = window.prompt('Enter URL to preview:');
-    if (!url) return;
+  const insertLinkPreview = async (url: string) => {
+    if (!editor) return;
+
+    const buildFallback = () => {
+      let hostname = url;
+      try {
+        hostname = new URL(url).hostname;
+      } catch {
+        // ignore parsing errors, keep original string
+      }
+      return {
+        url,
+        title: 'Click to add title',
+        description: 'Click to add description',
+        image: null,
+        site_name: hostname,
+      };
+    };
 
     try {
       const preview = await fetchLinkPreview(url);
-      if (preview) {
-        // Insert preview (user can click to edit title/description)
-        editor?.chain().focus().insertContent({
+      const attrs = preview ?? buildFallback();
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
           type: 'linkPreview',
-          attrs: preview,
-        }).run();
-      } else {
-        // Insert a basic preview that can be edited
-        editor?.chain().focus().insertContent({
-          type: 'linkPreview',
-          attrs: {
-            url: url,
-            title: 'Click to add title',
-            description: 'Click to add description',
-            image: null,
-            site_name: new URL(url).hostname,
-          },
-        }).run();
-      }
+          attrs,
+        })
+        .run();
     } catch (error) {
       console.error('Failed to add link preview:', error);
-      // Insert a basic preview that can be edited
-      editor?.chain().focus().insertContent({
-        type: 'linkPreview',
-        attrs: {
-          url: url,
-          title: 'Click to add title',
-          description: 'Click to add description',
-          image: null,
-          site_name: new URL(url).hostname,
-        },
-      }).run();
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: 'linkPreview',
+          attrs: buildFallback(),
+        })
+        .run();
     }
+  };
+
+  const addLinkPreview = () => {
+    if (!editor) return;
+    setLinkModalMode('preview');
+    setLinkInputValue('');
+    setEditingExistingLink(false);
+    setLinkModalError(null);
+    linkSelectionRef.current = null;
+    setShowLinkModal(true);
   };
 
   const openCamera = async () => {
@@ -1693,6 +1814,93 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               <strong className="block mb-1">{yamlError.startsWith('✓') ? 'YAML Validation' : 'YAML Validation Error'}</strong>
               <p className="text-sm whitespace-pre-line">{yamlError}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div
+            className="rounded-lg shadow-2xl w-full max-w-md p-6"
+            style={{
+              backgroundColor: 'var(--color-card-bg)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{linkModalTitle}</h3>
+              <button
+                onClick={closeLinkModal}
+                className="text-2xl leading-none text-gray-500 hover:text-gray-700"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleLinkModalSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">URL</label>
+                <input
+                  type="text"
+                  value={linkInputValue}
+                  onChange={(e) => {
+                    setLinkInputValue(e.target.value);
+                    if (linkModalError) {
+                      setLinkModalError(null);
+                    }
+                  }}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    border: '1px solid var(--color-border-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                  autoFocus
+                />
+                {linkModalError && (
+                  <p className="text-sm text-red-600 mt-2">{linkModalError}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                {!isPreviewMode && editingExistingLink && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLink}
+                    className="px-4 py-2 rounded-lg border text-sm font-medium"
+                    style={{
+                      borderColor: 'var(--color-border-primary)',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    Remove Link
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeLinkModal}
+                  className="px-4 py-2 rounded-lg border text-sm font-medium"
+                  style={{
+                    borderColor: 'var(--color-border-primary)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'var(--color-accent-text)',
+                  }}
+                >
+                  {linkModalSubmitLabel}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

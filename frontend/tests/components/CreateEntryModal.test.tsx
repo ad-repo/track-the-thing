@@ -48,13 +48,35 @@ const mockEntry: NoteEntry = {
   is_pinned: false,
 };
 
+const noteEntryCardMock = vi.hoisted(() =>
+  vi.fn(
+    ({
+      onListsUpdate,
+      onTitleUpdate,
+      onLabelsUpdate,
+      entry,
+    }: {
+      onListsUpdate: () => void;
+      onTitleUpdate?: (id: number, title: string) => void;
+      onLabelsUpdate: (id: number, labels: any[]) => void;
+      entry: NoteEntry;
+    }) => (
+      <div>
+        <button onClick={onListsUpdate}>Save</button>
+        <button data-testid="mock-set-title" onClick={() => onTitleUpdate?.(entry.id, 'Updated Title')}>
+          Set Title
+        </button>
+        <button data-testid="mock-add-label" onClick={() => onLabelsUpdate(entry.id, [{ id: 1 }])}>
+          Add Label
+        </button>
+      </div>
+    ),
+  ),
+);
+
 vi.mock('@/components/NoteEntryCard', () => ({
   __esModule: true,
-  default: ({ onListsUpdate }: { onListsUpdate: () => void }) => (
-    <div>
-      <button onClick={onListsUpdate}>Save</button>
-    </div>
-  ),
+  default: (props: any) => noteEntryCardMock(props),
 }));
 
 describe('CreateEntryModal', () => {
@@ -76,6 +98,7 @@ describe('CreateEntryModal', () => {
     mockNotesApi.getByDate.mockResolvedValue({ id: 1 });
     mockEntriesApi.create.mockResolvedValue(mockEntry);
     mockEntriesApi.delete.mockResolvedValue(undefined);
+    noteEntryCardMock.mockClear();
   });
 
   it('creates an entry on mount and renders the editor', async () => {
@@ -100,6 +123,20 @@ describe('CreateEntryModal', () => {
 
     await waitFor(() => expect(mockEntriesApi.delete).toHaveBeenCalledWith(42));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('preserves the latest title when labels change', async () => {
+    render(<CreateEntryModal onClose={onClose} onSuccess={onSuccess} />);
+
+    await waitFor(() => expect(noteEntryCardMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('mock-set-title'));
+    fireEvent.click(screen.getByTestId('mock-add-label'));
+
+    await waitFor(() => {
+      const lastCall = noteEntryCardMock.mock.calls.at(-1)?.[0];
+      expect(lastCall.entry.title).toBe('Updated Title');
+    });
   });
 });
 

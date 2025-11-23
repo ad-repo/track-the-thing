@@ -81,6 +81,13 @@ const EntryModal = ({ entryId, onClose, onUpdate }: EntryModalProps) => {
     onUpdate?.();
   };
 
+  const handleTitleUpdate = (entryId: number, title: string) => {
+    if (entry) {
+      setEntry({ ...entry, title });
+    }
+    onUpdate?.();
+  };
+
   const handleMoveToTop = async () => {
     // Not applicable in modal view
   };
@@ -141,6 +148,7 @@ const EntryModal = ({ entryId, onClose, onUpdate }: EntryModalProps) => {
               onUpdate={handleEntryUpdate}
               onDelete={handleEntryDelete}
               onLabelsUpdate={handleLabelsUpdate}
+              onTitleUpdate={handleTitleUpdate}
               onMoveToTop={handleMoveToTop}
               selectionMode={false}
               isSelected={false}

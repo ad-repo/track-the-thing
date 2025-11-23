@@ -289,12 +289,17 @@ const DailyView = () => {
   };
 
   const handleEntryLabelsUpdate = (entryId: number, newLabels: any[]) => {
-    // Optimistically update the entry's labels in the entries list
-    setEntries(prevEntries => 
-      prevEntries.map(entry => 
-        entry.id === entryId 
-          ? { ...entry, labels: newLabels }
-          : entry
+    setEntries(prevEntries =>
+      prevEntries.map(entry =>
+        entry.id === entryId ? { ...entry, labels: newLabels } : entry
+      )
+    );
+  };
+
+  const handleEntryTitleUpdate = (entryId: number, newTitle: string) => {
+    setEntries(prevEntries =>
+      prevEntries.map(entry =>
+        entry.id === entryId ? { ...entry, title: newTitle } : entry
       )
     );
   };
@@ -1362,6 +1367,7 @@ const DailyView = () => {
                   onUpdate={handleEntryUpdate}
                   onDelete={handleEntryDelete}
                   onLabelsUpdate={handleEntryLabelsUpdate}
+                  onTitleUpdate={handleEntryTitleUpdate}
                   onListsUpdate={loadDailyNote}
                   onMoveToTop={handleMoveToTop}
                   selectionMode={selectionMode}

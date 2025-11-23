@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.models import AppSettings, DailyNote, Label, NoteEntry, QuarterlyGoal, SearchHistory, SprintGoal
 
+# Keep in sync with export version in app.routers.backup.export_data.
+BACKUP_SCHEMA_VERSION = '8.0'
+
 
 @pytest.mark.integration
 class TestBackupExportAPI:
@@ -48,7 +51,7 @@ class TestBackupExportAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data['version'] == '7.0'
+        assert data['version'] == BACKUP_SCHEMA_VERSION
 
     def test_export_includes_notes_and_entries(self, client: TestClient, db_session: Session):
         """Test that export includes all notes and their entries."""

@@ -700,7 +700,7 @@ const Settings = () => {
 
                 {/* Daily Goal End Time */}
                 <div className="flex items-center gap-2">
-                  <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Goal End</label>
+                  <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Day Goal End Time</label>
                   <input
                     type="time"
                     value={dailyGoalEndTime}
@@ -1375,7 +1375,7 @@ const Settings = () => {
                 }}
               >
                 <p className="text-xs" style={{ color: 'var(--color-info)' }}>
-                  <strong>✓</strong> v1.0-v4.0 backups
+                  <strong>✓</strong> Compatible with all Track the Thing JSON backups
                 </p>
               </div>
               

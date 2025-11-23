@@ -289,8 +289,8 @@ const DailyView = () => {
   };
 
   const handleEntryLabelsUpdate = (entryId: number, newLabels: any[]) => {
-    setEntries(prevEntries =>
-      prevEntries.map(entry =>
+    setEntries(prevEntries => 
+      prevEntries.map(entry => 
         entry.id === entryId ? { ...entry, labels: newLabels } : entry
       )
     );

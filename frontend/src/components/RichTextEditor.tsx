@@ -44,6 +44,7 @@ import TurndownService from 'turndown';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
+import { normalizeColorForInput } from '../utils/color';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -126,14 +127,14 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const [originalContent, setOriginalContent] = useState<string>('');
   const [yamlError, setYamlError] = useState<string | null>(null);
   
-  // Check if camera/video should be available
-  // getUserMedia (camera/video) requires HTTPS on mobile browsers when accessed over network
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isSecureContext = window.isSecureContext;
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
-  // Media buttons (camera/video) require secure context on mobile
-  const showMediaButtons = !isMobile || isSecureContext || isLocalhost;
+  // Camera/video/mic support detection
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isMobile = typeof navigator !== 'undefined' ? /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) : false;
+  const isSecureContext = typeof window !== 'undefined' ? window.isSecureContext : false;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+  const supportsMediaDevices = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  const canUseMediaCapture = supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile);
+  const showMediaButtons = supportsMediaDevices;
   
   const editor = useEditor({
     extensions: [
@@ -1018,24 +1019,29 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     active,
     children,
     title,
+    disabled = false,
   }: {
     onClick: () => void;
     active?: boolean;
     children: React.ReactNode;
     title: string;
+    disabled?: boolean;
   }) => (
     <button
       onMouseDown={(e) => {
         e.preventDefault();
+        if (disabled) return;
         onClick();
       }}
       className="p-2 rounded transition-colors"
       style={{
         backgroundColor: active ? 'var(--color-accent)' : 'transparent',
-        color: active ? 'var(--color-accent-text)' : 'var(--color-text-primary)'
+        color: active ? 'var(--color-accent-text)' : disabled ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
       }}
       onMouseEnter={(e) => {
-        if (!active) {
+        if (!active && !disabled) {
           e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
         }
       }}
@@ -1045,6 +1051,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         }
       }}
       title={title}
+      disabled={disabled}
       type="button"
     >
       {children}
@@ -1085,6 +1092,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />
 
+        {!canUseMediaCapture && showMediaButtons && (
+          <span className="text-xs text-[var(--color-text-tertiary)] px-2">
+            Camera, video, and mic capture require HTTPS or running Track the Thing locally.
+          </span>
+        )}
+
         {/* Text Formatting Group */}
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1118,7 +1131,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               const color = e.target.value;
               editor.chain().focus().setColor(color).run();
             }}
-            value={editor.getAttributes('textStyle').color || '#000000'}
+            value={normalizeColorForInput(editor.getAttributes('textStyle').color, '#000000')}
             className="h-8 w-8 rounded cursor-pointer"
             style={{ 
               border: '1px solid var(--color-border-primary)',
@@ -1468,7 +1481,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
         {/* Media Capture Group */}
         {/* Voice Dictation Button */}
-        {isSupported && (
+        {isSupported && canUseMediaCapture && (
           <button
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1504,14 +1517,30 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
         {/* Camera Button - Only show on desktop or HTTPS mobile */}
         {showMediaButtons && (
-          <ToolbarButton onClick={openCamera} title="Take Photo">
+          <ToolbarButton
+            onClick={openCamera}
+            title={
+              canUseMediaCapture
+                ? 'Take Photo'
+                : 'Camera access requires HTTPS or running on localhost'
+            }
+            disabled={!canUseMediaCapture}
+          >
             <Camera className="h-4 w-4" />
           </ToolbarButton>
         )}
 
         {/* Video Button - Only show on desktop or HTTPS mobile */}
         {showMediaButtons && (
-          <ToolbarButton onClick={openVideoRecorder} title="Record Video">
+          <ToolbarButton
+            onClick={openVideoRecorder}
+            title={
+              canUseMediaCapture
+                ? 'Record Video'
+                : 'Video recording requires HTTPS or running on localhost'
+            }
+            disabled={!canUseMediaCapture}
+          >
             <Video className="h-4 w-4" />
           </ToolbarButton>
         )}

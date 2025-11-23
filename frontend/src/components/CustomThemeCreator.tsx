@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import { Theme, useTheme } from '../contexts/ThemeContext';
+import { normalizeColorForInput } from '../utils/color';
 
 interface CustomThemeCreatorProps {
   editingTheme?: Theme | null;
@@ -222,7 +223,7 @@ const CustomThemeCreator: React.FC<CustomThemeCreatorProps> = ({ editingTheme, o
                             <div className="flex gap-2">
                               <input
                                 type="color"
-                                value={colors[field.key]}
+                                value={normalizeColorForInput(colors[field.key], '#000000')}
                                 onChange={(e) => handleColorChange(field.key, e.target.value)}
                                 className="w-12 h-10 rounded cursor-pointer"
                                 style={{ border: '1px solid var(--color-border-primary)' }}

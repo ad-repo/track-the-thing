@@ -5,6 +5,7 @@ import { ListWithEntries } from '../types';
 import { listsApi } from '../api';
 import ListColumn from './ListColumn';
 import { Plus } from 'lucide-react';
+import { normalizeColorForInput } from '../utils/color';
 
 export default function Lists() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -398,7 +399,7 @@ export default function Lists() {
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
-                      value={newListColor}
+                      value={normalizeColorForInput(newListColor, '#3b82f6')}
                       onChange={(e) => setNewListColor(e.target.value)}
                       className="w-16 h-12 rounded-lg border-2 cursor-pointer"
                       style={{

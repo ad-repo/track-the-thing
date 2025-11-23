@@ -1,12 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
-import { 
-  Sparkles, 
-  Settings, 
-  ChevronDown, 
-  ChevronRight, 
-  Download,
-  Upload,
-  RotateCcw,
+import { useState, useMemo } from 'react';
+import {
+  Sparkles,
+  Settings,
   Shuffle,
 } from 'lucide-react';
 import { useTextures, ElementType } from '../contexts/TextureContext';
@@ -59,13 +54,7 @@ export default function TextureSettings() {
     randomInterval,
     setRandomInterval,
     nextRandomPattern,
-    resetToDefaults,
-    exportConfiguration,
-    importConfiguration,
   } = useTextures();
-
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showRandomSettings, setShowRandomSettings] = useState(false);
   const [selectedElements, setSelectedElements] = useState<Set<ElementType>>(new Set());
 
   const allPatterns = getAllPatterns();
@@ -78,43 +67,6 @@ export default function TextureSettings() {
   
   console.log('[TextureSettings] Current globalPattern:', globalPattern);
 
-  const handleExport = useCallback(() => {
-    const config = exportConfiguration();
-    const blob = new Blob([config], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `texture-config-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [exportConfiguration]);
-
-  const handleImport = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      try {
-        importConfiguration(content);
-        alert('Texture configuration imported successfully!');
-      } catch (error) {
-        alert('Failed to import configuration. Please check the file format.');
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-  }, [importConfiguration]);
-
-  const handleReset = useCallback(() => {
-    if (confirm('Are you sure you want to reset all texture settings to defaults?')) {
-      resetToDefaults();
-    }
-  }, [resetToDefaults]);
-
   return (
     <section className="mb-6">
       <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
@@ -123,38 +75,105 @@ export default function TextureSettings() {
       </h2>
 
       <div className="rounded-lg p-5 space-y-6" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
-        {/* Master Toggle */}
-        <div className="p-4 rounded-xl space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '2px solid var(--color-border-primary)' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                Enable UI Textures
-              </h3>
-              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Master control for texture system. Click elements below to toggle textures on/off.
-              </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="p-4 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                  Enable UI Textures
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Master switch for the texture system.
+                </p>
+              </div>
+              <button
+                onClick={toggleTexture}
+                className="relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-200"
+                style={{
+                  backgroundColor: textureEnabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                  border: '1px solid var(--color-border-primary)',
+                  opacity: textureEnabled ? 1 : 0.85,
+                }}
+                aria-pressed={textureEnabled}
+              >
+                <span
+                  className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-200 shadow"
+                  style={{
+                    transform: textureEnabled ? 'translateX(1.5rem)' : 'translateX(0.2rem)',
+                  }}
+                />
+              </button>
             </div>
-            <button
-              onClick={toggleTexture}
-              className="relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300"
+          </div>
+
+          <div className="p-4 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                  Random Pattern Rotation
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Cycle through patterns automatically.
+                </p>
+              </div>
+              <button
+                onClick={textureEnabled ? () => setRandomEnabled(!randomEnabled) : undefined}
+                className="relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-200"
+                style={{
+                  backgroundColor: randomEnabled && textureEnabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                  border: '1px solid var(--color-border-primary)',
+                  opacity: textureEnabled ? 1 : 0.4,
+                  cursor: textureEnabled ? 'pointer' : 'not-allowed',
+                }}
+                aria-pressed={randomEnabled}
+                aria-disabled={!textureEnabled}
+              >
+                <span
+                  className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-200 shadow"
+                  style={{
+                    transform: randomEnabled && textureEnabled ? 'translateX(1.5rem)' : 'translateX(0.2rem)',
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {textureEnabled && randomEnabled && (
+          <div className="p-4 rounded-xl space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+            <div className="flex justify-between">
+              <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                Rotation Interval
+              </span>
+              <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+                {randomInterval} min
+              </span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="60"
+              step="1"
+              value={randomInterval}
+              onChange={(e) => setRandomInterval(parseInt(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
               style={{
-                backgroundColor: textureEnabled ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                borderColor: 'var(--color-border-primary)',
-                borderWidth: '2px',
-                boxShadow: textureEnabled ? '0 0 20px rgba(var(--color-accent-rgb), 0.4)' : 'none',
+                background: `linear-gradient(to right, var(--color-accent) ${(randomInterval / 60) * 100}%, var(--color-border-primary) ${(randomInterval / 60) * 100}%)`,
+              }}
+            />
+            <button
+              onClick={nextRandomPattern}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: 'var(--color-accent)',
+                color: 'var(--color-accent-text)',
               }}
             >
-              <span
-                className="inline-block h-6 w-6 transform rounded-full transition-transform duration-300"
-                style={{
-                  backgroundColor: 'var(--color-bg-primary)',
-                  transform: textureEnabled ? 'translateX(2rem)' : 'translateX(0.25rem)',
-                }}
-              />
+              <Shuffle className="h-4 w-4" />
+              Next pattern now
             </button>
           </div>
-          
-        </div>
+        )}
 
         {textureEnabled && (
           <>
@@ -420,149 +439,6 @@ export default function TextureSettings() {
               </div>
             </div>
 
-            {/* Random Pattern Rotation */}
-            <div className="space-y-3">
-              <button
-                onClick={() => setShowRandomSettings(!showRandomSettings)}
-                className="w-full flex items-center justify-between p-4 rounded-lg transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <Shuffle className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-                  <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Random Pattern Rotation
-                  </span>
-                </div>
-                {showRandomSettings ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-              </button>
-
-              {showRandomSettings && (
-                <div className="space-y-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      Enable Auto-Rotation
-                    </span>
-                    <button
-                      onClick={() => setRandomEnabled(!randomEnabled)}
-                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-all"
-                      style={{
-                        backgroundColor: randomEnabled ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                        borderColor: 'var(--color-border-primary)',
-                        borderWidth: '1px',
-                      }}
-                    >
-                      <span
-                        className="inline-block h-4 w-4 transform rounded-full transition-transform"
-                        style={{
-                          backgroundColor: 'var(--color-bg-primary)',
-                          transform: randomEnabled ? 'translateX(1.5rem)' : 'translateX(0.25rem)',
-                        }}
-                      />
-                    </button>
-                  </div>
-
-                  {randomEnabled && (
-                    <>
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            Rotation Interval
-                          </label>
-                          <span className="text-sm font-mono" style={{ color: 'var(--color-text-secondary)' }}>
-                            {randomInterval} min
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min="1"
-                          max="60"
-                          step="1"
-                          value={randomInterval}
-                          onChange={(e) => setRandomInterval(parseInt(e.target.value))}
-                          className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                          style={{
-                            background: `linear-gradient(to right, var(--color-accent) ${(randomInterval / 60) * 100}%, var(--color-border-primary) ${(randomInterval / 60) * 100}%)`,
-                          }}
-                        />
-                      </div>
-
-                      <button
-                        onClick={nextRandomPattern}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                        style={{
-                          backgroundColor: 'var(--color-accent)',
-                          color: 'var(--color-accent-text)',
-                        }}
-                      >
-                        <Shuffle className="h-4 w-4" />
-                        Next Pattern Now
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Advanced Options */}
-            <div className="space-y-3">
-              <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center justify-between p-4 rounded-lg transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-                  <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Advanced Options
-                  </span>
-                </div>
-                {showAdvanced ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-              </button>
-
-              {showAdvanced && (
-                <div className="flex flex-wrap gap-2 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                  <button
-                    onClick={handleExport}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      backgroundColor: 'var(--color-accent)',
-                      color: 'var(--color-accent-text)',
-                    }}
-                  >
-                    <Download className="h-4 w-4" />
-                    Export Config
-                  </button>
-
-                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--color-accent)',
-                      color: 'var(--color-accent-text)',
-                    }}
-                  >
-                    <Upload className="h-4 w-4" />
-                    Import Config
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImport}
-                      className="hidden"
-                    />
-                  </label>
-
-                  <button
-                    onClick={handleReset}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      backgroundColor: 'var(--color-error)',
-                      color: 'white',
-                    }}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset to Defaults
-                  </button>
-                </div>
-              )}
-            </div>
           </>
         )}
       </div>

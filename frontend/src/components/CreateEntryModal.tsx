@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -16,6 +16,12 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
   const [entry, setEntry] = useState<NoteEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const entryRef = useRef<NoteEntry | null>(null);
+
+  const setEntryState = (value: NoteEntry | null) => {
+    entryRef.current = value;
+    setEntry(value);
+  };
 
   // Create entry on mount
   useEffect(() => {
@@ -65,7 +71,7 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
         await listsApi.addEntry(list.id, newEntry.id);
       }
 
-      setEntry(newEntry);
+      setEntryState(newEntry);
     } catch (err: any) {
       console.error('Error creating entry:', err);
       setError(err?.response?.data?.detail || 'Failed to create entry');
@@ -76,14 +82,15 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
 
   const handleClose = () => {
     // If entry exists and is empty, delete it
-    if (entry) {
+    const currentEntry = entryRef.current;
+    if (currentEntry) {
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = entry.content;
+      tempDiv.innerHTML = currentEntry.content;
       const textContent = tempDiv.textContent || tempDiv.innerText || '';
       
-      if (!textContent.trim() && !entry.title?.trim()) {
+      if (!textContent.trim() && !currentEntry.title?.trim()) {
         // Delete empty entry
-        entriesApi.delete(entry.id).catch(err => {
+        entriesApi.delete(currentEntry.id).catch(err => {
           console.error('Error deleting empty entry:', err);
         });
       }
@@ -92,8 +99,8 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
   };
 
   const handleEntryUpdate = async (id: number, content: string) => {
-    if (entry) {
-      setEntry({ ...entry, content });
+    if (entryRef.current) {
+      setEntryState({ ...entryRef.current, content });
     }
   };
 
@@ -102,8 +109,8 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
   };
 
   const handleLabelsUpdate = (entryId: number, labels: any[]) => {
-    if (entry) {
-      setEntry({ ...entry, labels });
+    if (entryRef.current) {
+      setEntryState({ ...entryRef.current, labels });
     }
   };
 

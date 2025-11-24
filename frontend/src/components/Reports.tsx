@@ -60,6 +60,7 @@ const Reports = () => {
   const [copiedEntryId, setCopiedEntryId] = useState<number | null>(null);
   const [clearingFlags, setClearingFlags] = useState(false);
   const [clearedFlags, setClearedFlags] = useState(false);
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadAvailableWeeks();
@@ -950,106 +951,153 @@ const Reports = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {allEntriesReport.entries.map((entry: any) => (
-                  <div 
-                    key={entry.entry_id} 
-                    onClick={() => goToEntry(entry.date, entry.entry_id)}
-                    className="rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                    style={{
-                      border: '1px solid var(--color-border-primary)',
-                      backgroundColor: 'var(--color-bg-primary)'
-                    }}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{entry.date}</span>
-                          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                            {formatTimestamp(entry.created_at, timezone, 'h:mm a')}
-                          </span>
-                          {entry.content_type === 'code' && (
-                            <span className="px-2 py-0.5 bg-gray-800 text-white text-xs rounded">Code</span>
+                {allEntriesReport.entries.map((entry: any) => {
+                  const isExpanded = expandedEntries.has(entry.entry_id);
+                  return (
+                    <div 
+                      key={entry.entry_id}
+                      className="rounded-lg p-4 hover:shadow-lg transition-shadow"
+                      style={{
+                        border: '1px solid var(--color-border-primary)',
+                        backgroundColor: 'var(--color-bg-primary)'
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
+                        <div className="flex-1 min-w-[220px]">
+                          <div className="flex items-center flex-wrap gap-3 mb-2">
+                            <span className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{entry.date}</span>
+                            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                              {formatTimestamp(entry.created_at, timezone, 'h:mm a')}
+                            </span>
+                            {entry.content_type === 'code' && (
+                              <span className="px-2 py-0.5 bg-gray-800 text-white text-xs rounded">Code</span>
+                            )}
+                            {entry.is_important && <span title="Important">⭐</span>}
+                            {entry.is_completed && <span title="Completed">✓</span>}
+                          </div>
+
+                          {entry.labels.length > 0 && (
+                            <div className="flex gap-2 flex-wrap mb-2">
+                              {entry.labels.map((label: any) => (
+                                <span
+                                  key={label.name}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white"
+                                  style={{ backgroundColor: label.color }}
+                                >
+                                  {label.name}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                          {entry.is_important && <span title="Important">⭐</span>}
-                          {entry.is_completed && <span title="Completed">✓</span>}
                         </div>
 
-                        {entry.labels.length > 0 && (
-                          <div className="flex gap-2 flex-wrap mb-2">
-                            {entry.labels.map((label: any) => (
-                              <span
-                                key={label.name}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white"
-                                style={{ backgroundColor: label.color }}
-                              >
-                                {label.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => goToEntry(entry.date, entry.entry_id)}
+                            className="px-3 py-2 text-sm rounded-lg border transition-colors"
+                            style={{
+                              borderColor: 'var(--color-border-primary)',
+                              color: 'var(--color-text-primary)'
+                            }}
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() => {
+                              setExpandedEntries((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(entry.entry_id)) next.delete(entry.entry_id);
+                                else next.add(entry.entry_id);
+                                return next;
+                              });
+                            }}
+                            className="px-3 py-2 text-sm rounded-lg transition-colors"
+                            style={{
+                              backgroundColor: 'var(--color-accent)',
+                              color: 'var(--color-accent-text)'
+                            }}
+                          >
+                            {isExpanded ? 'Collapse' : 'Expand'}
+                          </button>
+                          <button
+                            onClick={() => copyEntry(entry)}
+                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors"
+                            style={{
+                              backgroundColor: copiedEntryId === entry.entry_id 
+                                ? `${getComputedStyle(document.documentElement).getPropertyValue('--color-success')}20`
+                                : 'var(--color-bg-tertiary)',
+                              color: copiedEntryId === entry.entry_id 
+                                ? 'var(--color-success)'
+                                : 'var(--color-text-primary)'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (copiedEntryId !== entry.entry_id) {
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (copiedEntryId !== entry.entry_id) {
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                              }
+                            }}
+                            title="Copy entry"
+                          >
+                            {copiedEntryId === entry.entry_id ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyEntry(entry);
-                        }}
-                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors"
-                        style={{
-                          backgroundColor: copiedEntryId === entry.entry_id 
-                            ? `${getComputedStyle(document.documentElement).getPropertyValue('--color-success')}20`
-                            : 'var(--color-bg-tertiary)',
-                          color: copiedEntryId === entry.entry_id 
-                            ? 'var(--color-success)'
-                            : 'var(--color-text-primary)'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (copiedEntryId !== entry.entry_id) {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (copiedEntryId !== entry.entry_id) {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
-                          }
-                        }}
-                        title="Copy entry"
-                      >
-                        {copiedEntryId === entry.entry_id ? (
-                          <>
-                            <Check className="h-4 w-4" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-4 w-4" />
-                            Copy
-                          </>
-                        )}
-                      </button>
-                    </div>
 
-                    {entry.content_type === 'code' ? (
-                      <pre className="text-sm bg-gray-900 text-white p-3 rounded overflow-x-auto">
-                        <code>{entry.content}</code>
-                      </pre>
-                    ) : (
-                      <div 
-                        className="text-gray-800 leading-relaxed 
-                          [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-2 
-                          [&_a]:text-blue-600 [&_a]:underline 
-                          [&_p]:mb-2 
-                          [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-2 
-                          [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2 
-                          [&_ul]:list-disc [&_ul]:ml-6 
-                          [&_ol]:list-decimal [&_ol]:ml-6
-                          [&_[data-link-preview]]:my-4 [&_[data-link-preview]]:block
-                          [&_.link-preview]:my-4"
-                        dangerouslySetInnerHTML={{ __html: processLinkPreviews(entry.content) }}
-                      />
-                    )}
-                  </div>
-                ))}
+                      {entry.content_type === 'code' ? (
+                        <div className="relative mt-3">
+                          <pre
+                            className="text-sm bg-gray-900 text-white p-3 rounded overflow-x-auto"
+                            style={{ maxHeight: isExpanded ? 'none' : '200px', overflow: 'auto' }}
+                          >
+                            <code>{entry.content}</code>
+                          </pre>
+                          {!isExpanded && (
+                            <div
+                              className="absolute inset-x-0 bottom-0 h-10 rounded-b"
+                              style={{ background: 'linear-gradient(180deg, rgba(17,24,39,0) 0%, rgba(17,24,39,0.9) 100%)' }}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative mt-3">
+                          <div 
+                            className="text-gray-800 leading-relaxed 
+                              [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-2 
+                              [&_a]:text-blue-600 [&_a]:underline 
+                              [&_p]:mb-2 
+                              [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-2 
+                              [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2 
+                              [&_ul]:list-disc [&_ul]:ml-6 
+                              [&_ol]:list-decimal [&_ol]:ml-6
+                              [&_[data-link-preview]]:my-4 [&_[data-link-preview]]:block
+                              [&_.link-preview]:my-4"
+                            style={{ maxHeight: isExpanded ? 'none' : '200px', overflow: 'hidden' }}
+                            dangerouslySetInnerHTML={{ __html: processLinkPreviews(entry.content) }}
+                          />
+                          {!isExpanded && (
+                            <div 
+                              className="absolute inset-x-0 bottom-0 h-12"
+                              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--color-bg-primary) 100%)' }}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                )})}
               </div>
             )}
           </div>

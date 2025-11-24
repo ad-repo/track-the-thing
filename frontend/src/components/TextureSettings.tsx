@@ -167,6 +167,7 @@ export default function TextureSettings() {
               value={randomInterval}
               onChange={(e) => setRandomInterval(parseInt(e.target.value))}
               className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              aria-label="Rotation interval"
               style={{
                 background: `linear-gradient(to right, var(--color-accent) ${(randomInterval / 60) * 100}%, var(--color-border-primary) ${(randomInterval / 60) * 100}%)`,
               }}

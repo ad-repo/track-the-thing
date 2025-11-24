@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Columns } from 'lucide-react';
 import type { List } from '../types';
 import { listsApi } from '../api';
+import { normalizeColorForInput } from '../utils/color';
 
 interface EntryListSelectorProps {
   entryId: number;
@@ -281,7 +282,7 @@ const EntryListSelector = ({ entryId, currentLists, onOptimisticUpdate }: EntryL
                   </label>
                   <input
                     type="color"
-                    value={newListColor}
+                    value={normalizeColorForInput(newListColor, '#3b82f6')}
                     onChange={(e) => setNewListColor(e.target.value)}
                     className="w-full h-10 rounded cursor-pointer"
                   />

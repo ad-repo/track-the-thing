@@ -4,6 +4,7 @@ import { ListWithEntries } from '../types';
 import { kanbanApi, listsApi } from '../api';
 import ListColumn from './ListColumn';
 import { Plus } from 'lucide-react';
+import { normalizeColorForInput } from '../utils/color';
 
 export default function Kanban() {
   const [boards, setBoards] = useState<ListWithEntries[]>([]);
@@ -365,7 +366,7 @@ export default function Kanban() {
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
-                      value={newColumnColor}
+                      value={normalizeColorForInput(newColumnColor, '#3b82f6')}
                       onChange={(e) => setNewColumnColor(e.target.value)}
                       className="w-16 h-12 rounded-lg border-2 cursor-pointer"
                       style={{

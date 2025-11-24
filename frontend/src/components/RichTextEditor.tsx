@@ -1,5 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, FormEvent } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -11,7 +11,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontFamily from '@tiptap/extension-font-family';
 import { createLowlight, common } from 'lowlight';
-import { Node } from '@tiptap/core';
+import { Node, getMarkRange } from '@tiptap/core';
 import {
   Bold,
   Italic,
@@ -44,6 +44,7 @@ import TurndownService from 'turndown';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
+import { normalizeColorForInput } from '../utils/color';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -125,15 +126,24 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const [showJsonFormatted, setShowJsonFormatted] = useState(false);
   const [originalContent, setOriginalContent] = useState<string>('');
   const [yamlError, setYamlError] = useState<string | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkInputValue, setLinkInputValue] = useState('');
+  const [linkModalError, setLinkModalError] = useState<string | null>(null);
+  const [editingExistingLink, setEditingExistingLink] = useState(false);
+  const [linkModalMode, setLinkModalMode] = useState<'link' | 'preview'>('link');
+  const linkSelectionRef = useRef<{ from: number; to: number } | null>(null);
   
-  // Check if camera/video should be available
-  // getUserMedia (camera/video) requires HTTPS on mobile browsers when accessed over network
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isSecureContext = window.isSecureContext;
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
-  // Media buttons (camera/video) require secure context on mobile
-  const showMediaButtons = !isMobile || isSecureContext || isLocalhost;
+  // Camera/video/mic support detection
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isMobile = typeof navigator !== 'undefined' ? /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) : false;
+  const isSecureContext = typeof window !== 'undefined' ? window.isSecureContext : false;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+  const supportsMediaDevices = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  const canUseMediaCapture = supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile);
+  const showMediaButtons = supportsMediaDevices;
+  const isPreviewMode = linkModalMode === 'preview';
+  const linkModalTitle = isPreviewMode ? 'Add Link Preview' : editingExistingLink ? 'Edit Link' : 'Add Link';
+  const linkModalSubmitLabel = isPreviewMode ? 'Insert Preview' : editingExistingLink ? 'Update Link' : 'Add Link';
   
   const editor = useEditor({
     extensions: [
@@ -661,11 +671,111 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     editor.chain().focus().toggleCodeBlock().run();
   };
 
+  const normalizeLinkUrl = (value: string) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const tryUrl = (candidate: string) => {
+      try {
+        const url = new URL(candidate);
+        if (url.protocol === 'http:' || url.protocol === 'https:') {
+          return url.toString();
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    return tryUrl(trimmed) ?? tryUrl(`https://${trimmed}`);
+  };
+
   const addLink = () => {
-    const url = window.prompt('Enter URL:');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
+    if (!editor) return;
+
+    setLinkModalMode('link');
+
+    const { from, to, $from } = editor.state.selection;
+    let selectionRange = { from, to };
+
+    if (editor.isActive('link')) {
+      const linkType = editor.state.schema.marks.link;
+      const range = linkType ? getMarkRange($from, linkType) : null;
+      if (range) {
+        selectionRange = range;
+      }
     }
+
+    linkSelectionRef.current = selectionRange;
+
+    const currentLink = editor.isActive('link') ? editor.getAttributes('link') : null;
+    setLinkInputValue(currentLink?.href || '');
+    setEditingExistingLink(Boolean(currentLink?.href));
+    setLinkModalError(null);
+    setShowLinkModal(true);
+  };
+
+  const closeLinkModal = () => {
+    setShowLinkModal(false);
+    setLinkModalError(null);
+    setLinkInputValue('');
+    setEditingExistingLink(false);
+    setLinkModalMode('link');
+    linkSelectionRef.current = null;
+  };
+
+  const handleLinkModalSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!editor) return;
+
+    const trimmed = linkInputValue.trim();
+    if (!trimmed) {
+      if (linkModalMode === 'link' && editingExistingLink) {
+        handleRemoveLink();
+        return;
+      }
+      setLinkModalError('Enter a URL to insert.');
+      return;
+    }
+
+    const normalizedUrl = normalizeLinkUrl(trimmed);
+    if (!normalizedUrl) {
+      setLinkModalError('Enter a valid http(s) URL.');
+      return;
+    }
+
+    if (linkModalMode === 'preview') {
+      await insertLinkPreview(normalizedUrl);
+      closeLinkModal();
+      return;
+    }
+
+    const selection = linkSelectionRef.current;
+    if (selection && selection.from !== selection.to) {
+      editor.chain().focus().setTextSelection(selection).setLink({ href: normalizedUrl }).run();
+    } else {
+      editor
+        .chain()
+        .focus()
+        .insertContent(`<a href="${normalizedUrl}" target="_blank" rel="noopener noreferrer">${normalizedUrl}</a> `)
+        .run();
+    }
+
+    closeLinkModal();
+  };
+
+  const handleRemoveLink = () => {
+    if (!editor) return;
+
+    const selection = linkSelectionRef.current;
+    if (selection && selection.from !== selection.to) {
+      editor.chain().focus().setTextSelection(selection).unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    }
+
+    closeLinkModal();
   };
 
   const addImage = () => {
@@ -756,45 +866,57 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     }
   };
 
-  const addLinkPreview = async () => {
-    const url = window.prompt('Enter URL to preview:');
-    if (!url) return;
+  const insertLinkPreview = async (url: string) => {
+    if (!editor) return;
+
+    const buildFallback = () => {
+      let hostname = url;
+      try {
+        hostname = new URL(url).hostname;
+      } catch {
+        // ignore parsing errors, keep original string
+      }
+      return {
+        url,
+        title: 'Click to add title',
+        description: 'Click to add description',
+        image: null,
+        site_name: hostname,
+      };
+    };
 
     try {
       const preview = await fetchLinkPreview(url);
-      if (preview) {
-        // Insert preview (user can click to edit title/description)
-        editor?.chain().focus().insertContent({
+      const attrs = preview ?? buildFallback();
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
           type: 'linkPreview',
-          attrs: preview,
-        }).run();
-      } else {
-        // Insert a basic preview that can be edited
-        editor?.chain().focus().insertContent({
-          type: 'linkPreview',
-          attrs: {
-            url: url,
-            title: 'Click to add title',
-            description: 'Click to add description',
-            image: null,
-            site_name: new URL(url).hostname,
-          },
-        }).run();
-      }
+          attrs,
+        })
+        .run();
     } catch (error) {
       console.error('Failed to add link preview:', error);
-      // Insert a basic preview that can be edited
-      editor?.chain().focus().insertContent({
-        type: 'linkPreview',
-        attrs: {
-          url: url,
-          title: 'Click to add title',
-          description: 'Click to add description',
-          image: null,
-          site_name: new URL(url).hostname,
-        },
-      }).run();
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: 'linkPreview',
+          attrs: buildFallback(),
+        })
+        .run();
     }
+  };
+
+  const addLinkPreview = () => {
+    if (!editor) return;
+    setLinkModalMode('preview');
+    setLinkInputValue('');
+    setEditingExistingLink(false);
+    setLinkModalError(null);
+    linkSelectionRef.current = null;
+    setShowLinkModal(true);
   };
 
   const openCamera = async () => {
@@ -1018,24 +1140,29 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     active,
     children,
     title,
+    disabled = false,
   }: {
     onClick: () => void;
     active?: boolean;
     children: React.ReactNode;
     title: string;
+    disabled?: boolean;
   }) => (
     <button
       onMouseDown={(e) => {
         e.preventDefault();
+        if (disabled) return;
         onClick();
       }}
       className="p-2 rounded transition-colors"
       style={{
         backgroundColor: active ? 'var(--color-accent)' : 'transparent',
-        color: active ? 'var(--color-accent-text)' : 'var(--color-text-primary)'
+        color: active ? 'var(--color-accent-text)' : disabled ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
       }}
       onMouseEnter={(e) => {
-        if (!active) {
+        if (!active && !disabled) {
           e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
         }
       }}
@@ -1045,6 +1172,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         }
       }}
       title={title}
+      disabled={disabled}
       type="button"
     >
       {children}
@@ -1085,6 +1213,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />
 
+        {!canUseMediaCapture && showMediaButtons && (
+          <span className="text-xs text-[var(--color-text-tertiary)] px-2">
+            Camera, video, and mic capture require HTTPS or running Track the Thing locally.
+          </span>
+        )}
+
         {/* Text Formatting Group */}
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1118,7 +1252,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               const color = e.target.value;
               editor.chain().focus().setColor(color).run();
             }}
-            value={editor.getAttributes('textStyle').color || '#000000'}
+            value={normalizeColorForInput(editor.getAttributes('textStyle').color, '#000000')}
             className="h-8 w-8 rounded cursor-pointer"
             style={{ 
               border: '1px solid var(--color-border-primary)',
@@ -1468,7 +1602,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
         {/* Media Capture Group */}
         {/* Voice Dictation Button */}
-        {isSupported && (
+        {isSupported && canUseMediaCapture && (
           <button
             onMouseDown={(e) => {
               e.preventDefault();
@@ -1504,14 +1638,30 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
         {/* Camera Button - Only show on desktop or HTTPS mobile */}
         {showMediaButtons && (
-          <ToolbarButton onClick={openCamera} title="Take Photo">
+          <ToolbarButton
+            onClick={openCamera}
+            title={
+              canUseMediaCapture
+                ? 'Take Photo'
+                : 'Camera access requires HTTPS or running on localhost'
+            }
+            disabled={!canUseMediaCapture}
+          >
             <Camera className="h-4 w-4" />
           </ToolbarButton>
         )}
 
         {/* Video Button - Only show on desktop or HTTPS mobile */}
         {showMediaButtons && (
-          <ToolbarButton onClick={openVideoRecorder} title="Record Video">
+          <ToolbarButton
+            onClick={openVideoRecorder}
+            title={
+              canUseMediaCapture
+                ? 'Record Video'
+                : 'Video recording requires HTTPS or running on localhost'
+            }
+            disabled={!canUseMediaCapture}
+          >
             <Video className="h-4 w-4" />
           </ToolbarButton>
         )}
@@ -1664,6 +1814,93 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               <strong className="block mb-1">{yamlError.startsWith('✓') ? 'YAML Validation' : 'YAML Validation Error'}</strong>
               <p className="text-sm whitespace-pre-line">{yamlError}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div
+            className="rounded-lg shadow-2xl w-full max-w-md p-6"
+            style={{
+              backgroundColor: 'var(--color-card-bg)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{linkModalTitle}</h3>
+              <button
+                onClick={closeLinkModal}
+                className="text-2xl leading-none text-gray-500 hover:text-gray-700"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleLinkModalSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">URL</label>
+                <input
+                  type="text"
+                  value={linkInputValue}
+                  onChange={(e) => {
+                    setLinkInputValue(e.target.value);
+                    if (linkModalError) {
+                      setLinkModalError(null);
+                    }
+                  }}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    border: '1px solid var(--color-border-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                  autoFocus
+                />
+                {linkModalError && (
+                  <p className="text-sm text-red-600 mt-2">{linkModalError}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                {!isPreviewMode && editingExistingLink && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLink}
+                    className="px-4 py-2 rounded-lg border text-sm font-medium"
+                    style={{
+                      borderColor: 'var(--color-border-primary)',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    Remove Link
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeLinkModal}
+                  className="px-4 py-2 rounded-lg border text-sm font-medium"
+                  style={{
+                    borderColor: 'var(--color-border-primary)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'var(--color-accent-text)',
+                  }}
+                >
+                  {linkModalSubmitLabel}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

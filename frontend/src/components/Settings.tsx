@@ -538,23 +538,11 @@ const Settings = () => {
   };
 
 
-  console.log('[Settings] Rendering. textureStyles:', textureStyles);
-  
   return (
     <div className="max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
       <div 
         className="rounded-lg shadow-lg p-5" 
         style={{ backgroundColor: 'var(--color-bg-primary)', ...textureStyles }}
-        ref={(el) => {
-          if (el) {
-            console.log('[Settings] Actual DOM styles:', {
-              backgroundImage: el.style.backgroundImage,
-              backgroundSize: el.style.backgroundSize,
-              backgroundRepeat: el.style.backgroundRepeat,
-              backgroundBlendMode: el.style.backgroundBlendMode,
-            });
-          }
-        }}
       >
         <div className="flex items-center gap-3 mb-5">
           <SettingsIcon className="h-8 w-8" style={{ color: 'var(--color-text-secondary)' }} />
@@ -584,95 +572,63 @@ const Settings = () => {
           <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
             {/* Display Toggles - Compact Grid */}
             <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
-              <h3 className="font-medium mb-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>Display Options</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {/* Show Daily Goals */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Daily Goals</span>
-                  <button
-                    onClick={() => setShowDailyGoals(!showDailyGoals)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-                    style={{
-                      backgroundColor: showDailyGoals ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      borderWidth: '1px'
-                    }}
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>Display Options</h3>
+                <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Toggle which dashboard widgets are visible</span>
+              </div>
+              <div className="space-y-2">
+                {[
+                  {
+                    label: 'Daily Goals',
+                    description: 'Show the daily goal summary card',
+                    value: showDailyGoals,
+                    toggle: () => setShowDailyGoals(!showDailyGoals),
+                  },
+                  {
+                    label: 'Sprint Goals',
+                    description: 'Display sprint goals beneath the daily list',
+                    value: showSprintGoals,
+                    toggle: () => setShowSprintGoals(!showSprintGoals),
+                  },
+                  {
+                    label: 'Quarterly Goals',
+                    description: 'Include quarterly milestone progress',
+                    value: showQuarterlyGoals,
+                    toggle: () => setShowQuarterlyGoals(!showQuarterlyGoals),
+                  },
+                  {
+                    label: 'Day Labels',
+                    description: 'Show day headers above each entry list',
+                    value: showDayLabels,
+                    toggle: () => setShowDayLabels(!showDayLabels),
+                  },
+                ].map(({ label, description, value, toggle }) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
+                    style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)' }}
                   >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full transition-transform`}
+                    <div className="text-xs leading-tight">
+                      <div className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{label}</div>
+                      <div style={{ color: 'var(--color-text-secondary)' }}>{description}</div>
+                    </div>
+                    <button
+                      onClick={toggle}
+                      className="relative inline-flex h-5 w-10 items-center rounded-full transition-colors"
                       style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        transform: showDailyGoals ? 'translateX(1.5rem)' : 'translateX(0.25rem)'
+                        backgroundColor: value ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border-primary)',
                       }}
-                    />
-                  </button>
-                </div>
-
-                {/* Show Sprint Goals */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Sprint Goals</span>
-                  <button
-                    onClick={() => setShowSprintGoals(!showSprintGoals)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-                    style={{
-                      backgroundColor: showSprintGoals ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      borderWidth: '1px'
-                    }}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full transition-transform`}
-                      style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        transform: showSprintGoals ? 'translateX(1.5rem)' : 'translateX(0.25rem)'
-                      }}
-                    />
-                  </button>
-                </div>
-
-                {/* Show Quarterly Goals */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Quarterly Goals</span>
-                  <button
-                    onClick={() => setShowQuarterlyGoals(!showQuarterlyGoals)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-                    style={{
-                      backgroundColor: showQuarterlyGoals ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      borderWidth: '1px'
-                    }}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full transition-transform`}
-                      style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        transform: showQuarterlyGoals ? 'translateX(1.5rem)' : 'translateX(0.25rem)'
-                      }}
-                    />
-                  </button>
-                </div>
-
-                {/* Show Day Labels */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>Day Labels</span>
-                  <button
-                    onClick={() => setShowDayLabels(!showDayLabels)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-                    style={{
-                      backgroundColor: showDayLabels ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      borderWidth: '1px'
-                    }}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full transition-transform`}
-                      style={{
-                        backgroundColor: 'var(--color-bg-primary)',
-                        transform: showDayLabels ? 'translateX(1.5rem)' : 'translateX(0.25rem)'
-                      }}
-                    />
-                  </button>
-                </div>
+                    >
+                      <span
+                        className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"
+                        style={{
+                          transform: value ? 'translateX(1.2rem)' : 'translateX(0.15rem)',
+                        }}
+                      />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -700,7 +656,7 @@ const Settings = () => {
 
                 {/* Daily Goal End Time */}
                 <div className="flex items-center gap-2">
-                  <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Goal End</label>
+                  <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Day Goal End Time</label>
                   <input
                     type="time"
                     value={dailyGoalEndTime}
@@ -1375,7 +1331,7 @@ const Settings = () => {
                 }}
               >
                 <p className="text-xs" style={{ color: 'var(--color-info)' }}>
-                  <strong>✓</strong> v1.0-v4.0 backups
+                  <strong>✓</strong> Compatible with all Track the Thing JSON backups
                 </p>
               </div>
               

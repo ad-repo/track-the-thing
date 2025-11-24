@@ -20,9 +20,21 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
   const [editingDescription, setEditingDescription] = useState(false);
   const [localTitle, setLocalTitle] = useState(title || '');
   const [localDescription, setLocalDescription] = useState(description || '');
+  const hostname = (() => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  })();
 
   return (
-    <NodeViewWrapper className="link-preview relative group">
+    <NodeViewWrapper
+      className="link-preview relative group"
+      style={{
+        margin: '0.25rem 0',
+      }}
+    >
       <button
         onClick={deleteNode}
         className="absolute top-2 right-2 z-10 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -44,9 +56,11 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block border rounded-lg overflow-hidden transition-colors my-4 no-underline"
+        className="block border rounded-lg transition-colors no-underline"
         style={{
-          borderColor: 'var(--color-border-primary)'
+          borderColor: 'var(--color-border-primary)',
+          padding: '0.35rem 0.65rem',
+          backgroundColor: 'var(--color-card-bg)',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = 'var(--color-accent)';
@@ -55,26 +69,44 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
           e.currentTarget.style.borderColor = 'var(--color-border-primary)';
         }}
       >
-        <div className="flex gap-4 p-4">
-          {image && (
-            <div className="flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div
+            style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '12px',
+              flexShrink: 0,
+              backgroundColor: 'var(--color-bg-tertiary)',
+              border: '1px solid var(--color-border-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              padding: '4px',
+            }}
+          >
+            {image ? (
               <img
                 src={image}
                 alt={title || 'Link preview'}
-                className="w-32 h-32 object-cover rounded"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => {
-                  // Hide image if it fails to load
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            {site_name && (
-              <p className="text-xs mb-1" style={{ color: 'var(--color-text-tertiary)' }}>{site_name}</p>
+            ) : (
+              <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                {hostname.replace(/^www\./, '').slice(0, 2).toUpperCase()}
+              </span>
             )}
-            
-            {/* Editable Title */}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide font-semibold mb-1" style={{ color: 'var(--color-text-tertiary)' }}>
+              <span className="truncate">{site_name || hostname}</span>
+              <ExternalLink className="h-3 w-3" />
+            </div>
+
             {editingTitle ? (
               <input
                 type="text"
@@ -90,11 +122,11 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
                     setEditingTitle(false);
                   }
                 }}
-                className="font-semibold mb-2 w-full px-2 py-1 border rounded"
+                className="font-semibold w-full px-2 py-1 border rounded text-sm"
                 style={{
                   color: 'var(--color-text-primary)',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  borderColor: 'var(--color-accent)'
+                  backgroundColor: 'var(--color-bg-primary)',
+                  borderColor: 'var(--color-border-primary)',
                 }}
                 autoFocus
               />
@@ -105,15 +137,20 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
                   e.stopPropagation();
                   setEditingTitle(true);
                 }}
-                className="font-semibold mb-2 line-clamp-2 cursor-pointer hover:opacity-70 transition-opacity"
-                style={{ color: 'var(--color-text-primary)' }}
+                className="font-semibold text-base leading-tight cursor-pointer hover:opacity-70 transition-opacity"
+                style={{
+                  color: 'var(--color-text-primary)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
                 title="Click to edit title"
               >
                 {title || 'Click to add title'}
               </h3>
             )}
-            
-            {/* Editable Description */}
+
             {editingDescription ? (
               <textarea
                 value={localDescription}
@@ -122,12 +159,14 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
                   updateAttributes({ description: localDescription });
                   setEditingDescription(false);
                 }}
-                className="text-sm mb-2 w-full px-2 py-1 border rounded resize-vertical"
+                className="text-[11px] w-full px-2 py-1 border rounded resize-none mt-1"
                 style={{
                   color: 'var(--color-text-secondary)',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  borderColor: 'var(--color-accent)',
-                  minHeight: '60px'
+                  backgroundColor: 'var(--color-bg-primary)',
+                  borderColor: 'var(--color-border-primary)',
+                  minHeight: '28px',
+                  maxHeight: '40px',
+                  overflowY: 'auto',
                 }}
                 autoFocus
               />
@@ -138,18 +177,19 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
                   e.stopPropagation();
                   setEditingDescription(true);
                 }}
-                className="text-sm line-clamp-3 mb-2 cursor-pointer hover:opacity-70 transition-opacity"
-                style={{ color: 'var(--color-text-secondary)' }}
+                className="text-[11px] leading-snug cursor-pointer hover:opacity-70 transition-opacity mt-1"
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
                 title="Click to edit description"
               >
-                {description && description.trim() ? description : 'Click to add description'}
+                {description && description.trim() ? description : 'Link preview not available (access restricted or not found).'}
               </p>
             )}
-            
-            <div className="flex items-center gap-1 text-xs mt-auto" style={{ color: 'var(--color-accent)' }}>
-              <ExternalLink className="h-3 w-3" />
-              <span className="truncate">{new URL(url).hostname}</span>
-            </div>
           </div>
         </div>
       </a>

@@ -21,25 +21,30 @@ const baseGlobalSettings = {
   blendMode: 'normal',
 };
 
+const createContextValue = (overrides = {}) => ({
+  textureEnabled: true,
+  toggleTexture,
+  globalPattern: 'dots',
+  setGlobalPattern,
+  globalSettings: baseGlobalSettings,
+  updateGlobalSettings,
+  elementPatterns: {},
+  setElementPattern,
+  randomEnabled: false,
+  setRandomEnabled,
+  randomInterval: 5,
+  setRandomInterval,
+  nextRandomPattern,
+  resetToDefaults,
+  exportConfiguration,
+  importConfiguration,
+  ...overrides,
+});
+
+const useTexturesMock = vi.fn();
+
 vi.mock('@/contexts/TextureContext', () => ({
-  useTextures: () => ({
-    textureEnabled: true,
-    toggleTexture,
-    globalPattern: 'dots',
-    setGlobalPattern,
-    globalSettings: baseGlobalSettings,
-    updateGlobalSettings,
-    elementPatterns: {},
-    setElementPattern,
-    randomEnabled: false,
-    setRandomEnabled,
-    randomInterval: 5,
-    setRandomInterval,
-    nextRandomPattern,
-    resetToDefaults,
-    exportConfiguration,
-    importConfiguration,
-  }),
+  useTextures: () => useTexturesMock(),
 }));
 
 vi.mock('@/services/textureGenerator', () => ({
@@ -59,6 +64,7 @@ vi.mock('@/components/TexturePatternPreview', () => ({
 describe('TextureSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useTexturesMock.mockReturnValue(createContextValue());
   });
 
   const renderSettings = () => render(<TextureSettings />);
@@ -71,23 +77,25 @@ describe('TextureSettings', () => {
     expect(toggleTexture).toHaveBeenCalled();
   });
 
-  it('exports the current configuration from advanced options', () => {
+  it('enables random rotation from the compact toggle', () => {
     renderSettings();
 
-    fireEvent.click(screen.getByText(/advanced options/i));
-    fireEvent.click(screen.getByRole('button', { name: /export config/i }));
-
-    expect(exportConfiguration).toHaveBeenCalled();
-  });
-
-  it('enables random rotation and advances to the next pattern', () => {
-    renderSettings();
-
-    fireEvent.click(screen.getByText(/random pattern rotation/i));
-    const randomToggle = screen.getByText(/enable auto-rotation/i).parentElement?.querySelector('button');
+    const randomToggle = screen.getByText('Random Pattern Rotation').parentElement?.parentElement?.querySelector('button');
     expect(randomToggle).toBeTruthy();
     fireEvent.click(randomToggle!);
     expect(setRandomEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('exposes rotation controls when random mode is active', () => {
+    useTexturesMock.mockReturnValue(createContextValue({ randomEnabled: true }));
+    renderSettings();
+
+    fireEvent.click(screen.getByText(/Next pattern now/i));
+    expect(nextRandomPattern).toHaveBeenCalled();
+
+    const slider = screen.getByRole('slider');
+    fireEvent.change(slider, { target: { value: '10' } });
+    expect(setRandomInterval).toHaveBeenCalledWith(10);
   });
 });
 

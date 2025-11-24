@@ -1,8 +1,127 @@
 # Track the Thing 🎯
 
-A modern, powerful daily workspace application for capturing and organizing your thoughts, tasks, and work throughout the day. Built with FastAPI (Python) backend and React (TypeScript) frontend.
+A focused daily workspace for capturing notes, tasks, and decisions without losing historical context. Track the Thing combines a fast FastAPI backend with a modern React/TypeScript frontend, letting you move seamlessly between daily notes, Kanban boards, reports, and custom UI themes.
 
-## ✨ Features
+---
+
+## Why people use it
+
+- **Capture everything** – Rich text, code, voice dictation, camera shots, video, uploads, JSON/YAML helpers, and link previews live inside one editor.
+- **Organize on your terms** – Daily notes, pinned entries, Trello-style lists, Kanban boards, day labels, and custom emojis stay in sync.
+- **Report instantly** – Weekly reports and the Selected Entries Report turn any tagged entry into shareable Markdown (cards stay compact but can expand inline).
+- **Control the UI** – Built-in themes, custom themes, backgrounds, desk-top ready textures, and condensed display toggles give you a workspace that fits.
+- **Deploy anywhere** – Docker, local dev, or the upcoming desktop/Tauri build all share the same codebase and backup/restore format.
+
+---
+
+## Core product areas
+
+### Capture & edit
+- Daily note view with timeline and optional entry titles.
+- TipTap-based rich text editor with headings, task lists, custom fonts, colors, markdown preview, JSON formatter, YAML validator, link previews, inline preview editing, voice dictation (Chrome/Safari), camera, and video recording.
+- Code editor and syntax highlighting for dedicated code entries.
+- Entry states: ⭐ important, ✓ completed, 📌 pinned (auto-copies forward), 📄 add to report, 🔔 reminders.
+- Multi-select + merge, copy as Markdown, copy as Jira/Confluence, continue from previous day.
+
+### Organize & plan
+- Labels with emoji support, predictive search, transparent mode, and a full custom emoji pipeline (upload, rename, delete, backed up automatically).
+- Lists: Trello-style columns with drag-and-drop, inline creation, pills on cards, global search visibility, and optimistic updates.
+- Kanban board: custom columns, drag/drop, quick status dropdown, mini-map navigation, exclusive Kanban status plus multi-list support.
+- Goals: Daily, Sprint, and Quarterly goals all use the rich editor, are date-aware, and expose countdown timers. Display toggles sit under Settings → General (now condensed with clearer descriptions).
+- Day labels for filtering and timeline context.
+
+### Report & share
+- Weekly report generator (Wednesday-to-Wednesday) with copy/export.
+- Selected Entries Report displays compact cards with inline expand/collapse, copy buttons, open-in-context, and Markdown export.
+- Global search spans entries, lists, Kanban columns, and labels with status filters and history.
+- JSON + uploads backup/restore plus Markdown export for LLM workflows.
+
+### Customize the UI
+- 30+ built-in themes, custom theme editor with live preview, reset-to-default, and transparent label mode.
+- Custom backgrounds with auto-rotate, tiling, and cover modes.
+- UI Textures: 20+ patterns, per-element targeting, blend modes, random rotation, live preview, and import/export (Textures + Themes share the same backup pipeline).
+- View controls: full-screen mode, timeline toggle, persistent preferences, responsive layout.
+- Desktop build (Tauri + PyInstaller sidecar) reuses the same assets and `.tourienv` settings for splash screens and icons.
+
+---
+
+## Tech stack
+
+| Layer     | Tools |
+|-----------|-------|
+| Backend   | FastAPI, SQLAlchemy, SQLite, Pydantic, Requests, BeautifulSoup |
+| Frontend  | React 18, TypeScript, Vite, Tailwind, TipTap, React Router, Axios, date-fns |
+| Desktop   | Tauri shell + PyInstaller “sidecar” backend (see `desktop/README-desktop.md`) |
+
+---
+
+## Getting started
+
+### Prerequisites
+- Docker & Docker Desktop **or** Python 3.11+ with Node 18+
+
+### Docker (recommended)
+```bash
+git clone <repo>
+cd track-the-thing
+docker-compose --env-file .dockerenv up --build -d
+```
+Services run on `http://localhost:3000` (frontend) and `http://localhost:8000` (API/docs). Data lives in `backend/data`. Update `.dockerenv` to change ports, database paths, or API URLs.
+
+### Desktop build (optional preview)
+```bash
+cp .tourienv.example .tourienv
+./desktop/pyinstaller/build_backend.sh
+npm --prefix desktop/tauri run tauri:dev
+```
+All desktop scripts sit under `desktop/tauri/scripts/` and use separate ports/db names so Docker and Tauri can run simultaneously.
+
+### Local development
+```bash
+# backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# frontend
+cd frontend
+npm install
+npm run dev      # launches on http://localhost:3000
+```
+
+---
+
+## Project structure (abridged)
+```
+track-the-thing/
+├── backend/
+│   ├── app/
+│   │   ├── main.py, models.py, schemas.py, database.py
+│   │   └── routers/notes.py, entries.py, lists.py, kanban.py, backup.py, search.py, ...
+│   ├── data/ (SQLite + uploads)
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/components/ (DailyView, CalendarView, NoteEntryCard, RichTextEditor, Lists, Kanban, Reports, Settings, TextureSettings, etc.)
+│   ├── src/contexts/ (themes, textures, labels, goals, timezone, transparent labels, sprint name, etc.)
+│   ├── src/hooks/ and src/api.ts
+│   └── vite.config.ts, package.json
+├── desktop/
+│   ├── tauri/ (Tauri app, assets, splash, scripts)
+│   └── pyinstaller/ (backend sidecar build scripts)
+├── docker-compose.yml
+├── .dockerenv / .tourienv.examples
+└── README.md (you are here)
+```
+
+---
+
+## Tips
+- JSON backups before v7.0 do not contain list/Kanban metadata—keep a copy of the original `track_the_thing.db` when upgrading.
+- `.dockerenv` drives Docker services; `.tourienv` configures the desktop app so the two environments never collide.
+- Everything (themes, textures, emojis, attachments) is included in the backup/restore story—run both the JSON and uploads ZIP exports before upgrading or migrating.
+
+Enjoy shipping your day. 📓⚡
 
 ### 📝 Note Taking
 - **Entry Titles**: Add optional one-line titles to note entries for quick identification

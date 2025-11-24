@@ -110,26 +110,16 @@ export const useSpeechRecognition = ({
 
     // Handle results
     recognition.onresult = (event: any) => {
-      let interimTranscript = '';
       let finalTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
-        } else {
-          interimTranscript += transcript;
+          finalTranscript += event.results[i][0].transcript + ' ';
         }
       }
 
-      // Send final transcript to callback
-      if (finalTranscript) {
+      if (finalTranscript.trim()) {
         onTranscriptRef.current(finalTranscript, true);
-      }
-      
-      // Send interim transcript for real-time preview
-      if (interimTranscript) {
-        onTranscriptRef.current(interimTranscript, false);
       }
     };
 

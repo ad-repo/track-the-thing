@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Smile, X, Settings } from 'lucide-react';
 import Picker from 'emoji-picker-react';
 import data from '@emoji-mart/data';
@@ -19,6 +20,8 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
   const [isOpen, setIsOpen] = useState(false);
   const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
   const [showManager, setShowManager] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const { emojiLibrary, isLoading } = useEmojiLibrary();
 
   // Determine button styles based on variant
@@ -43,6 +46,38 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
   useEffect(() => {
     if (isOpen) {
       loadCustomEmojis();
+      // Calculate position based on button location
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const pickerWidth = 320; // w-80 = 20rem = 320px
+        const pickerHeight = 400; // approximate max height
+        
+        // Default: position below and to the left of the button
+        let top = rect.bottom + 8; // mt-2 = 8px
+        let left = rect.right - pickerWidth; // align right edge with button
+        
+        // Ensure picker doesn't go off the right edge
+        if (left + pickerWidth > window.innerWidth) {
+          left = window.innerWidth - pickerWidth - 16;
+        }
+        
+        // Ensure picker doesn't go off the left edge
+        if (left < 16) {
+          left = 16;
+        }
+        
+        // If picker would go below viewport, show it above the button
+        if (top + pickerHeight > window.innerHeight) {
+          top = rect.top - pickerHeight - 8;
+        }
+        
+        // Ensure picker doesn't go above viewport
+        if (top < 16) {
+          top = 16;
+        }
+        
+        setPickerPosition({ top, left });
+      }
     }
   }, [isOpen]);
 
@@ -98,6 +133,7 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
     <>
       <div className="relative">
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${buttonStyles.hoverClass}`}
@@ -112,7 +148,7 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
           <Smile className="h-4 w-4" />
         </button>
 
-        {isOpen && (
+        {isOpen && createPortal(
           <>
             {/* Backdrop */}
             <div
@@ -120,12 +156,14 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
               onClick={() => setIsOpen(false)}
             />
             
-            {/* Emoji picker popup */}
+            {/* Emoji picker popup - rendered via portal to avoid overflow clipping */}
             <div
-              className="absolute right-0 mt-2 w-80 max-h-96 border rounded-lg shadow-xl z-50 overflow-hidden flex flex-col"
+              className="fixed w-80 max-h-96 border rounded-lg shadow-xl z-50 overflow-hidden flex flex-col"
               style={{
                 backgroundColor: 'var(--color-bg-primary)',
                 borderColor: 'var(--color-border-primary)',
+                top: pickerPosition.top,
+                left: pickerPosition.left,
               }}
             >
               {/* Header */}
@@ -213,7 +251,8 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
                 )}
               </div>
             </div>
-          </>
+          </>,
+          document.body
         )}
       </div>
 

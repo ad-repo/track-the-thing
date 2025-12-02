@@ -442,6 +442,12 @@ cp .tourienv.example .tourienv            # adjust ports + data paths
 npm --prefix desktop/tauri run tauri:dev  # run splash + desktop shell
 ```
 
+Desktop build prerequisites:
+- Node.js 18+ and npm
+- Rust toolchain (rustup) with `cargo`
+- Python 3.11 with `pyinstaller` installed
+- macOS Command Line Tools (for `scripts/build-desktop-macos.sh`)
+
 Key scripts live under `desktop/tauri/scripts/`:
 
 - `run_frontend_dev.sh` / `run_frontend_build.sh` – keep the frontend build

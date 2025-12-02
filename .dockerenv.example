@@ -1,0 +1,17 @@
+# Backend containers
+BACKEND_DATABASE_URL=sqlite:///./data/track_the_thing.db
+BACKEND_TEST_DATABASE_URL=sqlite:///./data/test_track_the_thing.db
+BACKEND_E2E_DATABASE_URL=sqlite:///./data/e2e_track_the_thing.db
+BACKEND_PATH=/app
+
+# Frontend containers
+FRONTEND_VITE_API_URL=http://localhost:8000
+FRONTEND_E2E_VITE_API_URL=http://localhost:8001
+FRONTEND_TEST_CI=true
+
+# Local frontend tooling
+LOCAL_VITE_API_URL=http://localhost:8000
+
+# Playwright E2E runner
+E2E_BASE_URL=http://localhost:3001
+E2E_API_URL=http://localhost:8001

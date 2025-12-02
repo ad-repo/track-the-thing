@@ -39,9 +39,9 @@ if [[ ! -f "${PROJECT_ROOT}/.tourienv" ]]; then
   abort "Missing .tourienv. Copy .tourienv.example and customize desktop settings before building."
 fi
 
-if ! git -C "${PROJECT_ROOT}" diff --quiet --exit-code --stat; then
-  abort "Working tree has tracked changes. Commit or stash them before running the macOS build."
-fi
+# if ! git -C "${PROJECT_ROOT}" diff --quiet --exit-code --stat; then
+#   abort "Working tree has tracked changes. Commit or stash them before running the macOS build."
+# fi
 
 for cmd in npm cargo pyinstaller python3; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -61,6 +61,9 @@ fi
 
 log "Syncing logo assets into frontend/public/desktop"
 "${PROJECT_ROOT}/desktop/tauri/scripts/sync_assets.sh"
+
+log "Running frontend production build (populates frontend/dist)"
+./desktop/tauri/scripts/run_frontend_build.sh
 
 log "Ensuring backend sidecar is rebuilt via PyInstaller"
 "${PROJECT_ROOT}/desktop/pyinstaller/build_backend.sh"

@@ -11,6 +11,7 @@
   },
   "app": {
     "macOSPrivateApi": false,
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Track the Thing",
@@ -22,7 +23,8 @@
         "fullscreen": false,
         "decorations": true,
         "center": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "devtools": true
       }
     ],
     "security": {

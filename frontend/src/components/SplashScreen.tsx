@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -6,25 +8,111 @@ interface SplashScreenProps {
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const [fadeOut, setFadeOut] = useState(false);
+  const [status, setStatus] = useState('Starting...');
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasCompletedRef = useRef(false);
+  const startTimeRef = useRef(Date.now());
+
+  const finishSplash = useCallback(() => {
+    if (hasCompletedRef.current) return;
+    hasCompletedRef.current = true;
+    
+    // Clear any polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    
+    setStatus('Ready!');
+    
+    // Ensure minimum 2.5 second display
+    const elapsed = Date.now() - startTimeRef.current;
+    const minDisplayTime = 2500;
+    const remainingTime = Math.max(0, minDisplayTime - elapsed);
+    
+    setTimeout(() => {
+      setFadeOut(true);
+      setTimeout(onComplete, 500);
+    }, remainingTime);
+  }, [onComplete]);
 
   useEffect(() => {
-    // Minimum display time of 1 second, then check if ready
-    const timer = setTimeout(() => {
-      setFadeOut(true);
-      // Wait for fade animation to complete before calling onComplete
-      setTimeout(onComplete, 500);
-    }, 1500);
+    const checkBackend = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const response = await fetch(`${API_URL}/health`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          return data.status === 'healthy';
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [onComplete]);
+    const checkData = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const today = new Date().toISOString().split('T')[0];
+        const response = await fetch(`${API_URL}/api/notes/${today}`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        return response.ok || response.status === 404;
+      } catch {
+        return false;
+      }
+    };
+
+    const poll = async () => {
+      if (hasCompletedRef.current) return;
+      
+      const healthy = await checkBackend();
+      if (!healthy) {
+        setStatus('Waiting for backend...');
+        return;
+      }
+      
+      setStatus('Loading data...');
+      const dataReady = await checkData();
+      if (dataReady) {
+        finishSplash();
+      }
+    };
+
+    // Start polling after a brief delay
+    const initialTimeout = setTimeout(poll, 200);
+    pollingRef.current = setInterval(poll, 500);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, [finishSplash]);
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-500 ${
-        fadeOut ? 'opacity-0' : 'opacity-100'
+      className={`fixed inset-0 flex flex-col items-center justify-center transition-opacity duration-500 ${
+        fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       style={{
         background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
+        zIndex: 9999,
       }}
     >
       {/* Logo Container */}
@@ -84,14 +172,16 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           <h1 className="text-4xl font-bold text-white tracking-tight">
             Track the Thing
           </h1>
-          <p className="text-blue-200 text-sm">Desktop Application</p>
         </div>
 
         {/* Loading indicator */}
-        <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="flex flex-col items-center space-y-3">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <p className="text-blue-200 text-sm">{status}</p>
         </div>
       </div>
 

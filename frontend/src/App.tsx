@@ -168,8 +168,11 @@ function App() {
                       <QuarterlyGoalsProvider>
                         <DayLabelsProvider>
                           <FullScreenProvider>
-                            {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-                            <AppContent />
+                            {showSplash ? (
+                              <SplashScreen onComplete={handleSplashComplete} />
+                            ) : (
+                              <AppContent />
+                            )}
                           </FullScreenProvider>
                         </DayLabelsProvider>
                       </QuarterlyGoalsProvider>

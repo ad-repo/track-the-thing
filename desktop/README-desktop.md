@@ -92,6 +92,27 @@ npm --prefix desktop/tauri run tauri:dev
 npm --prefix desktop/tauri run tauri:build
 ```
 
+## Installing the Desktop App (macOS)
+
+### From DMG
+
+1. Download the DMG file (e.g., `Track the Thing_0.1.0_aarch64.dmg`)
+2. **Important:** Before opening the DMG, you may need to clear the macOS quarantine flag:
+   ```bash
+   xattr -cr ~/Downloads/Track\ the\ Thing_0.1.0_aarch64.dmg
+   ```
+3. Double-click the DMG to mount it
+4. Drag "Track the Thing" to your Applications folder
+5. If you see "app is damaged and can't be opened", run:
+   ```bash
+   xattr -cr /Applications/Track\ the\ Thing.app
+   ```
+6. Launch the app from Applications
+
+> **Why is this needed?** macOS Gatekeeper quarantines files downloaded from the internet. 
+> Since the app isn't signed with an Apple Developer certificate, macOS blocks it by default.
+> The `xattr -cr` command removes the quarantine attribute so the app can run.
+
 > **Tip:** Whenever you replace `desktop/tauri/assets/track-the-thing-logo.png`
 > with the official logo, re-run
 > `cd desktop/tauri && npx tauri icon ./assets/track-the-thing-logo.png`

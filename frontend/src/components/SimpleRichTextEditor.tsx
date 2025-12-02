@@ -158,6 +158,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
       >
         {/* Text Formatting */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('bold') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -177,6 +178,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('italic') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -196,6 +198,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('underline') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -215,6 +218,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleStrike().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('strike') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -244,6 +248,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
 
         {/* Headings */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('heading', { level: 2 }) ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -263,6 +268,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('heading', { level: 3 }) ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -292,6 +298,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
 
         {/* Lists */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('bulletList') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -311,6 +318,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('orderedList') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -330,6 +338,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleTaskList().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('taskList') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -359,6 +368,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
 
         {/* Block Elements */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('blockquote') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -378,6 +388,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleCode().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('code') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -397,6 +408,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('codeBlock') ? 'bg-opacity-100' : 'bg-opacity-0'
@@ -416,6 +428,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
         </button>
 
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
           className="p-2 rounded hover:bg-opacity-80 transition-colors"
           style={{
@@ -441,6 +454,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
 
         {/* Link */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={addLink}
           className={`p-2 rounded hover:bg-opacity-80 transition-colors ${
             editor.isActive('link') ? 'bg-opacity-100' : 'bg-opacity-0'

@@ -135,6 +135,7 @@ const EmojiPicker = ({ onEmojiSelect, variant = 'toolbar' }: EmojiPickerProps) =
         <button
           ref={buttonRef}
           type="button"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setIsOpen(!isOpen)}
           className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${buttonStyles.hoverClass}`}
           style={{ 

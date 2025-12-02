@@ -175,6 +175,9 @@ pub fn run() {
           .level(log::LevelFilter::Info)
           .build(),
       )?;
+      
+      // Enable opening external URLs in system browser
+      app.handle().plugin(tauri_plugin_opener::init())?;
 
       let repo_root = resolve_repo_root();
       

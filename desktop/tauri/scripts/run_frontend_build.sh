@@ -17,5 +17,6 @@ export VITE_API_URL="http://${TAURI_BACKEND_HOST:-127.0.0.1}:${TAURI_BACKEND_POR
 echo "VITE_API_URL=${VITE_API_URL}"
 
 cd "${REPO_ROOT}"
+npm --prefix frontend install
 exec npm --prefix frontend run build
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Trash2, Archive, Plus, PlusCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Trash2, Archive, Plus, PlusCircle, Pencil, Check, X } from 'lucide-react';
 import type { List, NoteEntry } from '../types';
 import ListCard from './ListCard';
 import AddEntryToListModal from './AddEntryToListModal';
@@ -24,6 +24,61 @@ const ListColumn = ({ list, entries, onUpdate, onDelete, onDragStart, onDragEnd,
   const [isDragOver, setIsDragOver] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(list.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Sync editedName when list.name changes externally
+  useEffect(() => {
+    setEditedName(list.name);
+  }, [list.name]);
+
+  const handleStartEditName = () => {
+    setEditedName(list.name);
+    setIsEditingName(true);
+  };
+
+  const handleCancelEditName = () => {
+    setEditedName(list.name);
+    setIsEditingName(false);
+  };
+
+  const handleSaveName = async () => {
+    const trimmedName = editedName.trim();
+    if (!trimmedName) {
+      alert('List name cannot be empty');
+      return;
+    }
+    if (trimmedName === list.name) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      await listsApi.update(list.id, { name: trimmedName });
+      setIsEditingName(false);
+      onUpdate();
+    } catch (error: any) {
+      alert(error?.response?.data?.detail || 'Failed to update list name');
+      console.error('Error updating list name:', error);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEditName();
+    }
+  };
 
   const handleRemoveEntry = async (entryId: number) => {
     try {
@@ -166,115 +221,159 @@ const ListColumn = ({ list, entries, onUpdate, onDelete, onDragStart, onDragEnd,
             }
           }}
         >
+          {/* Title Row */}
           <div className="mb-3">
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-2 flex-1 min-w-0" style={{ pointerEvents: 'none' }}>
+            {isEditingName ? (
+              <div className="flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>
                 <div
-                  className="w-1 h-8 rounded-full flex-shrink-0"
+                  className="w-1 self-stretch rounded-full flex-shrink-0"
                   style={{ backgroundColor: list.color }}
                 />
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={handleNameKeyDown}
+                  className="flex-1 min-w-0 px-3 py-2 text-lg font-bold rounded-lg border-2 focus:outline-none transition-all"
+                  style={{
+                    backgroundColor: 'var(--color-background)',
+                    borderColor: 'var(--color-accent)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+                <button
+                  onClick={handleSaveName}
+                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'white',
+                  }}
+                  title="Save"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleCancelEditName}
+                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  style={{
+                    backgroundColor: 'var(--color-background)',
+                    color: 'var(--color-text-secondary)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <div
+                  className="w-1 self-stretch rounded-full flex-shrink-0 mt-1"
+                  style={{ backgroundColor: list.color, minHeight: '1.5rem' }}
+                />
                 <h2
-                  className="text-xl font-bold truncate"
-                  style={{ color: 'var(--color-text-primary)' }}
+                  className="text-lg font-bold leading-snug break-words"
+                  style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}
                   title={list.name}
                 >
                   {list.name}
                 </h2>
               </div>
-              <div className="flex gap-1.5 ml-2" style={{ pointerEvents: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
+            )}
+          </div>
+
+          {/* Action Bar */}
+          {!isEditingName && (
+            <div className="flex items-center justify-between gap-2 mb-3" style={{ pointerEvents: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
+              <span
+                className="text-xs font-medium px-2 py-1 rounded-full"
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  backgroundColor: 'var(--color-background)',
+                }}
+              >
+                {entries.length} {entries.length === 1 ? 'card' : 'cards'}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleStartEditName}
+                  className="p-1.5 rounded-md transition-all hover:scale-105 opacity-60 hover:opacity-100"
+                  style={{
+                    color: 'var(--color-text-secondary)',
+                  }}
+                  title="Edit name"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  className="p-1.5 rounded-md transition-all hover:scale-105 opacity-60 hover:opacity-100"
                   style={{
-                    backgroundColor: 'var(--color-background)',
                     color: 'var(--color-accent)',
-                    border: '1px solid var(--color-border)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   }}
                   title="Create new card"
                 >
-                  <PlusCircle className="w-4 h-4" />
+                  <PlusCircle className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  className="p-1.5 rounded-md transition-all hover:scale-105 opacity-60 hover:opacity-100"
                   style={{
-                    backgroundColor: 'var(--color-background)',
                     color: 'var(--color-accent)',
-                    border: '1px solid var(--color-border)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   }}
-                  title="Add cards via search"
+                  title="Add existing cards"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={handleArchive}
-                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  className="p-1.5 rounded-md transition-all hover:scale-105 opacity-60 hover:opacity-100"
                   style={{
-                    backgroundColor: 'var(--color-background)',
                     color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   }}
-                  title={list.is_archived ? 'Unarchive list' : 'Archive list'}
+                  title={list.is_archived ? 'Unarchive' : 'Archive'}
                 >
-                  <Archive className="w-4 h-4" />
+                  <Archive className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => onDelete(list.id, list.name)}
-                  className="p-2 rounded-lg transition-all hover:scale-105"
+                  className="p-1.5 rounded-md transition-all hover:scale-105 opacity-60 hover:opacity-100"
                   style={{
-                    backgroundColor: 'var(--color-background)',
                     color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   }}
-                  title="Delete list"
+                  title="Delete"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-            
-            {/* Labels on a separate line */}
-            <div className="mt-3 px-3" style={{ pointerEvents: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
-              <LabelSelector
-                selectedLabels={list.labels || []}
-                onLabelsChange={() => {}}
-                onOptimisticUpdate={async (labels) => {
-                  // Handle label changes
-                  const currentLabelIds = (list.labels || []).map(l => l.id);
-                  const newLabelIds = labels.map(l => l.id);
-                  const added = newLabelIds.filter(id => !currentLabelIds.includes(id));
-                  const removed = currentLabelIds.filter(id => !newLabelIds.includes(id));
-                  
-                  try {
-                    for (const labelId of added) {
-                      await listsApi.addLabel(list.id, labelId);
-                    }
-                    for (const labelId of removed) {
-                      await listsApi.removeLabel(list.id, labelId);
-                    }
-                  } catch (error) {
-                    console.error('Error updating list labels:', error);
-                    // Revert on error
-                    onUpdate();
+          )}
+
+          {/* Labels */}
+          <div style={{ pointerEvents: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
+            <LabelSelector
+              selectedLabels={list.labels || []}
+              onLabelsChange={() => {}}
+              onOptimisticUpdate={async (labels) => {
+                const currentLabelIds = (list.labels || []).map(l => l.id);
+                const newLabelIds = labels.map(l => l.id);
+                const added = newLabelIds.filter(id => !currentLabelIds.includes(id));
+                const removed = currentLabelIds.filter(id => !newLabelIds.includes(id));
+                
+                try {
+                  for (const labelId of added) {
+                    await listsApi.addLabel(list.id, labelId);
                   }
-                }}
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 ml-3">
-            <span
-              className="text-sm"
-              style={{
-                color: 'var(--color-text-secondary)',
+                  for (const labelId of removed) {
+                    await listsApi.removeLabel(list.id, labelId);
+                  }
+                } catch (error) {
+                  console.error('Error updating list labels:', error);
+                  onUpdate();
+                }
               }}
-            >
-              {entries.length} {entries.length === 1 ? 'card' : 'cards'}
-            </span>
+            />
           </div>
         </div>
 

@@ -1671,7 +1671,20 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
         {/* Tools Group */}
         <ToolbarButton
-          onClick={() => setShowMarkdownPreview(!showMarkdownPreview)}
+          onClick={() => {
+            // Only toggle if there's content, or if already showing preview (to allow hiding)
+            if (showMarkdownPreview) {
+              setShowMarkdownPreview(false);
+              return;
+            }
+            const editorHtml = editor?.getHTML() || '';
+            const hasContent = editorHtml && 
+              editorHtml !== '<p></p>' && 
+              editorHtml.replace(/<[^>]*>/g, '').trim().length > 0;
+            if (hasContent) {
+              setShowMarkdownPreview(true);
+            }
+          }}
           active={showMarkdownPreview}
           title={showMarkdownPreview ? "Hide Markdown Preview" : "Show Markdown Preview"}
         >
@@ -1706,34 +1719,36 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         </ToolbarButton>
       </div>
 
-      {/* Editor and Markdown Preview */}
-      <div className={isExpanded ? 'editor-expanded' : ''}>
-        {showMarkdownPreview ? (
+      {/* Editor and Markdown Preview - both share same container to prevent size changes */}
+      <div className={isExpanded ? 'editor-expanded' : ''} style={{ position: 'relative' }}>
+        {/* Editor always rendered to maintain consistent sizing */}
+        <div style={{ visibility: showMarkdownPreview ? 'hidden' : 'visible' }}>
+          <EditorContent editor={editor} className="prose max-w-none" />
+        </div>
+        
+        {/* Markdown preview overlays when active */}
+        {showMarkdownPreview && (
           <div 
             className="prose max-w-none p-4 rounded border"
             style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
               backgroundColor: 'var(--color-bg-secondary)',
               borderColor: 'var(--color-border-primary)',
               color: 'var(--color-text-primary)',
-              maxHeight: '500px',
               overflowY: 'auto'
             }}
             dangerouslySetInnerHTML={{
               __html: (() => {
-                const turndownService = new TurndownService({
-                  headingStyle: 'atx',
-                  codeBlockStyle: 'fenced',
-                  bulletListMarker: '-',
-                  emDelimiter: '*',
-                  strongDelimiter: '**',
-                });
-                const markdown = turndownService.turndown(editor?.getHTML() || '');
-                return marked.parse(markdown) as string;
+                // Get plain text from editor to render pasted markdown directly
+                const plainText = editor?.getText() || '';
+                return marked.parse(plainText) as string;
               })()
             }}
           />
-        ) : (
-          <EditorContent editor={editor} className="prose max-w-none" />
         )}
       </div>
 

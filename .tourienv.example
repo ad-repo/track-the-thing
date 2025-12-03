@@ -20,13 +20,13 @@ TAURI_STATIC_DIR="${TAURI_DESKTOP_DATA_DIR}/static"
 
 # Window behavior -------------------------------------------------------------
 # Ratio of the available screen height that the main window should occupy on
-# startup. The Rust bootstrapper will clamp this between 0.5 and 1.0.
+# startup. The Rust bootstrapper will clamp this between 0.5 and 0.98.
 TAURI_WINDOW_HEIGHT_RATIO=0.70
 # Optional explicit width in logical pixels. Leave blank to let Tauri auto-size
-# to 60% of screen width (defined in lib.rs).
+# to (51% of screen width + 510px) as defined in lib.rs.
 TAURI_WINDOW_WIDTH=
 # Set to "true" to start maximized immediately.
-TAURI_WINDOW_MAXIMIZED=true
+TAURI_WINDOW_MAXIMIZED=false
 
 # Splash screen ----------------------------------------------------------------
 # Minimum number of milliseconds to keep the splash visible, even if the

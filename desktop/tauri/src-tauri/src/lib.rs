@@ -285,7 +285,7 @@ fn load_production_env() {
   env::set_var("TAURI_STATIC_DIR", format!("{}/static", data_dir_str));
   env::set_var("TAURI_BACKEND_LOG", format!("{}/logs/backend.log", data_dir_str));
   env::set_var("TAURI_WINDOW_HEIGHT_RATIO", "0.70");
-  env::set_var("TAURI_WINDOW_MAXIMIZED", "true");
+  env::set_var("TAURI_WINDOW_MAXIMIZED", "false");
   
   info!("Set TAURI_DESKTOP_DATA_DIR={}", data_dir_str);
 }
@@ -340,9 +340,10 @@ fn initialize_windows(app: &tauri::App, config: &DesktopConfig) {
       } else {
         info!("No saved preferences, using config - height_ratio: {}, width: {:?}, maximized: {}", 
               config.window_height_ratio, config.window_width, config.window_maximized);
+        // Use config width if set, otherwise default to 51% of screen + 510px
         let mut width = config
           .window_width
-          .unwrap_or_else(|| screen_size.width as f64 * 0.60)
+          .unwrap_or_else(|| (screen_size.width as f64 * 0.51) + 510.0)
           .min(screen_size.width as f64);
         if width < 480.0 {
           width = 480.0;
@@ -439,8 +440,11 @@ fn wait_for_backend_ready(app_handle: tauri::AppHandle, config: DesktopConfig) {
           let screen_size = monitor.size();
           info!("Monitor screen size: {}x{}", screen_size.width, screen_size.height);
           
-          // 60% width + 600px wider, 85% height + 150px taller
-          let width = ((screen_size.width as f64 * 0.60) + 600.0).max(480.0);
+          // Use config width if set, otherwise default to 51% of screen + 510px
+          let width = config.window_width
+            .unwrap_or_else(|| (screen_size.width as f64 * 0.51) + 510.0)
+            .max(480.0);
+          // Height: 85% of screen + 150px (unchanged from original)
           let height = (screen_size.height as f64 * 0.85) + 150.0;
           
           let physical_size = tauri::PhysicalSize { width: width as u32, height: height as u32 };

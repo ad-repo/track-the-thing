@@ -1540,6 +1540,13 @@ const Settings = () => {
             )}
           </div>
         </section>
+
+        {/* Version Footer */}
+        <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: 'var(--color-border-primary)' }}>
+          <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+            Track the Thing v{__APP_VERSION__}
+          </p>
+        </div>
       </div>
 
       {/* Custom Theme Creator Modal */}

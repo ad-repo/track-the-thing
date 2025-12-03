@@ -187,7 +187,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
       {/* Version footer */}
       <div className="absolute bottom-8 text-gray-400 text-sm">
-        Version 0.1.0
+        Version {__APP_VERSION__}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
 import { ExternalLink, X } from 'lucide-react';
 import { useState } from 'react';
+import { openExternal } from '../utils/openExternal';
 
 interface LinkPreviewData {
   url: string;
@@ -28,6 +29,10 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
     }
   })();
 
+  const handleOpenUrl = () => {
+    openExternal(url);
+  };
+
   return (
     <NodeViewWrapper
       className="link-preview relative group"
@@ -52,25 +57,18 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
       >
         <X className="h-4 w-4" />
       </button>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block border rounded-lg transition-colors no-underline"
+      <div
+        className="block border rounded-lg transition-colors"
         style={{
           borderColor: 'var(--color-border-primary)',
           padding: '0.35rem 0.65rem',
           backgroundColor: 'var(--color-card-bg)',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'var(--color-accent)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'var(--color-border-primary)';
-        }}
       >
         <div className="flex items-center gap-3">
+          {/* Clickable image/favicon area - opens URL */}
           <div
+            onClick={handleOpenUrl}
             style={{
               width: '52px',
               height: '52px',
@@ -83,6 +81,14 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
               justifyContent: 'center',
               overflow: 'hidden',
               padding: '4px',
+              cursor: 'pointer',
+            }}
+            title="Click to open link"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-accent)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border-primary)';
             }}
           >
             {image ? (
@@ -102,11 +108,18 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide font-semibold mb-1" style={{ color: 'var(--color-text-tertiary)' }}>
+            {/* Clickable site name row - opens URL */}
+            <div
+              onClick={handleOpenUrl}
+              className="flex items-center gap-1 text-[11px] uppercase tracking-wide font-semibold mb-1 cursor-pointer hover:opacity-70 transition-opacity"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              title="Click to open link"
+            >
               <span className="truncate">{site_name || hostname}</span>
               <ExternalLink className="h-3 w-3" />
             </div>
 
+            {/* Editable title - click to edit */}
             {editingTitle ? (
               <input
                 type="text"
@@ -132,12 +145,8 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
               />
             ) : (
               <h3
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setEditingTitle(true);
-                }}
-                className="font-semibold text-base leading-tight cursor-pointer hover:opacity-70 transition-opacity"
+                onClick={() => setEditingTitle(true)}
+                className="font-semibold text-base leading-tight cursor-text hover:opacity-70 transition-opacity"
                 style={{
                   color: 'var(--color-text-primary)',
                   display: '-webkit-box',
@@ -151,6 +160,7 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
               </h3>
             )}
 
+            {/* Editable description - click to edit */}
             {editingDescription ? (
               <textarea
                 value={localDescription}
@@ -172,12 +182,8 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
               />
             ) : (
               <p
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setEditingDescription(true);
-                }}
-                className="text-[11px] leading-snug cursor-pointer hover:opacity-70 transition-opacity mt-1"
+                onClick={() => setEditingDescription(true)}
+                className="text-[11px] leading-snug cursor-text hover:opacity-70 transition-opacity mt-1"
                 style={{
                   color: 'var(--color-text-secondary)',
                   display: '-webkit-box',
@@ -187,12 +193,12 @@ const LinkPreviewComponent = ({ node, updateAttributes, deleteNode }: { node: an
                 }}
                 title="Click to edit description"
               >
-                {description && description.trim() ? description : 'Link preview not available (access restricted or not found).'}
+                {description && description.trim() ? description : 'Click to add description'}
               </p>
             )}
           </div>
         </div>
-      </a>
+      </div>
     </NodeViewWrapper>
   );
 };

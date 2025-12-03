@@ -21,7 +21,7 @@ TAURI_STATIC_DIR="${TAURI_DESKTOP_DATA_DIR}/static"
 # Window behavior -------------------------------------------------------------
 # Ratio of the available screen height that the main window should occupy on
 # startup. The Rust bootstrapper will clamp this between 0.5 and 0.98.
-TAURI_WINDOW_HEIGHT_RATIO=0.70
+TAURI_WINDOW_HEIGHT_RATIO=0.95
 # Optional explicit width in logical pixels. Leave blank to let Tauri auto-size
 # to (51% of screen width + 510px) as defined in lib.rs.
 TAURI_WINDOW_WIDTH=

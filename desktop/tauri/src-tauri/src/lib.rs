@@ -284,7 +284,7 @@ fn load_production_env() {
   env::set_var("TAURI_UPLOADS_DIR", format!("{}/uploads", data_dir_str));
   env::set_var("TAURI_STATIC_DIR", format!("{}/static", data_dir_str));
   env::set_var("TAURI_BACKEND_LOG", format!("{}/logs/backend.log", data_dir_str));
-  env::set_var("TAURI_WINDOW_HEIGHT_RATIO", "0.70");
+  env::set_var("TAURI_WINDOW_HEIGHT_RATIO", "0.95");
   env::set_var("TAURI_WINDOW_MAXIMIZED", "false");
   
   info!("Set TAURI_DESKTOP_DATA_DIR={}", data_dir_str);
@@ -444,8 +444,10 @@ fn wait_for_backend_ready(app_handle: tauri::AppHandle, config: DesktopConfig) {
           let width = config.window_width
             .unwrap_or_else(|| (screen_size.width as f64 * 0.51) + 510.0)
             .max(480.0);
-          // Height: 85% of screen + 150px (unchanged from original)
-          let height = (screen_size.height as f64 * 0.85) + 150.0;
+          // Use config height ratio (consistent with initialize_windows)
+          let height = (screen_size.height as f64 * config.window_height_ratio)
+            .min(screen_size.height as f64)
+            .max(600.0);
           
           let physical_size = tauri::PhysicalSize { width: width as u32, height: height as u32 };
           info!("Re-applying physical window size before show: {}x{}", width, height);

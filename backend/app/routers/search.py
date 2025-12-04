@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
@@ -14,6 +15,7 @@ def search_entries(
     list_ids: str | None = Query(None, description='Comma-separated list IDs to filter by'),
     is_important: bool | None = Query(None, description='Filter by starred/important entries'),
     is_completed: bool | None = Query(None, description='Filter by completed entries'),
+    include_archived: bool = Query(False, description='Include archived entries in search results'),
     db: Session = Depends(get_db),
 ):
     """
@@ -25,10 +27,19 @@ def search_entries(
         joinedload(models.NoteEntry.labels), joinedload(models.NoteEntry.lists), joinedload(models.NoteEntry.daily_note)
     )
 
-    # Filter by text content if provided
+    # Filter out archived entries by default
+    if not include_archived:
+        query = query.filter(models.NoteEntry.is_archived == 0)
+
+    # Filter by text in title or content if provided
     if q and q.strip():
         search_term = f'%{q.strip()}%'
-        query = query.filter(models.NoteEntry.content.ilike(search_term))
+        query = query.filter(
+            or_(
+                models.NoteEntry.title.ilike(search_term),
+                models.NoteEntry.content.ilike(search_term),
+            )
+        )
 
     # Filter by labels if provided
     if label_ids and label_ids.strip():
@@ -94,6 +105,8 @@ def search_entries(
             'include_in_report': bool(entry.include_in_report),
             'is_important': bool(entry.is_important),
             'is_completed': bool(entry.is_completed),
+            'is_pinned': bool(entry.is_pinned),
+            'is_archived': bool(entry.is_archived),
             'date': entry.daily_note.date if entry.daily_note else 'Unknown',
         }
         search_results.append(result_dict)
@@ -108,6 +121,7 @@ def search_all(
     list_ids: str | None = Query(None, description='Comma-separated list IDs to filter by'),
     is_important: bool | None = Query(None, description='Filter by starred/important entries'),
     is_completed: bool | None = Query(None, description='Filter by completed entries'),
+    include_archived: bool = Query(False, description='Include archived entries in search results'),
     db: Session = Depends(get_db),
 ):
     """
@@ -115,16 +129,26 @@ def search_all(
     Returns both entries and lists that match the search criteria.
     """
     print(
-        f'Search params: q={q}, label_ids={label_ids}, list_ids={list_ids}, is_important={is_important}, is_completed={is_completed}'
+        f'Search params: q={q}, label_ids={label_ids}, list_ids={list_ids}, is_important={is_important}, is_completed={is_completed}, include_archived={include_archived}'
     )
     results = {'entries': [], 'lists': []}
 
     # Search entries
     entry_query = db.query(models.NoteEntry)
 
+    # Filter out archived entries by default
+    if not include_archived:
+        entry_query = entry_query.filter(models.NoteEntry.is_archived == 0)
+
+    # Filter by text in title or content if provided
     if q and q.strip():
         search_term = f'%{q.strip()}%'
-        entry_query = entry_query.filter(models.NoteEntry.content.ilike(search_term))
+        entry_query = entry_query.filter(
+            or_(
+                models.NoteEntry.title.ilike(search_term),
+                models.NoteEntry.content.ilike(search_term),
+            )
+        )
 
     if label_ids and label_ids.strip():
         try:
@@ -192,6 +216,7 @@ def search_all(
                 'is_important': bool(entry.is_important),
                 'is_completed': bool(entry.is_completed),
                 'is_pinned': bool(entry.is_pinned),
+                'is_archived': bool(entry.is_archived),
                 'date': entry.daily_note.date if entry.daily_note else 'Unknown',
             }
         )

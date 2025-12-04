@@ -95,6 +95,16 @@ export const entriesApi = {
     const response = await api.post<NoteEntry>(`/api/entries/${entryId}/toggle-pin`);
     return response.data;
   },
+
+  toggleArchive: async (entryId: number): Promise<NoteEntry> => {
+    const response = await api.post<NoteEntry>(`/api/entries/${entryId}/toggle-archive`);
+    return response.data;
+  },
+
+  getArchived: async (): Promise<NoteEntry[]> => {
+    const response = await api.get<NoteEntry[]>('/api/entries/archived');
+    return response.data;
+  },
 };
 
 // Goals API
@@ -164,6 +174,11 @@ export const goalsApi = {
 export const listsApi = {
   getAll: async (includeArchived: boolean = false): Promise<List[]> => {
     const response = await api.get<List[]>('/api/lists', { params: { include_archived: includeArchived } });
+    return response.data;
+  },
+
+  getArchived: async (): Promise<ListWithEntries[]> => {
+    const response = await api.get<ListWithEntries[]>('/api/lists/archived');
     return response.data;
   },
 

@@ -21,8 +21,14 @@ def get_all_notes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     # Manually construct response to include daily_note_date
     result = []
     for note in notes:
-        # Query entries directly to ensure we get the correct associations
-        entries = db.query(models.NoteEntry).filter(models.NoteEntry.daily_note_id == note.id).all()
+        # Query entries directly, excluding archived ones
+        entries = (
+            db.query(models.NoteEntry)
+            .filter(models.NoteEntry.daily_note_id == note.id)
+            .filter(models.NoteEntry.is_archived == 0)
+            .order_by(models.NoteEntry.order_index.desc(), models.NoteEntry.created_at.desc())
+            .all()
+        )
 
         note_dict = {
             'id': note.id,
@@ -44,10 +50,12 @@ def get_all_notes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
                     'is_important': bool(entry.is_important),
                     'is_completed': bool(entry.is_completed),
                     'is_pinned': bool(entry.is_pinned),
+                    'is_archived': bool(entry.is_archived),
                     'created_at': entry.created_at,
                     'updated_at': entry.updated_at,
                     'labels': entry.labels,
                     'lists': entry.lists,
+                    'reminder': entry.reminder,
                 }
                 for entry in entries
             ],
@@ -68,11 +76,49 @@ def get_note_by_date(date: str, db: Session = Depends(get_db)):
     if not note:
         raise HTTPException(status_code=404, detail='Note not found for this date')
 
-    # Populate daily_note_date for each entry
-    for entry in note.entries:
-        entry.daily_note_date = note.date
+    # Query entries directly, excluding archived ones
+    entries = (
+        db.query(models.NoteEntry)
+        .filter(models.NoteEntry.daily_note_id == note.id)
+        .filter(models.NoteEntry.is_archived == 0)
+        .order_by(models.NoteEntry.order_index.desc(), models.NoteEntry.created_at.desc())
+        .all()
+    )
 
-    return note
+    # Manually construct response with non-archived entries
+    result = {
+        'id': note.id,
+        'date': note.date,
+        'fire_rating': note.fire_rating,
+        'daily_goal': note.daily_goal,
+        'created_at': note.created_at,
+        'updated_at': note.updated_at,
+        'entries': [
+            {
+                'id': entry.id,
+                'daily_note_id': entry.daily_note_id,
+                'daily_note_date': note.date,
+                'title': entry.title,
+                'content': entry.content,
+                'content_type': entry.content_type,
+                'order_index': entry.order_index,
+                'include_in_report': bool(entry.include_in_report),
+                'is_important': bool(entry.is_important),
+                'is_completed': bool(entry.is_completed),
+                'is_pinned': bool(entry.is_pinned),
+                'is_archived': bool(entry.is_archived),
+                'created_at': entry.created_at,
+                'updated_at': entry.updated_at,
+                'labels': entry.labels,
+                'lists': entry.lists,
+                'reminder': entry.reminder,
+            }
+            for entry in entries
+        ],
+        'labels': note.labels,
+    }
+
+    return result
 
 
 @router.post('/', response_model=schemas.DailyNote, status_code=201)

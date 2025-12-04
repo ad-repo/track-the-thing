@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, BookOpen, Clock, Columns, Trello } from 'lucide-react';
+import { Trash2, BookOpen, Clock, Columns, Trello, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { NoteEntry, List } from '../types';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTransparentLabels } from '../contexts/TransparentLabelsContext';
 import { formatTimestamp } from '../utils/timezone';
+import { entriesApi } from '../api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -17,9 +18,10 @@ interface ListCardProps {
   listId?: number;
   list?: List;
   isKanbanView?: boolean;
+  onArchive?: () => void;
 }
 
-const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView }: ListCardProps) => {
+const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView, onArchive }: ListCardProps) => {
   const navigate = useNavigate();
   const { timezone } = useTimezone();
   const { transparentLabels } = useTransparentLabels();
@@ -82,6 +84,18 @@ const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView }: ListC
     }
   };
 
+  const handleArchive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await entriesApi.toggleArchive(entry.id);
+      if (onArchive) {
+        onArchive();
+      }
+    } catch (err) {
+      console.error('Error archiving entry:', err);
+    }
+  };
+
   return (
     <div
       className="entry-card-container relative group"
@@ -111,6 +125,19 @@ const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView }: ListC
             <BookOpen className="w-4 h-4" />
           </button>
         )}
+        <button
+          onClick={handleArchive}
+          className="p-2 rounded-lg transition-all hover:scale-105"
+          style={{
+            backgroundColor: 'var(--color-background)',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          }}
+          title="Archive card"
+        >
+          <Archive className="w-4 h-4" />
+        </button>
         {onRemoveFromList && listId && (
           <button
             onClick={handleRemove}

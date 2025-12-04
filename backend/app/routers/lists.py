@@ -23,7 +23,7 @@ def get_kanban_boards(db: Session = Depends(get_db)):
     """Get all Kanban board columns (lists with is_kanban=1)."""
     kanban_lists = (
         db.query(models.List)
-        .options(joinedload(models.List.labels))
+        .options(joinedload(models.List.labels), joinedload(models.List.entries))
         .filter(models.List.is_kanban == 1)
         .filter(models.List.is_archived == 0)
         .order_by(models.List.kanban_order, models.List.created_at)
@@ -41,7 +41,7 @@ def get_kanban_boards(db: Session = Depends(get_db)):
             'kanban_order': lst.kanban_order,
             'created_at': lst.created_at,
             'updated_at': lst.updated_at,
-            'entry_count': len(lst.entries),
+            'entry_count': len([e for e in lst.entries if e.is_archived == 0]),
             'labels': lst.labels,
         }
         for lst in kanban_lists
@@ -130,6 +130,67 @@ def reorder_kanban_columns(request: schemas.ReorderListsRequest, db: Session = D
 
 
 # ===========================
+# Archive Endpoints
+# ===========================
+
+
+@router.get('/archived', response_model=list[schemas.ListWithEntries])
+def get_archived_lists(db: Session = Depends(get_db)):
+    """Get all archived lists with their entries."""
+    archived_lists = (
+        db.query(models.List)
+        .options(
+            joinedload(models.List.entries).joinedload(models.NoteEntry.daily_note),
+            joinedload(models.List.entries).joinedload(models.NoteEntry.labels),
+            joinedload(models.List.labels),
+        )
+        .filter(models.List.is_archived == 1)
+        .order_by(models.List.updated_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            'id': lst.id,
+            'name': lst.name,
+            'description': lst.description,
+            'color': lst.color,
+            'order_index': lst.order_index,
+            'is_archived': bool(lst.is_archived),
+            'is_kanban': bool(lst.is_kanban),
+            'kanban_order': lst.kanban_order,
+            'created_at': lst.created_at,
+            'updated_at': lst.updated_at,
+            'entry_count': len(lst.entries),
+            'labels': lst.labels,
+            'entries': [
+                {
+                    'id': entry.id,
+                    'daily_note_id': entry.daily_note_id,
+                    'daily_note_date': entry.daily_note.date if entry.daily_note else None,
+                    'title': entry.title,
+                    'content': entry.content,
+                    'content_type': entry.content_type,
+                    'order_index': entry.order_index,
+                    'include_in_report': bool(entry.include_in_report),
+                    'is_important': bool(entry.is_important),
+                    'is_completed': bool(entry.is_completed),
+                    'is_pinned': bool(entry.is_pinned),
+                    'is_archived': bool(entry.is_archived) if hasattr(entry, 'is_archived') else False,
+                    'created_at': entry.created_at,
+                    'updated_at': entry.updated_at,
+                    'labels': entry.labels,
+                    'lists': entry.lists,
+                    'reminder': entry.reminder,
+                }
+                for entry in lst.entries
+            ],
+        }
+        for lst in archived_lists
+    ]
+
+
+# ===========================
 # List CRUD Endpoints
 # ===========================
 
@@ -137,7 +198,7 @@ def reorder_kanban_columns(request: schemas.ReorderListsRequest, db: Session = D
 @router.get('', response_model=list[schemas.ListResponse])
 def get_all_lists(include_archived: bool = False, db: Session = Depends(get_db)):
     """Get all lists with entry counts and labels (excludes Kanban columns)."""
-    query = db.query(models.List).options(joinedload(models.List.labels))
+    query = db.query(models.List).options(joinedload(models.List.labels), joinedload(models.List.entries))
 
     # Exclude Kanban columns from regular lists
     query = query.filter(models.List.is_kanban == 0)
@@ -157,7 +218,7 @@ def get_all_lists(include_archived: bool = False, db: Session = Depends(get_db))
             'is_archived': bool(lst.is_archived),
             'created_at': lst.created_at,
             'updated_at': lst.updated_at,
-            'entry_count': len(lst.entries),
+            'entry_count': len([e for e in lst.entries if e.is_archived == 0]),
             'labels': lst.labels,
         }
         for lst in lists
@@ -166,7 +227,7 @@ def get_all_lists(include_archived: bool = False, db: Session = Depends(get_db))
 
 @router.get('/{list_id}', response_model=schemas.ListWithEntries)
 def get_list(list_id: int, db: Session = Depends(get_db)):
-    """Get a single list with all its entries and labels."""
+    """Get a single list with all its entries and labels (excludes archived entries)."""
     lst = (
         db.query(models.List)
         .options(
@@ -182,6 +243,9 @@ def get_list(list_id: int, db: Session = Depends(get_db)):
     if not lst:
         raise HTTPException(status_code=404, detail='List not found')
 
+    # Filter out archived entries
+    non_archived_entries = [entry for entry in lst.entries if entry.is_archived == 0]
+
     return {
         'id': lst.id,
         'name': lst.name,
@@ -193,7 +257,7 @@ def get_list(list_id: int, db: Session = Depends(get_db)):
         'kanban_order': lst.kanban_order,
         'created_at': lst.created_at,
         'updated_at': lst.updated_at,
-        'entry_count': len(lst.entries),
+        'entry_count': len(non_archived_entries),
         'labels': lst.labels,
         'entries': [
             {
@@ -207,6 +271,7 @@ def get_list(list_id: int, db: Session = Depends(get_db)):
                 'include_in_report': bool(entry.include_in_report),
                 'is_important': bool(entry.is_important),
                 'is_completed': bool(entry.is_completed),
+                'is_archived': bool(entry.is_archived),
                 'created_at': entry.created_at,
                 'updated_at': entry.updated_at,
                 'labels': [
@@ -230,7 +295,7 @@ def get_list(list_id: int, db: Session = Depends(get_db)):
                     for entry_list in entry.lists
                 ],
             }
-            for entry in lst.entries
+            for entry in non_archived_entries
         ],
     }
 
@@ -338,7 +403,7 @@ def update_list(list_id: int, list_data: schemas.ListUpdate, db: Session = Depen
         'kanban_order': lst.kanban_order,
         'created_at': lst.created_at,
         'updated_at': lst.updated_at,
-        'entry_count': len(lst.entries),
+        'entry_count': len([e for e in lst.entries if e.is_archived == 0]),
     }
 
 

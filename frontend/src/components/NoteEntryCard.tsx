@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, Clock, FileText, Star, Check, Copy, CheckCheck, ArrowRight, ArrowUp, FileDown, Pin, Trello, Bell } from 'lucide-react';
+import { Trash2, Clock, FileText, Star, Check, Copy, CheckCheck, ArrowRight, ArrowUp, FileDown, Pin, Trello, Bell, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import axios from 'axios';
@@ -13,7 +13,7 @@ import EntryListSelector from './EntryListSelector';
 import ReminderModal from './ReminderModal';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { formatTimestamp } from '../utils/timezone';
-import { kanbanApi, listsApi, remindersApi } from '../api';
+import { kanbanApi, listsApi, remindersApi, entriesApi } from '../api';
 import { useTexture } from '../hooks/useTexture';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -46,6 +46,7 @@ interface NoteEntryCardProps {
   selectionMode?: boolean;
   currentDate?: string; // YYYY-MM-DD format
   onTitleUpdate?: (id: number, title: string) => void;
+  onArchive?: () => void;
 }
 
 const NoteEntryCard = ({
@@ -60,6 +61,7 @@ const NoteEntryCard = ({
   selectionMode = false,
   currentDate,
   onTitleUpdate,
+  onArchive,
 }: NoteEntryCardProps) => {
   const { timezone } = useTimezone();
   const navigate = useNavigate();
@@ -218,6 +220,17 @@ const NoteEntryCard = ({
 
   const cancelDelete = () => {
     setDeleteConfirmation(false);
+  };
+
+  const handleArchive = async () => {
+    try {
+      await entriesApi.toggleArchive(entry.id);
+      if (onArchive) {
+        onArchive();
+      }
+    } catch (err) {
+      console.error('Error archiving entry:', err);
+    }
   };
 
   const handleReportToggle = async () => {
@@ -817,6 +830,23 @@ const NoteEntryCard = ({
               <ArrowUp className="h-5 w-5" />
             </button>
             
+            <button
+              onClick={handleArchive}
+              className="p-2 rounded transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-accent)';
+                e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              title="Archive entry"
+            >
+              <Archive className="h-4 w-4" />
+            </button>
+
             <button
               onClick={handleDelete}
               className="p-2 rounded transition-colors"

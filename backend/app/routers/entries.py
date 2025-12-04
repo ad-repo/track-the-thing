@@ -2,7 +2,7 @@ from datetime import datetime
 
 import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app import models, schemas
 from app.database import get_db
@@ -255,6 +255,12 @@ def get_archived_entries(db: Session = Depends(get_db)):
     entries = (
         db.query(models.NoteEntry)
         .join(models.DailyNote)
+        .options(
+            joinedload(models.NoteEntry.daily_note),
+            joinedload(models.NoteEntry.labels),
+            joinedload(models.NoteEntry.lists),
+            joinedload(models.NoteEntry.reminder),
+        )
         .filter(models.NoteEntry.is_archived == 1)
         .order_by(models.NoteEntry.updated_at.desc())
         .all()

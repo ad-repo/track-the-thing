@@ -21,6 +21,7 @@ export interface NoteEntry {
   is_important: boolean;
   is_completed: boolean;
   is_pinned: boolean;
+  is_archived?: boolean;
   reminder?: Reminder;
 }
 

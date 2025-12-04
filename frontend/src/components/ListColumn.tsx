@@ -409,6 +409,7 @@ const ListColumn = ({ list, entries, onUpdate, onDelete, onDragStart, onDragEnd,
                     onUpdate();
                   }}
                   isKanbanView={isKanbanView}
+                  onArchive={onUpdate}
                 />
               ))}
             </div>

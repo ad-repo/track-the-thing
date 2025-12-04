@@ -101,9 +101,11 @@ def get_entries_for_date(date: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail='Note not found for this date')
 
     # Order by order_index descending (higher values first), then by created_at descending (newest first)
+    # Exclude archived entries from the daily view
     entries = (
         db.query(models.NoteEntry)
         .filter(models.NoteEntry.daily_note_id == note.id)
+        .filter(models.NoteEntry.is_archived == 0)
         .order_by(models.NoteEntry.order_index.desc(), models.NoteEntry.created_at.desc())
         .all()
     )
@@ -140,7 +142,7 @@ def update_entry(entry_id: int, entry_update: schemas.NoteEntryUpdate, db: Sessi
     update_data = entry_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         # Handle boolean to integer conversion for SQLite
-        if key in ['include_in_report', 'is_important', 'is_completed', 'is_pinned']:
+        if key in ['include_in_report', 'is_important', 'is_completed', 'is_pinned', 'is_archived']:
             setattr(db_entry, key, 1 if value else 0)
         else:
             setattr(db_entry, key, value)
@@ -229,6 +231,60 @@ def toggle_pin(entry_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_entry)
     return db_entry
+
+
+@router.post('/{entry_id}/toggle-archive', response_model=schemas.NoteEntry)
+def toggle_archive(entry_id: int, db: Session = Depends(get_db)):
+    """Toggle the archived status of an entry"""
+    db_entry = db.query(models.NoteEntry).filter(models.NoteEntry.id == entry_id).first()
+    if not db_entry:
+        raise HTTPException(status_code=404, detail='Entry not found')
+
+    # Toggle the archived status
+    db_entry.is_archived = 0 if db_entry.is_archived else 1
+    db_entry.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(db_entry)
+    return db_entry
+
+
+@router.get('/archived', response_model=list[schemas.NoteEntry])
+def get_archived_entries(db: Session = Depends(get_db)):
+    """Get all archived entries"""
+    entries = (
+        db.query(models.NoteEntry)
+        .join(models.DailyNote)
+        .filter(models.NoteEntry.is_archived == 1)
+        .order_by(models.NoteEntry.updated_at.desc())
+        .all()
+    )
+    
+    # Add daily_note_date to each entry for navigation
+    result = []
+    for entry in entries:
+        entry_dict = {
+            'id': entry.id,
+            'daily_note_id': entry.daily_note_id,
+            'daily_note_date': entry.daily_note.date if entry.daily_note else None,
+            'title': entry.title,
+            'content': entry.content,
+            'content_type': entry.content_type,
+            'order_index': entry.order_index,
+            'include_in_report': bool(entry.include_in_report),
+            'is_important': bool(entry.is_important),
+            'is_completed': bool(entry.is_completed),
+            'is_pinned': bool(entry.is_pinned),
+            'is_archived': bool(entry.is_archived),
+            'created_at': entry.created_at,
+            'updated_at': entry.updated_at,
+            'labels': entry.labels,
+            'lists': entry.lists,
+            'reminder': entry.reminder,
+        }
+        result.append(entry_dict)
+    
+    return result
 
 
 @router.get('/{entry_id}', response_model=schemas.NoteEntry)

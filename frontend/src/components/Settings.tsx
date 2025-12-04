@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen } from 'lucide-react';
 import axios from 'axios';
+import { listsApi, entriesApi } from '../api';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTheme, Theme } from '../contexts/ThemeContext';
 import { useCustomBackground } from '../contexts/CustomBackgroundContext';
@@ -94,6 +96,7 @@ const ConfirmationDialog = ({
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const Settings = () => {
+  const navigate = useNavigate();
   const textureStyles = useTexture('settings');
   const [isImporting, setIsImporting] = useState(false);
   const [isDownloadingFiles, setIsDownloadingFiles] = useState(false);
@@ -124,6 +127,34 @@ const Settings = () => {
   const { showQuarterlyGoals, setShowQuarterlyGoals } = useQuarterlyGoals();
   const { showDayLabels, setShowDayLabels } = useDayLabels();
   const { emojiLibrary, setEmojiLibrary } = useEmojiLibrary();
+  
+  // Archive data
+  const [archivedLists, setArchivedLists] = useState<any[]>([]);
+  const [archivedCards, setArchivedCards] = useState<any[]>([]);
+  
+  const loadArchivedData = useCallback(async () => {
+    try {
+      const [lists, entries] = await Promise.all([
+        listsApi.getArchived(),
+        entriesApi.getArchived(),
+      ]);
+      setArchivedLists(lists);
+      setArchivedCards(entries);
+    } catch (err) {
+      console.error('Error loading archived data:', err);
+    }
+  }, []);
+  
+  useEffect(() => {
+    loadArchivedData();
+  }, [loadArchivedData]);
+  
+  // Strip HTML for preview
+  const stripHtml = (html: string): string => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+  };
   const { setSprintName: setSprintNameContext } = useSprintName();
   
   const [labels, setLabels] = useState<Label[]>([]);
@@ -1539,6 +1570,68 @@ const Settings = () => {
               </div>
             )}
           </div>
+        </section>
+
+        {/* Archive Section */}
+        <section
+          className="rounded-xl p-6"
+          style={{
+            backgroundColor: 'var(--color-bg-secondary)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          <h2
+            className="text-xl font-semibold mb-4 flex items-center gap-2"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            <Archive className="w-5 h-5" />
+            Archive
+          </h2>
+          
+          {archivedLists.length === 0 && archivedCards.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+              No archived items. Items you archive will appear here.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div
+                onClick={() => navigate('/archive?tab=lists')}
+                className="rounded-lg p-4 text-center cursor-pointer transition-all hover:scale-[1.02]"
+                style={{
+                  backgroundColor: 'var(--color-background)',
+                  border: '1px solid var(--color-border-primary)',
+                }}
+              >
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Columns className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                </div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--color-accent)' }}>
+                  {archivedLists.length}
+                </div>
+                <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Archived Lists
+                </div>
+              </div>
+              <div
+                onClick={() => navigate('/archive?tab=cards')}
+                className="rounded-lg p-4 text-center cursor-pointer transition-all hover:scale-[1.02]"
+                style={{
+                  backgroundColor: 'var(--color-background)',
+                  border: '1px solid var(--color-border-primary)',
+                }}
+              >
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <BookOpen className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                </div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--color-accent)' }}>
+                  {archivedCards.length}
+                </div>
+                <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Archived Cards
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Version Footer */}

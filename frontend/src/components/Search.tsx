@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon, X, Star, CheckCircle, Columns, Trello } from 'lucide-react';
+import { Search as SearchIcon, X, Star, CheckCircle, Columns, Trello, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import type { NoteEntry, Label, List } from '../types';
@@ -29,6 +29,7 @@ const Search = () => {
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [filterStarred, setFilterStarred] = useState<boolean | null>(null);
   const [filterCompleted, setFilterCompleted] = useState<boolean | null>(null);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,11 +75,13 @@ const Search = () => {
     labels?: number[];
     starred?: boolean | null;
     completed?: boolean | null;
+    archived?: boolean;
   }) => {
     const query = overrides?.query !== undefined ? overrides.query : searchQuery;
     const labels = overrides?.labels !== undefined ? overrides.labels : selectedLabels;
     const starred = overrides?.starred !== undefined ? overrides.starred : filterStarred;
     const completed = overrides?.completed !== undefined ? overrides.completed : filterCompleted;
+    const archived = overrides?.archived !== undefined ? overrides.archived : includeArchived;
 
     // Don't search if nothing is entered
     if (!query.trim() && labels.length === 0 && starred === null && completed === null) {
@@ -109,6 +112,9 @@ const Search = () => {
       }
       if (completed !== null) {
         params.is_completed = completed;
+      }
+      if (archived) {
+        params.include_archived = true;
       }
 
       const response = await axios.get<{entries: NoteEntry[], lists: List[]}>(`${API_URL}/api/search/all`, { params });
@@ -148,6 +154,7 @@ const Search = () => {
     setSelectedLabels([]);
     setFilterStarred(null);
     setFilterCompleted(null);
+    setIncludeArchived(false);
     setResults([]);
     setListResults([]);
     setHasSearched(false);
@@ -357,6 +364,36 @@ const Search = () => {
               <CheckCircle className="h-4 w-4" />
               <span className="text-sm font-medium">Not Completed</span>
             </button>
+
+            {/* Include Archived Filter */}
+            <button
+              onClick={() => {
+                const newValue = !includeArchived;
+                setIncludeArchived(newValue);
+                performSearch({ archived: newValue });
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all"
+              style={{
+                backgroundColor: includeArchived ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                color: includeArchived ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                border: `2px solid ${includeArchived ? 'var(--color-accent)' : 'var(--color-border-primary)'}`,
+              }}
+              onMouseEnter={(e) => {
+                if (!includeArchived) {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.backgroundColor = `${getComputedStyle(document.documentElement).getPropertyValue('--color-accent')}10`;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!includeArchived) {
+                  e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)';
+                }
+              }}
+            >
+              <Archive className="h-4 w-4" />
+              <span className="text-sm font-medium">Include Archived</span>
+            </button>
           </div>
         </div>
 
@@ -473,6 +510,7 @@ const Search = () => {
               {filterStarred === true && <span className="ml-2 px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>Starred</span>}
               {filterCompleted === true && <span className="ml-2 px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>Completed</span>}
               {filterCompleted === false && <span className="ml-2 px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>Not completed</span>}
+              {includeArchived && <span className="ml-2 px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>Including archived</span>}
             </div>
           </div>
         )}
@@ -596,13 +634,14 @@ const Search = () => {
               return (
                 <div
                   key={entry.id}
-                  onClick={() => goToEntry(entry, date)}
+                  onClick={() => entry.is_archived ? navigate('/archive?tab=cards') : goToEntry(entry, date)}
                   className="rounded-xl shadow-lg p-6 hover:shadow-2xl transition-all duration-300 cursor-pointer"
                   style={{
                     backgroundColor: 'var(--color-card-bg)',
-                    border: '2px solid var(--color-border-primary)',
+                    border: entry.is_archived ? '2px solid var(--color-text-tertiary)' : '2px solid var(--color-border-primary)',
                     animation: `fadeIn 0.3s ease-in ${index * 0.05}s both`,
-                    minHeight: '200px'
+                    minHeight: '200px',
+                    opacity: entry.is_archived ? 0.8 : 1,
                   }}
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -628,6 +667,12 @@ const Search = () => {
                         {entry.is_pinned && (
                           <span className="px-3 py-1 text-sm font-medium rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-primary)' }}>
                             📌 Pinned
+                          </span>
+                        )}
+                        {entry.is_archived && (
+                          <span className="px-3 py-1 text-sm font-medium rounded-lg flex items-center gap-1" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
+                            <Archive className="w-3 h-3" />
+                            Archived
                           </span>
                         )}
                       </div>

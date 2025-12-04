@@ -8,6 +8,7 @@ import Navigation from './components/Navigation';
 import Settings from './components/Settings';
 import Reports from './components/Reports';
 import Search from './components/Search';
+import Archive from './components/Archive';
 import { SplashScreen } from './components/SplashScreen';
 import ReminderAlert from './components/ReminderAlert';
 import { format, addDays } from 'date-fns';
@@ -130,6 +131,10 @@ const AppContent = () => {
             <Route
               path="/settings"
               element={<Settings />}
+            />
+            <Route
+              path="/archive"
+              element={<Archive />}
             />
           </Routes>
         </div>

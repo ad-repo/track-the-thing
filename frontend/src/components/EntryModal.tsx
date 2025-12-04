@@ -81,6 +81,12 @@ const EntryModal = ({ entryId, onClose, onUpdate }: EntryModalProps) => {
     onUpdate?.();
   };
 
+  const handleListsUpdate = (entryId: number, lists: any[]) => {
+    if (entry) {
+      setEntry({ ...entry, lists });
+    }
+  };
+
   const handleTitleUpdate = (entryId: number, title: string) => {
     if (entry) {
       setEntry({ ...entry, title });
@@ -148,6 +154,7 @@ const EntryModal = ({ entryId, onClose, onUpdate }: EntryModalProps) => {
               onUpdate={handleEntryUpdate}
               onDelete={handleEntryDelete}
               onLabelsUpdate={handleLabelsUpdate}
+              onListsOptimisticUpdate={handleListsUpdate}
               onTitleUpdate={handleTitleUpdate}
               onMoveToTop={handleMoveToTop}
               selectionMode={false}

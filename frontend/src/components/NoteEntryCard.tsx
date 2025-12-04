@@ -40,6 +40,7 @@ interface NoteEntryCardProps {
   onDelete: (id: number) => void;
   onLabelsUpdate: (entryId: number, labels: any[]) => void;
   onListsUpdate?: () => void;
+  onListsOptimisticUpdate?: (entryId: number, lists: any[]) => void;
   onMoveToTop?: (id: number) => void;
   isSelected?: boolean;
   onSelectionChange?: (id: number, selected: boolean) => void;
@@ -55,6 +56,7 @@ const NoteEntryCard = ({
   onDelete,
   onLabelsUpdate,
   onListsUpdate,
+  onListsOptimisticUpdate,
   onMoveToTop,
   isSelected = false,
   onSelectionChange,
@@ -899,6 +901,13 @@ const NoteEntryCard = ({
             onUpdate={() => {
               if (onListsUpdate) {
                 onListsUpdate();
+              }
+            }}
+            onOptimisticUpdate={(lists) => {
+              if (onListsOptimisticUpdate) {
+                // Merge with existing kanban lists (which are filtered out of currentLists)
+                const kanbanLists = (entry.lists || []).filter(list => list.is_kanban);
+                onListsOptimisticUpdate(entry.id, [...lists, ...kanbanLists]);
               }
             }}
           />

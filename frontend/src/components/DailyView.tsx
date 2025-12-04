@@ -296,6 +296,14 @@ const DailyView = () => {
     );
   };
 
+  const handleEntryListsUpdate = (entryId: number, newLists: any[]) => {
+    setEntries(prevEntries => 
+      prevEntries.map(entry => 
+        entry.id === entryId ? { ...entry, lists: newLists } : entry
+      )
+    );
+  };
+
   const handleEntryTitleUpdate = (entryId: number, newTitle: string) => {
     setEntries(prevEntries =>
       prevEntries.map(entry =>
@@ -1369,6 +1377,7 @@ const DailyView = () => {
                   onLabelsUpdate={handleEntryLabelsUpdate}
                   onTitleUpdate={handleEntryTitleUpdate}
                   onListsUpdate={loadDailyNote}
+                  onListsOptimisticUpdate={handleEntryListsUpdate}
                   onMoveToTop={handleMoveToTop}
                   selectionMode={selectionMode}
                   isSelected={selectedEntries.has(entry.id)}

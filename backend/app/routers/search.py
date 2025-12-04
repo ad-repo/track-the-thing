@@ -105,6 +105,7 @@ def search_entries(
             'include_in_report': bool(entry.include_in_report),
             'is_important': bool(entry.is_important),
             'is_completed': bool(entry.is_completed),
+            'is_pinned': bool(entry.is_pinned),
             'is_archived': bool(entry.is_archived),
             'date': entry.daily_note.date if entry.daily_note else 'Unknown',
         }

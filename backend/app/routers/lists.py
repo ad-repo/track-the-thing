@@ -180,6 +180,8 @@ def get_archived_lists(db: Session = Depends(get_db)):
                     'created_at': entry.created_at,
                     'updated_at': entry.updated_at,
                     'labels': entry.labels,
+                    'lists': entry.lists,
+                    'reminder': entry.reminder,
                 }
                 for entry in lst.entries
             ],

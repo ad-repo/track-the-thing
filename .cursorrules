@@ -1,359 +1,94 @@
-_schema_version: "1.0.0"
-last_updated: "2025-11-13"
-meta_guidelines:
-  purpose: "Defines all coding, testing, documentation, and cleanup standards for the AI code editor."
-  enforcement:
-    - Always reference these rules after every operation, edit, or commit.
-    - ALWAYS review .ai-testing-rules.yml before committing or pushing code.
-    - ALWAYS run ./test_ci_locally.sh before every commit to verify CI compliance.
-    - After each code generation, verify:
-      - All relevant rules are followed.
-      - Critical requirements are satisfied.
-      - No drift or deviations exist.
-    - Prioritize any section marked as `critical: true` when conflicts occur.
-    - Optionally summarize rule compliance when outputting results.
+# Track the Thing - AI Rules (v2.0)
 
-rules:
-  ai_testing_compliance:
-    critical: true
-    purpose: "Ensure AI always tests code properly before committing and follows exact CI procedures."
-    reference_file: ".ai-testing-rules.yml"
-    mandatory_actions:
-      - ALWAYS run ./test_ci_locally.sh before every commit
-      - NEVER push code without verifying it passes all CI checks locally
-      - NEVER guess at CI errors - always read actual CI logs
-      - NEVER run different commands than what CI runs
-      - Review .ai-testing-rules.yml for complete procedures
-    before_every_commit:
-      - step: 1
-        action: "Run ./test_ci_locally.sh"
-        required: true
-      - step: 2
-        action: "Verify exit code is 0"
-        required: true
-      - step: 3
-        action: "Only commit if all checks pass"
-        required: true
-    when_ci_fails:
-      - "DO NOT GUESS - Look at actual CI error logs"
-      - "Reproduce error locally using exact CI commands"
-      - "Fix the error"
-      - "Run ./test_ci_locally.sh to verify"
-      - "Only push if local checks pass"
-    enforcement:
-      - Treat violations as critical failures
-      - Multiple CI failures due to not testing locally is unacceptable
-      - Always follow procedures in .ai-testing-rules.yml
+## Critical Rules (Never Violate)
 
-  plan_logging:
-    purpose: "Automatically show and save all plans generated in plan mode with descriptive titles for traceability and review."
-    applies_to:
-      - Plan mode sessions that involve code analysis, design, or refactoring
-      - Any time a planning step is generated before agent execution
-    behavior:
-      - Always display the plan output in chat before execution begins
-      - Save each plan as a Markdown file under `.cursor/plans/`
-      - Use descriptive file naming with variables for readability and traceability
-    filename_template: ".cursor/plans/${timestamp}-${task}.md"
-    file_header: |
-      # Plan Summary
-      **Task:** ${task}
-      **Branch:** ${branch}
-      **Timestamp:** ${timestamp}
+### Safety
+- NEVER change program code to fix tests - fix tests or understand why they fail
+- NEVER modify/delete working code without full understanding
+- NEVER push without running `./test_ci_locally.sh` (exit code must be 0)
+- NEVER introduce new patterns when existing ones exist
+- NEVER guess at CI errors - read actual logs
 
-      ---
-    organization:
-      - Automatically create subfolders by branch or date if configured
-      - Ignore `.cursor/plans/` in version control to prevent clutter
-      - Retain recent plans for debugging or process audits
-    variables:
-      - ${timestamp}: ISO timestamp when the plan was created
-      - ${task}: Sanitized short version of the user request or goal
-      - ${branch}: Current Git branch name (if applicable)
-      - ${file}: Active file when plan was generated
-    enforcement:
-      - Always produce a visible plan summary before edits occur
-      - If a plan cannot be saved, output a warning in chat
-      - Never execute a plan silently without displaying it to the user first
+### Testing
+- NEVER run tests directly - use containerized `./run_all_tests.sh`
+- ALWAYS add tests for new functionality (in top-level `tests/` folder)
+- ALWAYS run full test suite before committing
 
-  safety:
-    critical: true
-    purpose: "Prevent loss or corruption of working code, data, or functionality during edits, refactors, or cleanup."
-    principles:
-      - You are never allowed to modify the .cursorrules file without permission
-      - Never change program code to fix tests
-      - Never modify or delete working code unless the change is fully understood and justified.
-      - Never attempt optimizations or refactors without confirming tests pass before and after.
-      - Never perform large deletions or rewrites without version control commits or backups.
-      - Always review the impact of changes on dependent modules, APIs, and data flows.
-      - Preserve existing functionality before implementing improvements.
-      - If uncertain about side effects, isolate the change in a feature branch and test thoroughly.
-      - Treat working code as production-critical unless explicitly marked for removal.
-    safeguards:
-      - Commit or stash all changes before running cleanup or migrations.
-      - Use `git diff` or similar tools to confirm no unrelated code is altered.
-      - Verify no regressions in functionality or performance after edits.
-      - Avoid destructive bulk operations (e.g., search-replace, auto-fix, reformat) without previewing changes.
-      - Revert immediately if tests or builds fail after a structural edit.
-      - Escalate or review risky changes with a maintainer before proceeding.
-    enforcement:
-      - If a proposed action risks destroying working functionality, stop and request human review.
-      - Roll back any accidental destructive change immediately.
-      - Never prioritize speed or cleanliness over stability.
-      - Always confirm safety compliance before committing or merging.
+### Database
+- ALWAYS create migrations in `backend/migrations/` for schema changes
+- ALWAYS update `backend/app/routers/backup.py` for data model changes
+- ALWAYS test migrations can upgrade from previous versions
 
-  database_changes:
-    critical: true
-    purpose: "Maintain database integrity and compatibility during schema or migration changes."
-    steps:
-      - Add migration scripts to backend/migrations/
-      - Ensure migrations upgrade cleanly from all previous versions
-      - Update backup/restore logic in backend/app/routers/backup.py
-      - Test migrations on a database copy before committing
-      - Verify backward compatibility or clearly document breaking changes
+## Workflow
 
-  code_quality:
-    purpose: "Maintain consistent, error-free, production-ready code."
-    checks:
-      - Run linter before committing
-      - Fix all linter errors (no exceptions)
-      - Keep TypeScript strict mode enabled
-      - Disallow console.log in production (except for critical errors)
+### Before Starting
+1. Read request completely
+2. Search for existing patterns (`grep -r "pattern" backend/` or `frontend/`)
+3. Follow existing patterns exactly
 
-  code_consistency:
-    critical: true
-    purpose: "Ensure all code follows existing project conventions and established patterns."
-    rules:
-      - Follow existing patterns and styles
-      - Check for similar implementations before adding new features
-      - Keep UI elements visually and structurally consistent
-      - Match naming conventions, file structure, and organization
-      - Do not introduce new patterns when one already exists
+### Before Committing
+1. Run linter, fix all errors
+2. Run `./test_ci_locally.sh` - must pass
+3. Check `git diff` - only relevant changes
+4. Update docs if behavior changed
+5. Add migrations if schema changed
 
-  ui_ux:
-    purpose: "Maintain consistent and accessible user interfaces."
-    standards:
-      - Use consistent toggle and button styles
-      - "Use theme variables (var(--color-*)); never hardcoded colors"
-      - Ensure responsive design in both wide and compact layouts
-      - Store user preferences in localStorage where appropriate
+## Code Standards
 
-  context_state:
-    purpose: "Handle shared and local state safely and predictably."
-    guidelines:
-      - Use React Context for global data (themes, settings, preferences)
-      - Keep state local when sharing is not required
-      - Provide default values for all localStorage items
-      - Clean up effects, intervals, and listeners
+### Frontend (React/TypeScript)
+- Use theme variables: `var(--color-*)` - never hardcode colors
+- Use existing hooks/contexts
+- Keep TypeScript strict, avoid `any`
+- No `console.log` in production
+- Clean up effects/listeners
 
-  git_workflow:
-    critical: true
-    purpose: "Maintain clean, traceable version control practices and ensure new branches start from the latest remote main."
-    steps:
-      - Always fetch and rebase from the remote main before creating a new branch.
-      - Confirm your local main matches the remote with "git fetch origin && git status main".
-      - Create all new branches from the up-to-date remote main using:
-        - "git checkout main"
-        - "git pull origin main"
-        - "git checkout -b feature/<descriptive-name>"
-      - Use Conventional Commits for commit messages.
-      - Never force push to main/master without explicit approval.
-      - Check git status and git diff before committing.
-      - Verify pull requests can merge cleanly with no conflicts.
-      - Delete stale branches once merged to keep the repo clean.
-    enforcement:
-      - Branches not created from the latest remote main are invalid and must be rebased or recreated.
-      - Reject commits or PRs showing outdated base commits.
-      - Treat failure to rebase before branching as a critical workflow violation.
+### Backend (Python/FastAPI)
+- Follow existing router patterns
+- Use existing session patterns
+- Consistent error handling
 
-  before_pushing:
-    purpose: "Final verification checklist before pushing or merging changes."
-    checklist:
-      - Fix all linter errors
-      - Add database migrations if schema changed
-      - Update backup/restore scripts if data model changed
-      - Update documentation and README as needed
-      - Verify existing docs are accurate
-      - Remove hardcoded credentials or API keys
-      - Follow established patterns and styles
-      - Verify all tests pass locally
-      - Remove unused or outdated files
+### General
+- Match existing naming/structure
+- Keep functions < 50 lines
+- No debug code or commented-out code
 
-  file_organization:
-    purpose: "Maintain consistent file structure across frontend and backend."
-    layout:
-      components: frontend/src/components/
-      contexts: frontend/src/contexts/
-      hooks: frontend/src/hooks/
-      routers: backend/app/routers/
-      migrations: backend/migrations/
+## File Locations
 
-  documentation:
-    critical: true
-    purpose: "Keep all documentation accurate, up to date, and aligned with implementation, including cases revealed by test results."
-    applies_to:
-      - Adding or modifying features
-      - Fixing or refactoring code that changes behavior
-      - Adjusting tests that expose behavior mismatches
-      - Updating configuration, interfaces, or data models
-    requirements:
-      - Update .md files and READMEs whenever code behavior changes, even if discovered during test fixes.
-      - Update external or internal documentation when tests reveal undocumented functionality or spec drift.
-      - Document how tests map to features, expected outputs, and known edge cases.
-      - Keep migration and usage guides in sync with actual runtime behavior.
-      - Add inline code comments if a test fix clarifies unclear logic.
-      - Clearly mark deprecated behavior identified during testing.
-    verification:
-      - After any test change, confirm that documentation still accurately describes system behavior.
-      - Cross-check test expectations and documented behavior for alignment.
-      - Ensure test examples in docs (if any) run and pass.
-    enforcement:
-      - Treat missing or outdated docs after test updates as blockers for merge.
-      - Never dismiss documentation updates as "not needed" for test changes; documentation reflects reality, not intent.
-      - Re-verify documentation alignment after all test-related code merges.
+```
+backend/app/routers/     # API endpoints
+backend/app/models.py    # Database models
+backend/migrations/      # DB migrations
+frontend/src/components/ # React components
+frontend/src/contexts/   # React contexts
+frontend/src/hooks/      # Custom hooks
+tests/backend/           # Backend tests
+tests/e2e/               # E2E tests
+```
 
-  external_docs_discovery:
-    critical: true
-    purpose: "Ensure the model automatically locates and uses relevant external documentation before implementing, modifying, or validating functionality."
-    applies_to:
-      - Implementing new features, routes, or APIs
-      - Fixing or refactoring existing logic
-      - Adjusting tests that expose discrepancies with documented behavior
-      - Resolving spec drift between tests, code, and documentation
-      - Any situation where expected vs actual behavior diverges
-    principles:
-      - Always locate and review authoritative documentation before coding or fixing behavior.
-      - Treat discovery of relevant docs as part of both feature implementation and test correction.
-      - Never assume undocumented behavior is correct; confirm with the official spec or source documentation.
-      - Prefer internal or official documentation over general references.
-      - If documentation cannot be found for a behavior under test, flag it as a possible gap and request clarification.
-    search_behavior:
-      - Determine documentation relevance based on context (file path, module name, API, data model, or test subject).
-      - Search known locations first:
-        - "/docs/"
-        - "/api/"
-        - "/spec/"
-        - "/design/"
-        - "/architecture/"
-        - Linked internal wikis or Confluence pages
-        - External SDK or API portals
-      - Use semantic cues from test names, API routes, and code identifiers to locate relevant docs.
-      - Retrieve the smallest necessary snippet defining the relevant functionality.
-      - Confirm the document version matches the tested or implemented code version.
-    implementation_guidelines:
-      - Reference discovered documentation explicitly when making changes.
-      - Verify code and tests align with documented request/response schemas, data types, and expected outputs.
-      - Mirror documented examples for payloads, responses, and error handling.
-      - Record documentation version, title, and source in commit or PR notes for traceability.
-      - If test failures indicate undocumented behavior, update documentation references or flag the gap.
-    enforcement:
-      - Treat missing or outdated documentation as a blocker for merge when behavior differs from expectations.
-      - Stop implementation or test updates if authoritative documentation cannot be located.
-      - Escalate discrepancies between documentation and actual code/tests rather than guessing intent.
-      - Always re-verify alignment with documentation after test fixes, refactors, or API updates.
+## Common Tasks
 
-  test_creation:
-    critical: true
-    purpose: "Ensure all new or modified functionality includes automated test coverage without being prompted."
-    triggers:
-      - All tests should be contained under a top level tests folder
-      - Adding new features, routes, or components
-      - Modifying existing logic or algorithms
-      - Refactoring code that affects behavior
-      - Fixing bugs or implementing missing functionality
-      - Changing database schema or data models
-    requirements:
-      - Create or update unit, integration, or UI tests for new or changed behavior
-      - Ensure tests reflect expected functionality and edge cases
-      - Place new test files in the correct directories
-      - Maintain consistent test naming and structure
-      - Include both positive and negative test cases
-      - Update mocks, fixtures, or stubs as needed
-      - Do not skip test creation, even for small changes or bug fixes
-    quality_standards:
-      - New tests must pass and integrate with the full suite
-      - Tests must clearly express intent (no vague or placeholder assertions)
-      - Avoid redundant or overlapping tests
-      - Maintain or improve test coverage where possible
-      - Ensure tests run quickly and reliably in CI
-    enforcement:
-      - Missing tests for new functionality are blockers for merge or commit
-      - If unsure how to test, request review or guidance—do not skip
-      - Never release untested new functionality
-      - When uncertain, add more tests rather than fewer
+### Add Feature
+1. Find similar feature, copy pattern
+2. Add tests
+3. Update docs
+4. Create migration if DB changes
 
-  testing:
-    critical: true
-    purpose: "Ensure correctness, reliability, and meaningful coverage without altering valid logic."
-    when_to_run:
-      - Do not change program code to fix tests
-      - Run all tests for the current section when major changes are made
-      - Run all shared library tests after any modification
-      - Run the full suite before pushing any code
-    rules:
-      - Do not modify or simplify valid tests to make them pass
-      - Do not rename or rewrite test titles to match incorrect behavior
-      - Do not run long-running tests that always time out unless fixing them
-      - Never skip or delete tests without explicit approval
-      - Test functionality must match its title and intent
-      - All tests must pass before pushing or merging
-    quality_standards:
-      - Identify and call out stub, placeholder, or trivial tests that provide no meaningful verification
-      - Flag tests that use empty assertions, overly generic names, or lack clear expectations
-      - Replace or request improvements for tests that exist only to satisfy coverage metrics
-      - Ensure each test verifies a specific behavior or outcome, not just execution success
-      - Verify that test data, mocks, and fixtures are realistic and relevant
-      - Maintain clear, descriptive test names that communicate purpose and scope
-      - Prefer focused, behavior-driven tests over broad or redundant ones
-    collaboration:
-      - Report unclear test failures instead of changing logic
-      - Raise issues or comments for low-quality tests that need redesign
-      - Review bugs, missing features, or unclear expectations before code changes
-    crosslinks:
-      - When fixing failing tests, recheck rules.external_docs_discovery to confirm behavior aligns with documentation
-    enforcement:
-      - If test rules conflict with other rules, this section takes priority
-      - Validate test behavior against expected functionality, not current output
-      - Treat low-quality or stub tests as technical debt; do not consider them "passing coverage"
+### Fix Bug
+1. Write test reproducing bug
+2. Fix code (minimal change)
+3. Verify test passes
+4. Check no regressions
 
-  local_test_execution:
-    critical: true
-    purpose: "Never run tests locally - all tests must run in containers via the test script"
-    rules:
-      - Never execute docker-compose run --rm e2e npx playwright test
-      - Never execute npm test or pytest or python -m pytest directly
-      - Never run any test commands that could interfere with the user's local environment
-      - Only reference ./run_all_tests.sh when discussing tests
-      - User will run ./run_all_tests.sh themselves when needed
-    enforcement:
-      - Any test execution command is a critical violation - stop immediately
-      - If test results are needed, ask the user to run ./run_all_tests.sh
-      - Never run tests in background or foreground without explicit user instruction
-      - You are allowed to run any test that runs in a container even if it is local
+## Don't Do
 
-  cleanup:
-    critical: true
-    purpose: "Keep the repository clean, efficient, and free of obsolete code or files."
-    when_to_run:
-      - Perform cleanup before every push or major merge
-      - Run cleanup after large refactors, feature removals, or migration changes
-    code_cleanup:
-      - Remove unused imports, functions, and variables
-      - Delete dead or unreachable code
-      - Remove deprecated feature flags or conditionals
-      - Verify removed code is not referenced in tests, docs, or configs
-    file_cleanup:
-      - Delete obsolete scripts and utilities
-      - Remove temporary or local-use-only files (debug helpers, scratch code)
-      - Delete outdated .md files for removed features or workflows
-      - Keep only one canonical version of each doc or guide
-      - Remove duplicate or outdated migration and backup scripts
-    verification:
-      - Search for unused files or modules
-      - Confirm deletions are tracked by version control
-      - Ensure no production dependencies rely on deleted files
-      - Verify build and test pipelines pass after cleanup
-    enforcement:
-      - Treat cleanup warnings as blockers before pushing
-      - Never delete code, docs, or files without verifying no references remain
-      - If uncertain about a file, mark it deprecated instead of deleting
+- "While I'm here..." - stay focused on task
+- Refactor unrelated code
+- Add features not requested
+- Skip documentation updates
+- Skip test creation
+
+## When Uncertain
+
+1. State your understanding
+2. List assumptions
+3. Ask for confirmation

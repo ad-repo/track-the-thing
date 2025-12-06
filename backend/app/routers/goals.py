@@ -94,15 +94,15 @@ def get_all_goals(include_hidden: bool = False, db: Session = Depends(get_db)):
 @router.get('/active/{date}', response_model=list[schemas.UnifiedGoalResponse])
 def get_active_goals_for_date(date: str, db: Session = Depends(get_db)):
     """Get all visible goals active for a specific date.
-    
+
     Logic:
     - Both dates set: show if date is within start_date and end_date range
     - Only start_date set: show if date >= start_date (ongoing goal)
     - Only end_date set: show if date <= end_date (goal with deadline, no start)
     - No dates (lifestyle): always show if visible
     """
-    from sqlalchemy import or_, and_
-    
+    from sqlalchemy import and_, or_
+
     goals = (
         db.query(models.Goal)
         .filter(

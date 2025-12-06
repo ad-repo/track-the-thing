@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.models import AppSettings, DailyNote, Label, NoteEntry, QuarterlyGoal, SearchHistory, SprintGoal
 
 # Keep in sync with export version in app.routers.backup.export_data.
-BACKUP_SCHEMA_VERSION = '8.0'
+BACKUP_SCHEMA_VERSION = '9.0'
 
 
 @pytest.mark.integration

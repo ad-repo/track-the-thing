@@ -1,5 +1,5 @@
 """
-Integration tests for Goals API endpoints
+Integration tests for Unified Goals API endpoints
 """
 
 import pytest
@@ -7,30 +7,111 @@ from fastapi.testclient import TestClient
 
 
 @pytest.mark.integration
-class TestSprintGoalsAPI:
-    """Test /api/goals/sprint endpoints."""
+class TestGoalTypesAPI:
+    """Test /api/goals/types endpoint."""
 
-    def test_create_sprint_goal_success(self, client: TestClient):
-        """Test POST /api/goals/sprint with valid data returns 200 (Bug #3: should be 201)."""
+    def test_get_goal_types(self, client: TestClient):
+        """Test GET /api/goals/types returns all goal type categories."""
+        response = client.get('/api/goals/types')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert 'time_based' in data
+        assert 'lifestyle' in data
+        assert 'all_preset' in data
+
+        # Verify time-based types
+        assert 'Daily' in data['time_based']
+        assert 'Weekly' in data['time_based']
+        assert 'Sprint' in data['time_based']
+        assert 'Monthly' in data['time_based']
+        assert 'Quarterly' in data['time_based']
+        assert 'Yearly' in data['time_based']
+
+        # Verify lifestyle types
+        assert 'Fitness' in data['lifestyle']
+        assert 'Health' in data['lifestyle']
+        assert 'Learning' in data['lifestyle']
+        assert 'Personal' in data['lifestyle']
+
+        # all_preset should be combination
+        assert len(data['all_preset']) == len(data['time_based']) + len(data['lifestyle'])
+
+
+@pytest.mark.integration
+class TestUnifiedGoalsAPI:
+    """Test /api/goals CRUD operations."""
+
+    def test_create_goal_with_dates(self, client: TestClient):
+        """Test POST /api/goals/ with start and end dates."""
         response = client.post(
-            '/api/goals/sprint',
-            json={'text': 'Complete testing suite', 'start_date': '2025-11-01', 'end_date': '2025-11-14'},
+            '/api/goals/',
+            json={
+                'name': 'Q4 Sprint',
+                'goal_type': 'Sprint',
+                'text': 'Complete testing suite',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-14',
+            },
         )
 
         assert response.status_code == 201
         data = response.json()
+        assert data['name'] == 'Q4 Sprint'
+        assert data['goal_type'] == 'Sprint'
         assert data['text'] == 'Complete testing suite'
         assert data['start_date'] == '2025-11-01'
         assert data['end_date'] == '2025-11-14'
+        assert data['is_completed'] is False
+        assert data['is_visible'] is True
         assert 'id' in data
         assert 'created_at' in data
         assert 'days_remaining' in data
 
-    def test_create_sprint_goal_invalid_date_range(self, client: TestClient):
-        """Test POST /api/goals/sprint with end_date before start_date returns 400."""
+    def test_create_lifestyle_goal_with_dates(self, client: TestClient):
+        """Test creating a lifestyle goal with date range."""
         response = client.post(
-            '/api/goals/sprint',
+            '/api/goals/',
             json={
+                'name': 'Daily Exercise',
+                'goal_type': 'Fitness',
+                'text': 'Exercise for 30 minutes every day',
+                'start_date': '2025-01-01',
+                'end_date': '2025-12-31',
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data['name'] == 'Daily Exercise'
+        assert data['goal_type'] == 'Fitness'
+        assert data['start_date'] == '2025-01-01'
+        assert data['end_date'] == '2025-12-31'
+
+    def test_create_goal_with_custom_type(self, client: TestClient):
+        """Test creating a goal with custom type."""
+        response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Side Project',
+                'goal_type': 'Custom:SideProject',
+                'text': 'Build a cool app',
+                'start_date': '2025-12-01',
+                'end_date': '2025-12-31',
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data['goal_type'] == 'Custom:SideProject'
+
+    def test_create_goal_invalid_date_range(self, client: TestClient):
+        """Test POST /api/goals/ with end_date before start_date returns 400."""
+        response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Invalid Goal',
+                'goal_type': 'Sprint',
                 'text': 'Invalid dates',
                 'start_date': '2025-11-14',
                 'end_date': '2025-11-01',  # Before start_date
@@ -38,423 +119,514 @@ class TestSprintGoalsAPI:
         )
 
         assert response.status_code == 400
-        assert 'end_date must be after start_date' in response.json()['detail']
+        assert 'end_date must be after' in response.json()['detail']
 
-    def test_create_sprint_goal_overlapping_allowed(self, client: TestClient):
-        """Test POST /api/goals/sprint with overlapping dates is now allowed."""
-        # Create first goal
-        response1 = client.post(
-            '/api/goals/sprint', json={'text': 'Sprint 1', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-        assert response1.status_code == 201
-
-        # Create overlapping goal - should now be allowed
-        response2 = client.post(
-            '/api/goals/sprint',
-            json={
-                'text': 'Sprint 2',
-                'start_date': '2025-11-10',  # Overlaps with Sprint 1
-                'end_date': '2025-11-20',
-            },
-        )
-
-        assert response2.status_code == 201
-        data = response2.json()
-        assert data['text'] == 'Sprint 2'
-        assert data['start_date'] == '2025-11-10'
-        assert data['end_date'] == '2025-11-20'
-
-    def test_create_sprint_goal_adjacent_allowed(self, client: TestClient):
-        """Test creating adjacent sprint goals (end date + 1 day = start date) is allowed."""
-        # Create first goal
-        client.post(
-            '/api/goals/sprint', json={'text': 'Sprint 1', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-
-        # Create adjacent goal (starts day after first ends)
+    def test_create_goal_with_status_text(self, client: TestClient):
+        """Test creating goal with status text badge."""
         response = client.post(
-            '/api/goals/sprint',
+            '/api/goals/',
             json={
-                'text': 'Sprint 2',
-                'start_date': '2025-11-15',  # Day after Sprint 1 ends
-                'end_date': '2025-11-28',
+                'name': 'Workout Goal',
+                'goal_type': 'Fitness',
+                'text': '10 workouts this month',
+                'status_text': '3/10 completed',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
             },
         )
 
         assert response.status_code == 201
+        data = response.json()
+        assert data['status_text'] == '3/10 completed'
 
-    def test_get_all_sprint_goals(self, client: TestClient):
-        """Test GET /api/goals/sprint returns all sprint goals."""
+    def test_create_goal_with_end_time(self, client: TestClient):
+        """Test creating goal with end time."""
+        response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Daily Focus',
+                'goal_type': 'Daily',
+                'text': 'Complete daily tasks',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-01',
+                'end_time': '17:00',
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data['end_time'] == '17:00'
+
+    def test_get_all_goals(self, client: TestClient):
+        """Test GET /api/goals/ returns all visible goals."""
         # Create multiple goals
-        goals_data = [
-            {'text': 'Sprint 1', 'start_date': '2025-10-01', 'end_date': '2025-10-14'},
-            {'text': 'Sprint 2', 'start_date': '2025-11-01', 'end_date': '2025-11-14'},
-            {'text': 'Sprint 3', 'start_date': '2025-12-01', 'end_date': '2025-12-14'},
-        ]
-        for goal_data in goals_data:
-            client.post('/api/goals/sprint', json=goal_data)
+        for i in range(3):
+            client.post(
+                '/api/goals/',
+                json={
+                    'name': f'Goal {i}',
+                    'goal_type': 'Personal',
+                    'text': f'Goal text {i}',
+                    'start_date': '2025-11-01',
+                    'end_date': '2025-11-30',
+                },
+            )
 
-        response = client.get('/api/goals/sprint')
+        response = client.get('/api/goals/')
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
-        # Should be ordered by start_date
-        assert data[0]['text'] == 'Sprint 1'
-        assert data[1]['text'] == 'Sprint 2'
-        assert data[2]['text'] == 'Sprint 3'
+        assert len(data) >= 3
 
-    def test_get_sprint_for_date_active(self, client: TestClient):
-        """Test GET /api/goals/sprint/{date} returns active goal."""
-        # Create goal
+    def test_get_all_goals_include_hidden(self, client: TestClient):
+        """Test GET /api/goals/?include_hidden=true includes hidden goals."""
+        # Create a visible goal
         client.post(
-            '/api/goals/sprint', json={'text': 'Active Sprint', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+            '/api/goals/',
+            json={
+                'name': 'Visible Goal',
+                'goal_type': 'Personal',
+                'text': 'Visible',
+                'is_visible': True,
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
         )
 
-        # Query for date within range
-        response = client.get('/api/goals/sprint/2025-11-07')
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['text'] == 'Active Sprint'
-        assert 'days_remaining' in data
-        # Days remaining from Nov 7 to Nov 14
-        assert data['days_remaining'] == 7
-
-    def test_get_sprint_for_date_upcoming(self, client: TestClient):
-        """Test GET /api/goals/sprint/{date} returns upcoming goal if no active."""
-        # Create future goal
+        # Create a hidden goal
         client.post(
-            '/api/goals/sprint', json={'text': 'Future Sprint', 'start_date': '2025-12-01', 'end_date': '2025-12-14'}
+            '/api/goals/',
+            json={
+                'name': 'Hidden Goal',
+                'goal_type': 'Personal',
+                'text': 'Hidden',
+                'is_visible': False,
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
         )
 
-        # Query for date before goal starts
-        response = client.get('/api/goals/sprint/2025-11-15')
+        # Default excludes hidden
+        default_response = client.get('/api/goals/')
+        visible_names = [g['name'] for g in default_response.json()]
+        assert 'Visible Goal' in visible_names
+        assert 'Hidden Goal' not in visible_names
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data['text'] == 'Future Sprint'
-        # Days remaining from Nov 15 to Dec 14 = 29 days (positive, not negative)
-        # This is how production calculates it
-        assert data['days_remaining'] == 29
+        # With include_hidden=true
+        hidden_response = client.get('/api/goals/?include_hidden=true')
+        all_names = [g['name'] for g in hidden_response.json()]
+        assert 'Hidden Goal' in all_names
 
-    def test_get_sprint_for_date_not_found(self, client: TestClient):
-        """Test GET /api/goals/sprint/{date} returns 404 when no goal exists."""
-        response = client.get('/api/goals/sprint/2025-11-07')
-
-        assert response.status_code == 404
-        assert 'No sprint goal found' in response.json()['detail']
-
-    def test_update_sprint_goal_text(self, client: TestClient):
-        """Test PUT /api/goals/sprint/{id} updates goal text.
-
-        Bug #2 fixed: The endpoint now correctly defines 'today' variable.
-        """
-        # Create goal
+    def test_get_goal_by_id(self, client: TestClient):
+        """Test GET /api/goals/{id} returns specific goal."""
+        # Create a goal
         create_response = client.post(
-            '/api/goals/sprint', json={'text': 'Original text', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+            '/api/goals/',
+            json={
+                'name': 'Specific Goal',
+                'goal_type': 'Personal',
+                'text': 'Find me',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
         )
         goal_id = create_response.json()['id']
 
-        # Update text
-        response = client.put(f'/api/goals/sprint/{goal_id}', json={'text': 'Updated text'})
+        # Get by ID
+        response = client.get(f'/api/goals/{goal_id}')
 
         assert response.status_code == 200
         data = response.json()
-        assert data['text'] == 'Updated text'
-        assert data['start_date'] == '2025-11-01'  # Unchanged
-        assert data['end_date'] == '2025-11-14'  # Unchanged
+        assert data['id'] == goal_id
+        assert data['name'] == 'Specific Goal'
 
-    def test_update_sprint_goal_dates(self, client: TestClient):
-        """Test PUT /api/goals/sprint/{id} updates goal dates.
+    def test_get_goal_not_found(self, client: TestClient):
+        """Test GET /api/goals/{id} with non-existent ID returns 404."""
+        response = client.get('/api/goals/99999')
 
-        Bug #2 fixed: The endpoint now correctly defines 'today' variable.
-        """
+        assert response.status_code == 404
+        assert 'not found' in response.json()['detail']
+
+    def test_update_goal_text(self, client: TestClient):
+        """Test PUT /api/goals/{id} updates goal text."""
         # Create goal
         create_response = client.post(
-            '/api/goals/sprint', json={'text': 'Sprint', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+            '/api/goals/',
+            json={
+                'name': 'Original Name',
+                'goal_type': 'Personal',
+                'text': 'Original text',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
+        )
+        goal_id = create_response.json()['id']
+
+        # Update
+        response = client.put(f'/api/goals/{goal_id}', json={'name': 'Updated Name', 'text': 'Updated text'})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['name'] == 'Updated Name'
+        assert data['text'] == 'Updated text'
+
+    def test_update_goal_dates(self, client: TestClient):
+        """Test PUT /api/goals/{id} updates goal dates."""
+        # Create goal
+        create_response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Date Goal',
+                'goal_type': 'Sprint',
+                'text': 'Sprint',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-14',
+            },
         )
         goal_id = create_response.json()['id']
 
         # Update dates
-        response = client.put(
-            f'/api/goals/sprint/{goal_id}', json={'start_date': '2025-11-05', 'end_date': '2025-11-20'}
-        )
+        response = client.put(f'/api/goals/{goal_id}', json={'start_date': '2025-11-05', 'end_date': '2025-11-20'})
 
         assert response.status_code == 200
         data = response.json()
         assert data['start_date'] == '2025-11-05'
         assert data['end_date'] == '2025-11-20'
 
-    def test_update_sprint_goal_invalid_dates(self, client: TestClient):
-        """Test PUT /api/goals/sprint/{id} with invalid dates returns 400."""
-        # Create goal
-        create_response = client.post(
-            '/api/goals/sprint', json={'text': 'Sprint', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-        goal_id = create_response.json()['id']
-
-        # Try to update with invalid dates
-        response = client.put(
-            f'/api/goals/sprint/{goal_id}',
-            json={
-                'start_date': '2025-11-20',
-                'end_date': '2025-11-10',  # Before start
-            },
-        )
-
-        assert response.status_code == 400
-        assert 'end_date must be after start_date' in response.json()['detail']
-
-    def test_update_sprint_goal_not_found(self, client: TestClient):
-        """Test PUT /api/goals/sprint/{id} with non-existent ID returns 404."""
-        response = client.put('/api/goals/sprint/99999', json={'text': 'Updated'})
+    def test_update_goal_not_found(self, client: TestClient):
+        """Test PUT /api/goals/{id} with non-existent ID returns 404."""
+        response = client.put('/api/goals/99999', json={'text': 'Updated'})
 
         assert response.status_code == 404
-        assert 'not found' in response.json()['detail']
 
-    def test_update_sprint_goal_overlapping_allowed(self, client: TestClient):
-        """Test updating sprint goal to overlap with another is now allowed."""
-        # Create two goals
-        create1 = client.post(
-            '/api/goals/sprint', json={'text': 'Sprint 1', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-        goal1_id = create1.json()['id']
-
-        client.post(
-            '/api/goals/sprint', json={'text': 'Sprint 2', 'start_date': '2025-12-01', 'end_date': '2025-12-14'}
-        )
-
-        # Update goal 1 to overlap with goal 2 - should now be allowed
-        response = client.put(
-            f'/api/goals/sprint/{goal1_id}',
-            json={
-                'start_date': '2025-11-20',
-                'end_date': '2025-12-05',  # Overlaps with Sprint 2
-            },
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['start_date'] == '2025-11-20'
-        assert data['end_date'] == '2025-12-05'
-
-    def test_delete_sprint_goal_success(self, client: TestClient):
-        """Test DELETE /api/goals/sprint/{id} deletes goal."""
+    def test_delete_goal_success(self, client: TestClient):
+        """Test DELETE /api/goals/{id} deletes goal."""
         # Create goal
         create_response = client.post(
-            '/api/goals/sprint', json={'text': 'To be deleted', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-        goal_id = create_response.json()['id']
-
-        # Delete goal
-        response = client.delete(f'/api/goals/sprint/{goal_id}')
-
-        assert response.status_code == 200
-        assert 'deleted successfully' in response.json()['message']
-
-        # Verify it's gone
-        get_response = client.get('/api/goals/sprint')
-        assert len(get_response.json()) == 0
-
-    def test_delete_sprint_goal_not_found(self, client: TestClient):
-        """Test DELETE /api/goals/sprint/{id} with non-existent ID returns 404."""
-        response = client.delete('/api/goals/sprint/99999')
-
-        assert response.status_code == 404
-        assert 'not found' in response.json()['detail']
-
-
-@pytest.mark.integration
-class TestQuarterlyGoalsAPI:
-    """Test /api/goals/quarterly endpoints."""
-
-    def test_create_quarterly_goal_success(self, client: TestClient):
-        """Test POST /api/goals/quarterly with valid data returns 200 (Bug #3: should be 201)."""
-        response = client.post(
-            '/api/goals/quarterly', json={'text': 'Q4 2025 Goals', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data['text'] == 'Q4 2025 Goals'
-        assert data['start_date'] == '2025-10-01'
-        assert data['end_date'] == '2025-12-31'
-        assert 'id' in data
-        assert 'created_at' in data
-
-    def test_create_quarterly_goal_invalid_date_range(self, client: TestClient):
-        """Test POST /api/goals/quarterly with end_date before start_date returns 400."""
-        response = client.post(
-            '/api/goals/quarterly',
+            '/api/goals/',
             json={
-                'text': 'Invalid dates',
-                'start_date': '2025-12-31',
-                'end_date': '2025-10-01',  # Before start_date
+                'name': 'To Delete',
+                'goal_type': 'Personal',
+                'text': 'Delete me',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
             },
-        )
-
-        assert response.status_code == 400
-        assert 'end_date must be after start_date' in response.json()['detail']
-
-    def test_create_quarterly_goal_overlapping_allowed(self, client: TestClient):
-        """Test POST /api/goals/quarterly with overlapping dates is now allowed."""
-        # Create first goal
-        response1 = client.post(
-            '/api/goals/quarterly', json={'text': 'Q4 2025', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
-        )
-        assert response1.status_code == 201
-
-        # Create overlapping goal - should now be allowed
-        response2 = client.post(
-            '/api/goals/quarterly',
-            json={
-                'text': 'Q1 2026 early',
-                'start_date': '2025-12-01',  # Overlaps with Q4 2025
-                'end_date': '2026-03-31',
-            },
-        )
-
-        assert response2.status_code == 201
-        data = response2.json()
-        assert data['text'] == 'Q1 2026 early'
-        assert data['start_date'] == '2025-12-01'
-        assert data['end_date'] == '2026-03-31'
-
-    def test_get_all_quarterly_goals(self, client: TestClient):
-        """Test GET /api/goals/quarterly returns all quarterly goals."""
-        # Create multiple goals
-        goals_data = [
-            {'text': 'Q1', 'start_date': '2025-01-01', 'end_date': '2025-03-31'},
-            {'text': 'Q2', 'start_date': '2025-04-01', 'end_date': '2025-06-30'},
-            {'text': 'Q3', 'start_date': '2025-07-01', 'end_date': '2025-09-30'},
-        ]
-        for goal_data in goals_data:
-            client.post('/api/goals/quarterly', json=goal_data)
-
-        response = client.get('/api/goals/quarterly')
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 3
-        # Should be ordered by start_date
-        assert data[0]['text'] == 'Q1'
-        assert data[1]['text'] == 'Q2'
-        assert data[2]['text'] == 'Q3'
-
-    def test_get_quarterly_for_date_active(self, client: TestClient):
-        """Test GET /api/goals/quarterly/{date} returns active goal."""
-        # Create goal
-        client.post(
-            '/api/goals/quarterly', json={'text': 'Q4 2025', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
-        )
-
-        # Query for date within range
-        response = client.get('/api/goals/quarterly/2025-11-15')
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['text'] == 'Q4 2025'
-        assert 'days_remaining' in data
-
-    def test_get_quarterly_for_date_not_found(self, client: TestClient):
-        """Test GET /api/goals/quarterly/{date} returns 404 when no goal exists."""
-        response = client.get('/api/goals/quarterly/2025-11-07')
-
-        assert response.status_code == 404
-        assert 'No quarterly goal found' in response.json()['detail']
-
-    def test_update_quarterly_goal_success(self, client: TestClient):
-        """Test PUT /api/goals/quarterly/{id} updates goal.
-
-        Bug #2 fixed: The endpoint now correctly defines 'today' variable.
-        """
-        # Create goal
-        create_response = client.post(
-            '/api/goals/quarterly', json={'text': 'Original', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
-        )
-        goal_id = create_response.json()['id']
-
-        # Update
-        response = client.put(f'/api/goals/quarterly/{goal_id}', json={'text': 'Updated'})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data['text'] == 'Updated'
-
-    def test_delete_quarterly_goal_success(self, client: TestClient):
-        """Test DELETE /api/goals/quarterly/{id} deletes goal."""
-        # Create goal
-        create_response = client.post(
-            '/api/goals/quarterly', json={'text': 'To delete', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
         )
         goal_id = create_response.json()['id']
 
         # Delete
-        response = client.delete(f'/api/goals/quarterly/{goal_id}')
+        response = client.delete(f'/api/goals/{goal_id}')
 
         assert response.status_code == 200
         assert 'deleted successfully' in response.json()['message']
 
+        # Verify gone
+        get_response = client.get(f'/api/goals/{goal_id}')
+        assert get_response.status_code == 404
+
+    def test_delete_goal_not_found(self, client: TestClient):
+        """Test DELETE /api/goals/{id} with non-existent ID returns 404."""
+        response = client.delete('/api/goals/99999')
+
+        assert response.status_code == 404
+
 
 @pytest.mark.integration
-class TestGoalsAPIEdgeCases:
-    """Test edge cases and special scenarios."""
+class TestGoalToggleAPI:
+    """Test goal toggle endpoints."""
 
-    def test_sprint_and_quarterly_goals_independent(self, client: TestClient):
-        """Test that sprint and quarterly goals don't interfere with each other."""
-        # Create quarterly goal
-        client.post(
-            '/api/goals/quarterly', json={'text': 'Q4 Goals', 'start_date': '2025-10-01', 'end_date': '2025-12-31'}
-        )
-
-        # Create sprint goal that overlaps with quarterly (should be allowed)
-        response = client.post(
-            '/api/goals/sprint', json={'text': 'Sprint in Q4', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
-        )
-
-        assert response.status_code == 201
-
-        # Both should be retrievable for same date
-        sprint_response = client.get('/api/goals/sprint/2025-11-10')
-        quarterly_response = client.get('/api/goals/quarterly/2025-11-10')
-
-        assert sprint_response.status_code == 200
-        assert quarterly_response.status_code == 200
-
-    def test_days_remaining_calculation(self, client: TestClient):
-        """Test that days_remaining is calculated correctly based on viewed date."""
+    def test_toggle_complete(self, client: TestClient):
+        """Test POST /api/goals/{id}/toggle-complete toggles completion."""
         # Create goal
+        create_response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Toggle Goal',
+                'goal_type': 'Personal',
+                'text': 'Toggle me',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
+        )
+        goal_id = create_response.json()['id']
+        assert create_response.json()['is_completed'] is False
+
+        # Toggle to complete
+        toggle_response = client.post(f'/api/goals/{goal_id}/toggle-complete')
+
+        assert toggle_response.status_code == 200
+        data = toggle_response.json()
+        assert data['is_completed'] is True
+        assert data['completed_at'] is not None
+
+        # Toggle back to incomplete
+        toggle_back = client.post(f'/api/goals/{goal_id}/toggle-complete')
+
+        assert toggle_back.json()['is_completed'] is False
+        assert toggle_back.json()['completed_at'] is None
+
+    def test_toggle_complete_not_found(self, client: TestClient):
+        """Test toggle-complete with non-existent ID returns 404."""
+        response = client.post('/api/goals/99999/toggle-complete')
+
+        assert response.status_code == 404
+
+    def test_toggle_visibility(self, client: TestClient):
+        """Test POST /api/goals/{id}/toggle-visibility toggles visibility."""
+        # Create visible goal
+        create_response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Visible Goal',
+                'goal_type': 'Personal',
+                'text': 'Hide me',
+                'is_visible': True,
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
+        )
+        goal_id = create_response.json()['id']
+        assert create_response.json()['is_visible'] is True
+
+        # Toggle to hidden
+        toggle_response = client.post(f'/api/goals/{goal_id}/toggle-visibility')
+
+        assert toggle_response.status_code == 200
+        assert toggle_response.json()['is_visible'] is False
+
+        # Toggle back to visible
+        toggle_back = client.post(f'/api/goals/{goal_id}/toggle-visibility')
+
+        assert toggle_back.json()['is_visible'] is True
+
+    def test_toggle_visibility_not_found(self, client: TestClient):
+        """Test toggle-visibility with non-existent ID returns 404."""
+        response = client.post('/api/goals/99999/toggle-visibility')
+
+        assert response.status_code == 404
+
+
+@pytest.mark.integration
+class TestGoalActiveDateAPI:
+    """Test /api/goals/active/{date} endpoint."""
+
+    def test_get_active_goals_within_range(self, client: TestClient):
+        """Test GET /api/goals/active/{date} returns goals active on date."""
+        # Create goal with date range
         client.post(
-            '/api/goals/sprint', json={'text': 'Test Sprint', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+            '/api/goals/',
+            json={
+                'name': 'November Goal',
+                'goal_type': 'Sprint',
+                'text': 'Active in November',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-14',
+            },
         )
 
-        # Query from different dates
-        response_early = client.get('/api/goals/sprint/2025-11-01')  # Start date
-        response_mid = client.get('/api/goals/sprint/2025-11-07')  # Middle
-        response_late = client.get('/api/goals/sprint/2025-11-13')  # Near end
+        # Query within range
+        response = client.get('/api/goals/active/2025-11-07')
 
-        assert response_early.json()['days_remaining'] == 13  # 14 days - 1 day
-        assert response_mid.json()['days_remaining'] == 7  # 7 days remaining
-        assert response_late.json()['days_remaining'] == 1  # 1 day remaining
+        assert response.status_code == 200
+        data = response.json()
+        names = [g['name'] for g in data]
+        assert 'November Goal' in names
 
-    def test_empty_goal_text_allowed(self, client: TestClient):
-        """Test that empty goal text is accepted (may be a bug, similar to Bug #1 for labels)."""
-        response = client.post(
-            '/api/goals/sprint', json={'text': '', 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+    def test_get_active_goals_outside_range(self, client: TestClient):
+        """Test GET /api/goals/active/{date} excludes goals outside range."""
+        # Create goal with specific range
+        client.post(
+            '/api/goals/',
+            json={
+                'name': 'December Goal',
+                'goal_type': 'Sprint',
+                'text': 'Only in December',
+                'start_date': '2025-12-01',
+                'end_date': '2025-12-14',
+            },
         )
 
-        # Document current behavior
-        assert response.status_code == 201
-        # Note: Empty text is accepted (similar to Bug #1 for labels)
+        # Query for November (outside December range)
+        response = client.get('/api/goals/active/2025-11-15')
+
+        assert response.status_code == 200
+        names = [g['name'] for g in response.json()]
+        assert 'December Goal' not in names
+
+    def test_get_active_goals_lifestyle_with_wide_range(self, client: TestClient):
+        """Test lifestyle goals with wide date range are returned for dates within range."""
+        # Create lifestyle goal with full-year date range
+        client.post(
+            '/api/goals/',
+            json={
+                'name': 'Ongoing Fitness',
+                'goal_type': 'Fitness',
+                'text': 'Year-long fitness goal',
+                'start_date': '2025-01-01',
+                'end_date': '2025-12-31',
+            },
+        )
+
+        # Query date within range
+        response = client.get('/api/goals/active/2025-06-15')
+
+        assert response.status_code == 200
+        names = [g['name'] for g in response.json()]
+        assert 'Ongoing Fitness' in names
+
+    def test_get_active_goals_days_remaining(self, client: TestClient):
+        """Test days_remaining is calculated from the query date."""
+        client.post(
+            '/api/goals/',
+            json={
+                'name': 'Countdown Goal',
+                'goal_type': 'Sprint',
+                'text': 'Test countdown',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-14',
+            },
+        )
+
+        # Query from Nov 7 - should show 7 days remaining
+        response = client.get('/api/goals/active/2025-11-07')
+
+        assert response.status_code == 200
+        goal = next(g for g in response.json() if g['name'] == 'Countdown Goal')
+        assert goal['days_remaining'] == 7
+
+    def test_get_active_goals_before_and_after_start(self, client: TestClient):
+        """Test goals only appear within their date range."""
+        client.post(
+            '/api/goals/',
+            json={
+                'name': 'November Goal',
+                'goal_type': 'Personal',
+                'text': 'Active in November only',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
+        )
+
+        # Before start - should NOT appear
+        before = client.get('/api/goals/active/2025-10-15')
+        before_names = [g['name'] for g in before.json()]
+        assert 'November Goal' not in before_names
+
+        # During range - should appear
+        during = client.get('/api/goals/active/2025-11-15')
+        during_names = [g['name'] for g in during.json()]
+        assert 'November Goal' in during_names
+
+        # After end - should NOT appear
+        after = client.get('/api/goals/active/2025-12-15')
+        after_names = [g['name'] for g in after.json()]
+        assert 'November Goal' not in after_names
+
+
+@pytest.mark.integration
+class TestGoalEdgeCases:
+    """Test edge cases and special scenarios."""
 
     def test_goal_with_very_long_text(self, client: TestClient):
         """Test creating goal with very long text."""
         long_text = 'A' * 10000
         response = client.post(
-            '/api/goals/sprint', json={'text': long_text, 'start_date': '2025-11-01', 'end_date': '2025-11-14'}
+            '/api/goals/',
+            json={
+                'name': 'Long Goal',
+                'goal_type': 'Personal',
+                'text': long_text,
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
         )
 
-        # Should succeed
         assert response.status_code == 201
         assert len(response.json()['text']) == 10000
+
+    def test_goal_empty_text_allowed(self, client: TestClient):
+        """Test that empty text is accepted."""
+        response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Empty Text Goal',
+                'goal_type': 'Personal',
+                'text': '',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()['text'] == ''
+
+    def test_goal_countdown_setting(self, client: TestClient):
+        """Test show_countdown field."""
+        # With countdown
+        with_countdown = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Countdown Goal',
+                'goal_type': 'Sprint',
+                'text': 'With countdown',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-14',
+                'show_countdown': True,
+            },
+        )
+        assert with_countdown.json()['show_countdown'] is True
+
+        # Without countdown
+        without_countdown = client.post(
+            '/api/goals/',
+            json={
+                'name': 'No Countdown Goal',
+                'goal_type': 'Fitness',
+                'text': 'Without countdown',
+                'start_date': '2025-11-01',
+                'end_date': '2025-11-30',
+                'show_countdown': False,
+            },
+        )
+        assert without_countdown.json()['show_countdown'] is False
+
+    def test_goal_same_start_end_date(self, client: TestClient):
+        """Test creating goal with same start and end date (single day goal)."""
+        response = client.post(
+            '/api/goals/',
+            json={
+                'name': 'Single Day',
+                'goal_type': 'Daily',
+                'text': 'One day only',
+                'start_date': '2025-11-15',
+                'end_date': '2025-11-15',
+            },
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data['start_date'] == data['end_date']
+
+    def test_multiple_goal_types_coexist(self, client: TestClient):
+        """Test that different goal types can coexist."""
+        types = ['Sprint', 'Quarterly', 'Fitness', 'Personal', 'Custom:MyType']
+        created_ids = []
+
+        for goal_type in types:
+            resp = client.post(
+                '/api/goals/',
+                json={
+                    'name': f'{goal_type} Goal',
+                    'goal_type': goal_type,
+                    'text': f'Goal of type {goal_type}',
+                    'start_date': '2025-11-01',
+                    'end_date': '2025-11-30',
+                },
+            )
+            assert resp.status_code == 201
+            created_ids.append(resp.json()['id'])
+
+        # All should be retrievable
+        for goal_id in created_ids:
+            get_resp = client.get(f'/api/goals/{goal_id}')
+            assert get_resp.status_code == 200

@@ -21,9 +21,6 @@ import { CustomBackgroundProvider } from './contexts/CustomBackgroundContext';
 import { TransparentLabelsProvider } from './contexts/TransparentLabelsContext';
 import { FullScreenProvider, useFullScreen } from './contexts/FullScreenContext';
 import { DailyGoalsProvider } from './contexts/DailyGoalsContext';
-import { SprintGoalsProvider } from './contexts/SprintGoalsContext';
-import { SprintNameProvider } from './contexts/SprintNameContext';
-import { QuarterlyGoalsProvider } from './contexts/QuarterlyGoalsContext';
 import { DayLabelsProvider } from './contexts/DayLabelsContext';
 import { EmojiLibraryProvider } from './contexts/EmojiLibraryContext';
 import CustomBackground from './components/CustomBackground';
@@ -168,21 +165,15 @@ function App() {
             <TransparentLabelsProvider>
               <EmojiLibraryProvider>
                 <DailyGoalsProvider>
-                  <SprintGoalsProvider>
-                    <SprintNameProvider>
-                      <QuarterlyGoalsProvider>
-                        <DayLabelsProvider>
-                          <FullScreenProvider>
-                            {showSplash ? (
-                              <SplashScreen onComplete={handleSplashComplete} />
-                            ) : (
-                              <AppContent />
-                            )}
-                          </FullScreenProvider>
-                        </DayLabelsProvider>
-                      </QuarterlyGoalsProvider>
-                    </SprintNameProvider>
-                  </SprintGoalsProvider>
+                  <DayLabelsProvider>
+                    <FullScreenProvider>
+                      {showSplash ? (
+                        <SplashScreen onComplete={handleSplashComplete} />
+                      ) : (
+                        <AppContent />
+                      )}
+                    </FullScreenProvider>
+                  </DayLabelsProvider>
                 </DailyGoalsProvider>
               </EmojiLibraryProvider>
             </TransparentLabelsProvider>

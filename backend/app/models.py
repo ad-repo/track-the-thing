@@ -124,6 +124,33 @@ class QuarterlyGoal(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Goal(Base):
+    """Unified goal model supporting multiple goal types.
+
+    Supports both time-based goals (Daily, Weekly, Sprint, Monthly, Quarterly, Yearly)
+    and lifestyle goals (Fitness, Health, Learning, Personal, Financial, Habits, etc.)
+    as well as custom user-defined types.
+    """
+
+    __tablename__ = 'goals'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # Goal title/name
+    goal_type = Column(String, nullable=False)  # "Daily", "Sprint", "Fitness", "Custom:MyType"
+    text = Column(Text, default='')  # Rich text content (HTML)
+    start_date = Column(String, nullable=False)  # Format: YYYY-MM-DD
+    end_date = Column(String, nullable=False)  # Format: YYYY-MM-DD
+    end_time = Column(String, default='')  # HH:MM format for daily countdown (optional)
+    status_text = Column(String, default='')  # Custom badge text (optional)
+    show_countdown = Column(Integer, default=1)  # 0/1 boolean - show time remaining
+    is_completed = Column(Integer, default=0)  # 0/1 boolean - completion status
+    completed_at = Column(DateTime, nullable=True)  # When marked complete
+    is_visible = Column(Integer, default=1)  # 0/1 boolean - show on Daily View
+    order_index = Column(Integer, default=0)  # For display ordering
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class DailyNote(Base):
     """Model for daily notes - one per day"""
 

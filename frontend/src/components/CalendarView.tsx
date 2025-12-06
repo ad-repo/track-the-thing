@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import { Star, Check, Bell, X, Clock } from 'lucide-react';
 import { notesApi, goalsApi, remindersApi } from '../api';
 import type { DailyNote, Goal, Reminder } from '../types';
-import { useSprintName } from '../contexts/SprintNameContext';
 import { useTexture } from '../hooks/useTexture';
 import 'react-calendar/dist/Calendar.css';
 
@@ -17,11 +16,9 @@ interface CalendarViewProps {
 const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sprintName } = useSprintName();
   const textureStyles = useTexture('calendar');
   const [notes, setNotes] = useState<DailyNote[]>([]);
-  const [sprintGoals, setSprintGoals] = useState<Goal[]>([]);
-  const [quarterlyGoals, setQuarterlyGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -62,7 +59,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
 
   // Add tooltips to calendar tiles after notes and goals are loaded
   useEffect(() => {
-    if (loading || (notes.length === 0 && sprintGoals.length === 0 && quarterlyGoals.length === 0 && reminders.length === 0)) return;
+    if (loading || (notes.length === 0 && goals.length === 0 && reminders.length === 0)) return;
 
     // Use requestAnimationFrame for smoother DOM updates
     requestAnimationFrame(() => {
@@ -72,8 +69,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
         if (abbr && abbr.getAttribute('aria-label')) {
           const dateStr = format(new Date(abbr.getAttribute('aria-label')!), 'yyyy-MM-dd');
           const note = notes.find(n => n.date === dateStr);
-          const sprintGoal = getGoalForDate(dateStr, sprintGoals);
-          const quarterlyGoal = getGoalForDate(dateStr, quarterlyGoals);
+          const activeGoals = getGoalsForDate(dateStr, goals);
           
           // Count reminders on this date
           const reminderCount = reminders.filter(reminder => {
@@ -93,15 +89,11 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
             tooltipParts.push(`Daily: ${note.daily_goal}`);
           }
           
-          // Add sprint goal if exists
-          if (sprintGoal) {
-            tooltipParts.push(`🚀 Sprint: ${sprintGoal.text.substring(0, 50)}${sprintGoal.text.length > 50 ? '...' : ''}`);
-          }
-          
-          // Add quarterly goal if exists
-          if (quarterlyGoal) {
-            tooltipParts.push(`🌟 Quarterly: ${quarterlyGoal.text.substring(0, 50)}${quarterlyGoal.text.length > 50 ? '...' : ''}`);
-          }
+          // Add goals info
+          activeGoals.forEach(goal => {
+            const preview = goal.text ? goal.text.replace(/<[^>]*>/g, '').substring(0, 50) : goal.name;
+            tooltipParts.push(`🎯 ${goal.name}: ${preview}${preview.length >= 50 ? '...' : ''}`);
+          });
           
           // Add entry count if exists
           if (note && note.entries.length > 0) {
@@ -119,7 +111,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
         }
       });
     });
-  }, [notes, sprintGoals, quarterlyGoals, reminders, loading]);
+  }, [notes, goals, reminders, loading]);
 
   const loadMonthData = async () => {
     setLoading(true);
@@ -138,12 +130,11 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
       const nextMonth = nextDate.getMonth() + 1;
 
       // Load all data in parallel
-      const [prevData, curData, nextData, sprints, quarterlies, allReminders] = await Promise.all([
+      const [prevData, curData, nextData, allGoals, allReminders] = await Promise.all([
         notesApi.getByMonth(prevYear, prevMonth),
         notesApi.getByMonth(curYear, curMonth),
         notesApi.getByMonth(nextYear, nextMonth),
-        goalsApi.getAllSprints(),
-        goalsApi.getAllQuarterly(),
+        goalsApi.getAll(true), // Include hidden to show all on calendar
         remindersApi.getAll().catch(err => {
           console.error('Failed to load reminders:', err);
           return [];
@@ -158,8 +149,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
       
       // Update all state at once, then wait a frame for smooth transition
       setNotes(Array.from(byDate.values()));
-      setSprintGoals(sprints);
-      setQuarterlyGoals(quarterlies);
+      setGoals(allGoals);
       setReminders(Array.isArray(allReminders) ? allReminders : []);
       
       // Wait for next frame before removing loading state
@@ -197,21 +187,17 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
     }
   };
 
-  const getGoalForDate = (dateStr: string, goals: Goal[]): Goal | null => {
-    // First check if date is within any goal's range
-    for (const goal of goals) {
-      if (dateStr >= goal.start_date && dateStr <= goal.end_date) {
-        return goal;
-      }
-    }
-    return null;
+  const getGoalsForDate = (dateStr: string, allGoals: Goal[]): Goal[] => {
+    // Return all goals that are active on this date
+    return allGoals.filter(goal => 
+      dateStr >= goal.start_date && dateStr <= goal.end_date && goal.is_visible
+    );
   };
 
   const getTileContent = ({ date }: { date: Date }) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const note = notes.find(n => n.date === dateStr);
-    const sprintGoal = getGoalForDate(dateStr, sprintGoals);
-    const quarterlyGoal = getGoalForDate(dateStr, quarterlyGoals);
+    const activeGoals = getGoalsForDate(dateStr, goals);
     
     // Check if there are reminders on this date
     const hasReminders = reminders.some(reminder => {
@@ -227,7 +213,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
 
     // Check if there are entries or goals to display
     const hasEntries = note && (note.entries.length > 0 || (note.daily_goal && note.daily_goal.trim() !== ''));
-    const hasGoals = sprintGoal || quarterlyGoal;
+    const hasGoals = activeGoals.length > 0;
 
     if (!hasEntries && !hasGoals && !hasReminders) {
       return null;
@@ -263,11 +249,11 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
         {/* Goal indicators */}
         {hasGoals && (
           <div className="flex items-center gap-0.5 text-xs">
-            {sprintGoal && (
-              <span title="Sprint Goal">🚀</span>
-            )}
-            {quarterlyGoal && (
-              <span title="Quarterly Goal">🌟</span>
+            <span title={`${activeGoals.length} goal(s)`}>🎯</span>
+            {activeGoals.length > 1 && (
+              <span className="text-[10px] font-bold" style={{ color: 'var(--color-accent)' }}>
+                {activeGoals.length}
+              </span>
             )}
           </div>
         )}
@@ -321,7 +307,7 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
           {/* Entry indicators */}
           <div className="mb-3">
             <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-secondary)' }}>Entry Status</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" style={{ color: 'var(--color-text-secondary)' }}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3" style={{ color: 'var(--color-text-secondary)' }}>
               <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: 'var(--color-card-bg)' }}>
                 <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 star-rays spin-rays flex-shrink-0" />
                 <span className="text-xs font-medium">Has important</span>
@@ -338,20 +324,9 @@ const CalendarView = ({ selectedDate, onDateSelect }: CalendarViewProps) => {
                 <Bell className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
                 <span className="text-xs font-medium">Has reminder</span>
               </div>
-            </div>
-          </div>
-          
-          {/* Goal indicators */}
-          <div>
-            <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-secondary)' }}>Goals</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3" style={{ color: 'var(--color-text-secondary)' }}>
               <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: 'var(--color-card-bg)' }}>
-                <span className="text-base flex-shrink-0">🚀</span>
-                <span className="text-xs font-medium">{sprintName} Goal</span>
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: 'var(--color-card-bg)' }}>
-                <span className="text-base flex-shrink-0">🌟</span>
-                <span className="text-xs font-medium">Quarterly Goal</span>
+                <span className="text-base flex-shrink-0">🎯</span>
+                <span className="text-xs font-medium">Has active goal</span>
               </div>
             </div>
           </div>

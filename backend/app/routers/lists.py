@@ -148,7 +148,7 @@ def get_archived_lists(db: Session = Depends(get_db)):
         .order_by(models.List.updated_at.desc())
         .all()
     )
-    
+
     return [
         {
             'id': lst.id,

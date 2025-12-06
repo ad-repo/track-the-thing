@@ -31,9 +31,10 @@ async def export_data(db: Session = Depends(get_db)):
     app_settings = db.query(models.AppSettings).filter(models.AppSettings.id == 1).first()
     sprint_goals = db.query(models.SprintGoal).all()
     quarterly_goals = db.query(models.QuarterlyGoal).all()
+    goals = db.query(models.Goal).all()
 
     export_data = {
-        'version': '8.0',
+        'version': '9.0',
         'exported_at': datetime.utcnow().isoformat(),
         'search_history': [{'query': item.query, 'created_at': item.created_at.isoformat()} for item in search_history],
         'labels': [
@@ -113,6 +114,26 @@ async def export_data(db: Session = Depends(get_db)):
                 'updated_at': goal.updated_at.isoformat(),
             }
             for goal in quarterly_goals
+        ],
+        'goals': [
+            {
+                'id': goal.id,
+                'name': goal.name,
+                'goal_type': goal.goal_type,
+                'text': goal.text,
+                'start_date': goal.start_date,
+                'end_date': goal.end_date,
+                'end_time': goal.end_time or '',
+                'status_text': goal.status_text or '',
+                'show_countdown': bool(goal.show_countdown),
+                'is_completed': bool(goal.is_completed),
+                'completed_at': goal.completed_at.isoformat() if goal.completed_at else None,
+                'is_visible': bool(goal.is_visible),
+                'order_index': goal.order_index,
+                'created_at': goal.created_at.isoformat(),
+                'updated_at': goal.updated_at.isoformat(),
+            }
+            for goal in goals
         ],
         'notes': [
             {
@@ -241,10 +262,25 @@ async def export_markdown(db: Session = Depends(get_db)):
         markdown_lines.append('\n---\n')
 
     # Add persistent goals at the top
-    # First, add goals from new goal tables
+    # First, add goals from unified goal table (v9.0+)
+    unified_goals = db.query(models.Goal).order_by(models.Goal.order_index).all()
+    if unified_goals:
+        markdown_lines.append('\n## Goals\n')
+        for goal in unified_goals:
+            status = '✅ ' if goal.is_completed else ''
+            markdown_lines.append(f'### {status}{goal.name} ({goal.goal_type})\n')
+            markdown_lines.append(f'**Date Range:** {goal.start_date} to {goal.end_date}\n')
+            if goal.status_text:
+                markdown_lines.append(f'**Status:** {goal.status_text}\n')
+            if goal.text:
+                markdown_lines.append(f'{goal.text}\n')
+            markdown_lines.append('\n')
+        markdown_lines.append('---\n')
+
+    # Legacy: Add goals from sprint_goals/quarterly_goals tables
     sprint_goals = db.query(models.SprintGoal).order_by(models.SprintGoal.start_date).all()
     if sprint_goals:
-        markdown_lines.append('\n## Sprint Goals (Historical)\n')
+        markdown_lines.append('\n## Sprint Goals (Legacy)\n')
         for goal in sprint_goals:
             markdown_lines.append(f'### {goal.start_date} to {goal.end_date}\n')
             markdown_lines.append(f'{goal.text}\n')
@@ -252,7 +288,7 @@ async def export_markdown(db: Session = Depends(get_db)):
 
     quarterly_goals = db.query(models.QuarterlyGoal).order_by(models.QuarterlyGoal.start_date).all()
     if quarterly_goals:
-        markdown_lines.append('\n## Quarterly Goals (Historical)\n')
+        markdown_lines.append('\n## Quarterly Goals (Legacy)\n')
         for goal in quarterly_goals:
             markdown_lines.append(f'### {goal.start_date} to {goal.end_date}\n')
             markdown_lines.append(f'{goal.text}\n')
@@ -365,6 +401,8 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
             'search_history_imported': 0,
             'sprint_goals_imported': 0,
             'quarterly_goals_imported': 0,
+            'goals_imported': 0,
+            'goals_skipped': 0,
         }
 
         legacy_lists = 'lists' not in data
@@ -543,6 +581,49 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         )
                         db.add(new_goal)
                         stats['quarterly_goals_imported'] += 1
+
+            # Import unified goals if present (v9.0+)
+            if 'goals' in data:
+                for goal_data in data['goals']:
+                    # Check for existing goal with same name, type, and date range
+                    existing_goal = (
+                        db.query(models.Goal)
+                        .filter(
+                            models.Goal.name == goal_data['name'],
+                            models.Goal.goal_type == goal_data['goal_type'],
+                            models.Goal.start_date == goal_data['start_date'],
+                            models.Goal.end_date == goal_data['end_date'],
+                        )
+                        .first()
+                    )
+
+                    if not existing_goal:
+                        new_goal = models.Goal(
+                            name=goal_data['name'],
+                            goal_type=goal_data['goal_type'],
+                            text=goal_data.get('text', ''),
+                            start_date=goal_data['start_date'],
+                            end_date=goal_data['end_date'],
+                            end_time=goal_data.get('end_time', ''),
+                            status_text=goal_data.get('status_text', ''),
+                            show_countdown=1 if goal_data.get('show_countdown', True) else 0,
+                            is_completed=1 if goal_data.get('is_completed', False) else 0,
+                            completed_at=datetime.fromisoformat(goal_data['completed_at'])
+                            if goal_data.get('completed_at')
+                            else None,
+                            is_visible=1 if goal_data.get('is_visible', True) else 0,
+                            order_index=goal_data.get('order_index', 0),
+                            created_at=datetime.fromisoformat(goal_data['created_at'])
+                            if 'created_at' in goal_data
+                            else datetime.utcnow(),
+                            updated_at=datetime.fromisoformat(goal_data['updated_at'])
+                            if 'updated_at' in goal_data
+                            else datetime.utcnow(),
+                        )
+                        db.add(new_goal)
+                        stats['goals_imported'] += 1
+                    else:
+                        stats['goals_skipped'] += 1
 
             # Import labels (support both old "tags" and new "labels" format)
             label_id_mapping = {}
@@ -733,6 +814,8 @@ async def full_restore(
             'search_history_imported': 0,
             'sprint_goals_imported': 0,
             'quarterly_goals_imported': 0,
+            'goals_imported': 0,
+            'goals_skipped': 0,
         }
 
         # Import search history
@@ -840,6 +923,49 @@ async def full_restore(
                     )
                     db.add(new_goal)
                     data_stats['quarterly_goals_imported'] += 1
+            db.commit()
+
+        # Import unified goals if present (v9.0+)
+        if 'goals' in data:
+            for goal_data in data['goals']:
+                existing_goal = (
+                    db.query(models.Goal)
+                    .filter(
+                        models.Goal.name == goal_data['name'],
+                        models.Goal.goal_type == goal_data['goal_type'],
+                        models.Goal.start_date == goal_data['start_date'],
+                        models.Goal.end_date == goal_data['end_date'],
+                    )
+                    .first()
+                )
+
+                if not existing_goal:
+                    new_goal = models.Goal(
+                        name=goal_data['name'],
+                        goal_type=goal_data['goal_type'],
+                        text=goal_data.get('text', ''),
+                        start_date=goal_data['start_date'],
+                        end_date=goal_data['end_date'],
+                        end_time=goal_data.get('end_time', ''),
+                        status_text=goal_data.get('status_text', ''),
+                        show_countdown=1 if goal_data.get('show_countdown', True) else 0,
+                        is_completed=1 if goal_data.get('is_completed', False) else 0,
+                        completed_at=datetime.fromisoformat(goal_data['completed_at'])
+                        if goal_data.get('completed_at')
+                        else None,
+                        is_visible=1 if goal_data.get('is_visible', True) else 0,
+                        order_index=goal_data.get('order_index', 0),
+                        created_at=datetime.fromisoformat(goal_data['created_at'])
+                        if 'created_at' in goal_data
+                        else datetime.utcnow(),
+                        updated_at=datetime.fromisoformat(goal_data['updated_at'])
+                        if 'updated_at' in goal_data
+                        else datetime.utcnow(),
+                    )
+                    db.add(new_goal)
+                    data_stats['goals_imported'] += 1
+                else:
+                    data_stats['goals_skipped'] += 1
             db.commit()
 
         # Import labels

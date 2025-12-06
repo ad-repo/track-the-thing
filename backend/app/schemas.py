@@ -323,6 +323,60 @@ class GoalResponse(GoalBase):
         from_attributes = True
 
 
+# Unified Goal Schemas (new flexible goals system)
+class UnifiedGoalBase(BaseModel):
+    name: str
+    goal_type: str  # "Daily", "Sprint", "Fitness", "Custom:TypeName"
+    text: str = ''
+    start_date: str | None = None  # YYYY-MM-DD (optional for lifestyle goals)
+    end_date: str | None = None  # YYYY-MM-DD (optional for lifestyle goals)
+    end_time: str = ''  # HH:MM (optional, for daily goals)
+    status_text: str = ''  # Custom badge text
+    show_countdown: bool = True
+    is_visible: bool = True
+    order_index: int = 0
+
+
+class UnifiedGoalCreate(UnifiedGoalBase):
+    pass
+
+
+class UnifiedGoalUpdate(BaseModel):
+    name: str | None = None
+    goal_type: str | None = None
+    text: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    end_time: str | None = None
+    status_text: str | None = None
+    show_countdown: bool | None = None
+    is_completed: bool | None = None
+    is_visible: bool | None = None
+    order_index: int | None = None
+
+
+class UnifiedGoalResponse(BaseModel):
+    id: int
+    name: str
+    goal_type: str
+    text: str = ''
+    start_date: str | None = None
+    end_date: str | None = None
+    end_time: str = ''
+    status_text: str = ''
+    show_countdown: bool = True
+    is_visible: bool = True
+    order_index: int = 0
+    is_completed: bool = False
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    days_remaining: int | None = None  # Calculated field
+
+    class Config:
+        from_attributes = True
+
+
 # Custom Emoji Schemas
 class CustomEmojiBase(BaseModel):
     name: str  # Shortcode like :custom_smile:

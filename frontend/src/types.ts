@@ -92,23 +92,78 @@ export interface AppSettingsUpdate {
   texture_settings?: string;
 }
 
+// Goal type constants
+export const TIME_BASED_GOAL_TYPES = ['Daily', 'Weekly', 'Sprint', 'Monthly', 'Quarterly', 'Yearly'] as const;
+export const LIFESTYLE_GOAL_TYPES = ['Fitness', 'Health', 'Learning', 'Personal', 'Financial', 'Habits', 'Career', 'Relationships', 'Creativity'] as const;
+export const ALL_GOAL_TYPES = [...TIME_BASED_GOAL_TYPES, ...LIFESTYLE_GOAL_TYPES] as const;
+
+export type GoalType = typeof ALL_GOAL_TYPES[number] | `Custom:${string}`;
+
+// New unified Goal interface
 export interface Goal {
+  id: number;
+  name: string;
+  goal_type: GoalType;
+  text: string;
+  start_date: string | null;  // Optional for lifestyle goals
+  end_date: string | null;    // Optional for lifestyle goals
+  end_time: string;  // HH:MM for daily countdown
+  status_text: string;  // Custom badge text
+  show_countdown: boolean;
+  is_completed: boolean;
+  completed_at: string | null;
+  is_visible: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+  days_remaining?: number | null;
+}
+
+export interface GoalCreate {
+  name: string;
+  goal_type: GoalType;
+  text?: string;
+  start_date?: string;  // Optional for lifestyle goals
+  end_date?: string;    // Optional for lifestyle goals
+  end_time?: string;
+  status_text?: string;
+  show_countdown?: boolean;
+  is_visible?: boolean;
+  order_index?: number;
+}
+
+export interface GoalUpdate {
+  name?: string;
+  goal_type?: GoalType;
+  text?: string;
+  start_date?: string;
+  end_date?: string;
+  end_time?: string;
+  status_text?: string;
+  show_countdown?: boolean;
+  is_completed?: boolean;
+  is_visible?: boolean;
+  order_index?: number;
+}
+
+// Legacy Goal interfaces (for backward compatibility during transition)
+export interface LegacyGoal {
   id: number;
   text: string;
   start_date: string;
   end_date: string;
   created_at: string;
   updated_at: string;
-  days_remaining?: number;  // Calculated field relative to queried date
+  days_remaining?: number;
 }
 
-export interface GoalCreate {
+export interface LegacyGoalCreate {
   text: string;
   start_date: string;
   end_date: string;
 }
 
-export interface GoalUpdate {
+export interface LegacyGoalUpdate {
   text?: string;
   start_date?: string;
   end_date?: string;

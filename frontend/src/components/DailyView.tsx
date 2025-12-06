@@ -3,16 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { format, parse, addDays, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, CheckSquare, Combine } from 'lucide-react';
 import api, { notesApi, entriesApi, goalsApi, settingsApi } from '../api';
-import type { DailyNote, NoteEntry, Goal } from '../types';
+import type { DailyNote, NoteEntry, Goal, GoalUpdate } from '../types';
 import NoteEntryCard from './NoteEntryCard';
 import LabelSelector from './LabelSelector';
 import EntryDropdown from './EntryDropdown';
-import SimpleRichTextEditor from './SimpleRichTextEditor';
+import RichTextEditor from './RichTextEditor';
+import GoalCard from './GoalCard';
 import { useFullScreen } from '../contexts/FullScreenContext';
 import { useDailyGoals } from '../contexts/DailyGoalsContext';
-import { useSprintGoals } from '../contexts/SprintGoalsContext';
-import { useSprintName } from '../contexts/SprintNameContext';
-import { useQuarterlyGoals } from '../contexts/QuarterlyGoalsContext';
 import { useDayLabels } from '../contexts/DayLabelsContext';
 import { useTexture } from '../hooks/useTexture';
 
@@ -23,9 +21,6 @@ const DailyView = () => {
   const { isFullScreen } = useFullScreen();
   const textureStyles = useTexture('header');
   const { showDailyGoals } = useDailyGoals();
-  const { showSprintGoals } = useSprintGoals();
-  const { sprintName } = useSprintName();
-  const { showQuarterlyGoals } = useQuarterlyGoals();
   const { showDayLabels } = useDayLabels();
   const [note, setNote] = useState<DailyNote | null>(null);
   const [entries, setEntries] = useState<NoteEntry[]>([]);
@@ -33,23 +28,9 @@ const DailyView = () => {
   const [dailyGoal, setDailyGoal] = useState('');
   const [dailyGoalEndTime, setDailyGoalEndTime] = useState('17:00');
   const [dailyGoalTimeRemaining, setDailyGoalTimeRemaining] = useState('');
-  const [sprintGoal, setSprintGoal] = useState<Goal | null>(null);
-  const [quarterlyGoal, setQuarterlyGoal] = useState<Goal | null>(null);
   const [editingDailyGoal, setEditingDailyGoal] = useState(false);
-  const [editingSprintGoal, setEditingSprintGoal] = useState(false);
-  const [editingQuarterlyGoal, setEditingQuarterlyGoal] = useState(false);
-  const [creatingSprintGoal, setCreatingSprintGoal] = useState(false);
-  const [creatingQuarterlyGoal, setCreatingQuarterlyGoal] = useState(false);
-  const [newSprintText, setNewSprintText] = useState('');
-  const [newSprintStartDate, setNewSprintStartDate] = useState('');
-  const [newSprintEndDate, setNewSprintEndDate] = useState('');
-  const [newQuarterlyText, setNewQuarterlyText] = useState('');
-  const [newQuarterlyStartDate, setNewQuarterlyStartDate] = useState('');
-  const [newQuarterlyEndDate, setNewQuarterlyEndDate] = useState('');
-  const [editingSprintStartDate, setEditingSprintStartDate] = useState('');
-  const [editingSprintEndDate, setEditingSprintEndDate] = useState('');
-  const [editingQuarterlyStartDate, setEditingQuarterlyStartDate] = useState('');
-  const [editingQuarterlyEndDate, setEditingQuarterlyEndDate] = useState('');
+  // Unified goals state
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set());
   const [isMerging, setIsMerging] = useState(false);
@@ -64,12 +45,6 @@ const DailyView = () => {
   // Load goals for the specific date being viewed
   useEffect(() => {
     if (date) {
-      // Close any open date pickers when navigating to a different day
-      setCreatingSprintGoal(false);
-      setCreatingQuarterlyGoal(false);
-      setEditingSprintGoal(false);
-      setEditingQuarterlyGoal(false);
-      
       // Scroll to top immediately when date changes
       window.scrollTo({ top: 0, behavior: 'instant' });
       loadDailyNote();
@@ -128,33 +103,12 @@ const DailyView = () => {
 
   const loadGoalsForDate = async (viewedDate: string) => {
     try {
-      // Try to load sprint goal for this date
-      try {
-        const sprintGoalData = await goalsApi.getSprintForDate(viewedDate);
-        setSprintGoal(sprintGoalData);
-      } catch (error: any) {
-        // 404 is expected when no goal exists for this date - don't log
-        if (error.response?.status === 404) {
-          setSprintGoal(null);
-        } else {
-          console.error('Failed to load sprint goal:', error);
-        }
-      }
-
-      // Try to load quarterly goal for this date
-      try {
-        const quarterlyGoalData = await goalsApi.getQuarterlyForDate(viewedDate);
-        setQuarterlyGoal(quarterlyGoalData);
-      } catch (error: any) {
-        // 404 is expected when no goal exists for this date - don't log
-        if (error.response?.status === 404) {
-          setQuarterlyGoal(null);
-        } else {
-          console.error('Failed to load quarterly goal:', error);
-        }
-      }
+      // Load all active goals for this date using the unified API
+      const activeGoals = await goalsApi.getActiveForDate(viewedDate);
+      setGoals(activeGoals);
     } catch (error) {
       console.error('Failed to load goals:', error);
+      setGoals([]);
     }
   };
 
@@ -358,49 +312,6 @@ const DailyView = () => {
     }, 1000);
   };
 
-  const handleSprintGoalUpdate = async (updates: { text?: string; start_date?: string; end_date?: string }) => {
-    if (!sprintGoal || !date) return;
-    
-    try {
-      const updated = await goalsApi.updateSprint(sprintGoal.id, updates);
-      setSprintGoal(updated);
-    } catch (error: any) {
-      console.error('Failed to update sprint goal:', error);
-      const message = error?.response?.data?.detail || 'Failed to update sprint goal';
-      alert(message);
-    }
-  };
-
-  const handleQuarterlyGoalUpdate = async (updates: { text?: string; start_date?: string; end_date?: string }) => {
-    if (!quarterlyGoal || !date) return;
-    
-    try {
-      const updated = await goalsApi.updateQuarterly(quarterlyGoal.id, updates);
-      setQuarterlyGoal(updated);
-    } catch (error: any) {
-      console.error('Failed to update quarterly goal:', error);
-      const message = error?.response?.data?.detail || 'Failed to update quarterly goal';
-      alert(message);
-    }
-  };
-
-  const getDaysUntilStart = (startDate: string, fromDate: string): number => {
-    try {
-      const start = new Date(startDate);
-      const from = new Date(fromDate);
-      const diffTime = start.getTime() - from.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays;
-    } catch (error) {
-      return 0;
-    }
-  };
-
-  const isGoalNotStarted = (goal: Goal | null, viewedDate: string): boolean => {
-    if (!goal || !viewedDate) return false;
-    return goal.start_date > viewedDate;
-  };
-
   // Helper to check if goal text is actually empty (accounting for HTML tags and whitespace)
   const hasGoalContent = (goalText: string | undefined | null): boolean => {
     if (!goalText) return false;
@@ -409,60 +320,28 @@ const DailyView = () => {
     return textOnly.length > 0;
   };
 
-  const handleCreateSprintGoal = async () => {
-    if (!date || !newSprintText || !newSprintStartDate || !newSprintEndDate) {
-      alert('Please provide goal text, start date, and end date');
-      return;
-    }
-
+  // Goal handlers for unified goals
+  const handleGoalToggleComplete = async (goalId: number) => {
     try {
-      const newGoal = await goalsApi.createSprint({
-        text: newSprintText,
-        start_date: newSprintStartDate,
-        end_date: newSprintEndDate
-      });
-      setSprintGoal(newGoal);
-      setCreatingSprintGoal(false);
-      setNewSprintText('');
-      setNewSprintStartDate('');
-      setNewSprintEndDate('');
-    } catch (error: any) {
-      console.error('Failed to create sprint goal:', error);
-      if (error.response?.status === 400) {
-        alert(error.response?.data?.detail || 'Failed to create goal. Check for overlapping dates.');
-      } else {
-        alert('Failed to create sprint goal');
+      await goalsApi.toggleComplete(goalId);
+      if (date) {
+        await loadGoalsForDate(date);
       }
+    } catch (error) {
+      console.error('Failed to toggle goal completion:', error);
     }
   };
 
-  const handleCreateQuarterlyGoal = async () => {
-    if (!date || !newQuarterlyText || !newQuarterlyStartDate || !newQuarterlyEndDate) {
-      alert('Please provide goal text, start date, and end date');
-      return;
-    }
-
+  const handleGoalUpdate = async (goalId: number, updates: GoalUpdate) => {
     try {
-      const newGoal = await goalsApi.createQuarterly({
-        text: newQuarterlyText,
-        start_date: newQuarterlyStartDate,
-        end_date: newQuarterlyEndDate
-      });
-      setQuarterlyGoal(newGoal);
-      setCreatingQuarterlyGoal(false);
-      setNewQuarterlyText('');
-      setNewQuarterlyStartDate('');
-      setNewQuarterlyEndDate('');
-    } catch (error: any) {
-      console.error('Failed to create quarterly goal:', error);
-      if (error.response?.status === 400) {
-        alert(error.response?.data?.detail || 'Failed to create goal. Check for overlapping dates.');
-      } else {
-        alert('Failed to create quarterly goal');
+      await goalsApi.update(goalId, updates);
+      if (date) {
+        await loadGoalsForDate(date);
       }
+    } catch (error) {
+      console.error('Failed to update goal:', error);
     }
   };
-
 
   const handleSelectionChange = (entryId: number, selected: boolean) => {
     setSelectedEntries(prev => {
@@ -582,7 +461,7 @@ const DailyView = () => {
           </div>
         )}
 
-          {(showDailyGoals || showSprintGoals || showQuarterlyGoals || showDayLabels) && (
+          {(showDailyGoals || showDayLabels || goals.length > 0) && (
             <div className="flex flex-col items-center gap-6 w-full">
               {/* Day Labels Section - only show if enabled */}
               {showDayLabels && (
@@ -631,7 +510,7 @@ const DailyView = () => {
                   }}
                   className="space-y-3"
                 >
-                  <SimpleRichTextEditor
+                  <RichTextEditor
                     content={dailyGoal}
                     onChange={handleDailyGoalChange}
                     placeholder="What are your main goals for today?"
@@ -747,471 +626,20 @@ const DailyView = () => {
                 </div>
               )}
               
-              {/* Sprint Goals Section - only show if enabled */}
-              {showSprintGoals && (
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2 gap-3">
-                    <label className="text-lg font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>🚀 {sprintName} Goals</label>
-                    {sprintGoal && hasGoalContent(sprintGoal.text) && date && (
-                      <div 
-                        className="flex items-center gap-2 px-3 py-1 rounded-full flex-shrink-0"
-                        style={{ 
-                          backgroundColor: 'var(--color-bg-secondary)',
-                          color: 'var(--color-accent)',
-                          border: '1px solid var(--color-accent)'
-                        }}
-                        title={`${sprintGoal.start_date} to ${sprintGoal.end_date}`}
-                      >
-                        <span className="text-sm font-bold whitespace-nowrap">
-                          {isGoalNotStarted(sprintGoal, date) ? (
-                            `${getDaysUntilStart(sprintGoal.start_date, date)} days until start`
-                          ) : sprintGoal.days_remaining !== undefined ? (
-                            sprintGoal.days_remaining > 0 ? `${sprintGoal.days_remaining} days left` : 
-                            sprintGoal.days_remaining === 0 ? 'Today!' : 
-                            `${Math.abs(sprintGoal.days_remaining)} days overdue`
-                          ) : null}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {sprintGoal ? (
-                    // Existing goal - always editable
-                    <>
-                      {editingSprintGoal ? (
-                        <div
-                          onBlur={(e) => {
-                            // Only save if we're leaving the entire edit container
-                            const relatedTarget = e.relatedTarget as Node | null;
-                            
-                            if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
-                              setEditingSprintGoal(false);
-                              const updates: { text?: string; start_date?: string; end_date?: string } = {};
-                              // Always include text as it may have been updated via onChange
-                              updates.text = sprintGoal.text;
-                              if (editingSprintStartDate && editingSprintStartDate !== sprintGoal.start_date) {
-                                updates.start_date = editingSprintStartDate;
-                              }
-                              if (editingSprintEndDate && editingSprintEndDate !== sprintGoal.end_date) {
-                                updates.end_date = editingSprintEndDate;
-                              }
-                              handleSprintGoalUpdate(updates);
-                            }
-                          }}
-                          className="space-y-3"
-                        >
-                          <SimpleRichTextEditor
-                            content={sprintGoal.text}
-                            onChange={(newText) => {
-                              setSprintGoal({ ...sprintGoal, text: newText });
-                            }}
-                            placeholder="What are your sprint goals?"
-                          />
-                          <div className="flex gap-2 items-center">
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Start:</span>
-                            <input
-                              type="date"
-                              value={editingSprintStartDate}
-                              onChange={(e) => setEditingSprintStartDate(e.target.value)}
-                              className="px-3 py-1.5 rounded-lg text-sm flex-1"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)',
-                                border: '1px solid'
-                              }}
-                            />
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>End:</span>
-                            <input
-                              type="date"
-                              value={editingSprintEndDate}
-                              onChange={(e) => setEditingSprintEndDate(e.target.value)}
-                              className="px-3 py-1.5 rounded-lg text-sm flex-1"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)',
-                                border: '1px solid'
-                              }}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingSprintGoal(false);
-                                const updates: { text?: string; start_date?: string; end_date?: string } = {};
-                                updates.text = sprintGoal.text;
-                                if (editingSprintStartDate && editingSprintStartDate !== sprintGoal.start_date) {
-                                  updates.start_date = editingSprintStartDate;
-                                }
-                                if (editingSprintEndDate && editingSprintEndDate !== sprintGoal.end_date) {
-                                  updates.end_date = editingSprintEndDate;
-                                }
-                                handleSprintGoalUpdate(updates);
-                              }}
-                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                              style={{
-                                backgroundColor: 'var(--color-accent)',
-                                color: 'white',
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingSprintGoal(false);
-                                // Reset to original values
-                                setEditingSprintStartDate(sprintGoal.start_date);
-                                setEditingSprintEndDate(sprintGoal.end_date);
-                                // Reload the sprint goal to discard changes
-                                if (date) loadGoalsForDate(date);
-                              }}
-                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                border: '1px solid var(--color-border-primary)',
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => {
-                            setEditingSprintGoal(true);
-                            setEditingSprintStartDate(sprintGoal.start_date);
-                            setEditingSprintEndDate(sprintGoal.end_date);
-                          }}
-                          className="w-full px-4 py-3 rounded-lg transition-colors cursor-pointer"
-                          style={{
-                            color: hasGoalContent(sprintGoal.text) ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                            backgroundColor: 'transparent',
-                            minHeight: hasGoalContent(sprintGoal.text) ? '80px' : '40px',
-                            maxHeight: '400px',
-                            overflowY: 'auto'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <div 
-                            className="goal-content"
-                            dangerouslySetInnerHTML={{ __html: sprintGoal.text || 'Click to edit sprint goals...' }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    // No goal exists - show creation interface
-                    <>
-                      {creatingSprintGoal ? (
-                        <div className="space-y-3" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                          <SimpleRichTextEditor
-                            content={newSprintText}
-                            onChange={setNewSprintText}
-                            placeholder="What are your sprint goals?"
-                          />
-                          <div className="flex gap-2 items-center">
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Start:</span>
-                            <input
-                              type="date"
-                              value={newSprintStartDate}
-                              onChange={(e) => setNewSprintStartDate(e.target.value)}
-                              className="px-2 py-1 border rounded text-xs"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)'
-                              }}
-                            />
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>→ End:</span>
-                            <input
-                              type="date"
-                              value={newSprintEndDate}
-                              onChange={(e) => setNewSprintEndDate(e.target.value)}
-                              min={newSprintStartDate || date}
-                              className="px-2 py-1 border rounded text-xs"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)'
-                              }}
-                            />
-                            <button
-                              onClick={handleCreateSprintGoal}
-                              className="px-3 py-1 text-xs rounded hover:opacity-80"
-                              style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}
-                            >
-                              Create
-                            </button>
-                            <button
-                              onClick={() => {
-                                setCreatingSprintGoal(false);
-                                setNewSprintText('');
-                                setNewSprintStartDate('');
-                                setNewSprintEndDate('');
-                              }}
-                              className="px-3 py-1 text-xs rounded hover:opacity-80"
-                              style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setCreatingSprintGoal(true);
-                            // Set default start date to current viewed date
-                            setNewSprintStartDate(date || '');
-                          }}
-                          className="text-xs px-3 py-2 rounded hover:opacity-80"
-                          style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
-                        >
-                          + Create Sprint Goal
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-              
-              {/* Quarterly Goals Section - only show if enabled */}
-              {showQuarterlyGoals && (
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-2 gap-4">
-                    <label className="text-lg font-semibold whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>🌟 Quarterly Goals</label>
-                    {quarterlyGoal && hasGoalContent(quarterlyGoal.text) && date && (
-                      <div 
-                        className="flex items-center gap-2 px-3 py-1 rounded-full flex-shrink-0 ml-2"
-                        style={{ 
-                          backgroundColor: 'var(--color-bg-secondary)',
-                          color: 'var(--color-accent)',
-                          border: '1px solid var(--color-accent)'
-                        }}
-                        title={`${quarterlyGoal.start_date} to ${quarterlyGoal.end_date}`}
-                      >
-                        <span className="text-sm font-bold whitespace-nowrap">
-                          {isGoalNotStarted(quarterlyGoal, date) ? (
-                            `${getDaysUntilStart(quarterlyGoal.start_date, date)} days until start`
-                          ) : quarterlyGoal.days_remaining !== undefined ? (
-                            quarterlyGoal.days_remaining > 0 ? `${quarterlyGoal.days_remaining} days left` : 
-                            quarterlyGoal.days_remaining === 0 ? 'Today!' : 
-                            `${Math.abs(quarterlyGoal.days_remaining)} days overdue`
-                          ) : null}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {quarterlyGoal ? (
-                    // Existing goal - always editable
-                    <>
-                      {editingQuarterlyGoal ? (
-                        <div
-                          onBlur={(e) => {
-                            // Only save if we're leaving the entire edit container
-                            const relatedTarget = e.relatedTarget as Node | null;
-                            
-                            if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
-                              setEditingQuarterlyGoal(false);
-                              const updates: { text?: string; start_date?: string; end_date?: string } = {};
-                              // Always include text as it may have been updated via onChange
-                              updates.text = quarterlyGoal.text;
-                              if (editingQuarterlyStartDate && editingQuarterlyStartDate !== quarterlyGoal.start_date) {
-                                updates.start_date = editingQuarterlyStartDate;
-                              }
-                              if (editingQuarterlyEndDate && editingQuarterlyEndDate !== quarterlyGoal.end_date) {
-                                updates.end_date = editingQuarterlyEndDate;
-                              }
-                              handleQuarterlyGoalUpdate(updates);
-                            }
-                          }}
-                          className="space-y-3"
-                        >
-                          <SimpleRichTextEditor
-                            content={quarterlyGoal.text}
-                            onChange={(newText) => {
-                              setQuarterlyGoal({ ...quarterlyGoal, text: newText });
-                            }}
-                            placeholder="What are your quarterly goals?"
-                          />
-                          <div className="flex gap-2 items-center">
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Start:</span>
-                            <input
-                              type="date"
-                              value={editingQuarterlyStartDate}
-                              onChange={(e) => setEditingQuarterlyStartDate(e.target.value)}
-                              className="px-3 py-1.5 rounded-lg text-sm flex-1"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)',
-                                border: '1px solid'
-                              }}
-                            />
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>End:</span>
-                            <input
-                              type="date"
-                              value={editingQuarterlyEndDate}
-                              onChange={(e) => setEditingQuarterlyEndDate(e.target.value)}
-                              className="px-3 py-1.5 rounded-lg text-sm flex-1"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)',
-                                border: '1px solid'
-                              }}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingQuarterlyGoal(false);
-                                const updates: { text?: string; start_date?: string; end_date?: string } = {};
-                                updates.text = quarterlyGoal.text;
-                                if (editingQuarterlyStartDate && editingQuarterlyStartDate !== quarterlyGoal.start_date) {
-                                  updates.start_date = editingQuarterlyStartDate;
-                                }
-                                if (editingQuarterlyEndDate && editingQuarterlyEndDate !== quarterlyGoal.end_date) {
-                                  updates.end_date = editingQuarterlyEndDate;
-                                }
-                                handleQuarterlyGoalUpdate(updates);
-                              }}
-                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                              style={{
-                                backgroundColor: 'var(--color-accent)',
-                                color: 'white',
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingQuarterlyGoal(false);
-                                // Reset to original values
-                                setEditingQuarterlyStartDate(quarterlyGoal.start_date);
-                                setEditingQuarterlyEndDate(quarterlyGoal.end_date);
-                                // Reload the quarterly goal to discard changes
-                                if (date) loadGoalsForDate(date);
-                              }}
-                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                border: '1px solid var(--color-border-primary)',
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => {
-                            setEditingQuarterlyGoal(true);
-                            setEditingQuarterlyStartDate(quarterlyGoal.start_date);
-                            setEditingQuarterlyEndDate(quarterlyGoal.end_date);
-                          }}
-                          className="w-full px-4 py-3 rounded-lg transition-colors cursor-pointer"
-                          style={{
-                            color: hasGoalContent(quarterlyGoal.text) ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                            backgroundColor: 'transparent',
-                            minHeight: hasGoalContent(quarterlyGoal.text) ? '80px' : '40px',
-                            maxHeight: '400px',
-                            overflowY: 'auto'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <div 
-                            className="goal-content"
-                            dangerouslySetInnerHTML={{ __html: quarterlyGoal.text || 'Click to edit quarterly goals...' }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    // No goal exists - show creation interface
-                    <>
-                      {creatingQuarterlyGoal ? (
-                        <div className="space-y-3" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                          <SimpleRichTextEditor
-                            content={newQuarterlyText}
-                            onChange={setNewQuarterlyText}
-                            placeholder="What are your quarterly goals?"
-                          />
-                          <div className="flex gap-2 items-center">
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Start:</span>
-                            <input
-                              type="date"
-                              value={newQuarterlyStartDate}
-                              onChange={(e) => setNewQuarterlyStartDate(e.target.value)}
-                              className="px-2 py-1 border rounded text-xs"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)'
-                              }}
-                            />
-                            <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>→ End:</span>
-                            <input
-                              type="date"
-                              value={newQuarterlyEndDate}
-                              onChange={(e) => setNewQuarterlyEndDate(e.target.value)}
-                              min={newQuarterlyStartDate || date}
-                              className="px-2 py-1 border rounded text-xs"
-                              style={{
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-primary)'
-                              }}
-                            />
-                            <button
-                              onClick={handleCreateQuarterlyGoal}
-                              className="px-3 py-1 text-xs rounded hover:opacity-80"
-                              style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}
-                            >
-                              Create
-                            </button>
-                            <button
-                              onClick={() => {
-                                setCreatingQuarterlyGoal(false);
-                                setNewQuarterlyText('');
-                                setNewQuarterlyStartDate('');
-                                setNewQuarterlyEndDate('');
-                              }}
-                              className="px-3 py-1 text-xs rounded hover:opacity-80"
-                              style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setCreatingQuarterlyGoal(true);
-                            // Set default start date to current viewed date
-                            setNewQuarterlyStartDate(date || '');
-                          }}
-                          className="text-xs px-3 py-2 rounded hover:opacity-80"
-                          style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
-                        >
-                          + Create Quarterly Goal
-                        </button>
-                      )}
-                    </>
-                  )}
+              {/* User-Defined Goals Section */}
+              {goals.length > 0 && (
+                <div className="w-full space-y-3">
+                  <label className="block text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>🎯 Goals</label>
+                  {goals.map(goal => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      viewedDate={date}
+                      onUpdate={(goalId, updates) => handleGoalUpdate(goalId, updates)}
+                      onToggleComplete={handleGoalToggleComplete}
+                      editable={true}
+                    />
+                  ))}
                 </div>
               )}
             </div>

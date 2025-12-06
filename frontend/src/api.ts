@@ -9,6 +9,9 @@ import type {
   Goal,
   GoalCreate,
   GoalUpdate,
+  LegacyGoal,
+  LegacyGoalCreate,
+  LegacyGoalUpdate,
   List,
   ListWithEntries,
   ListCreate,
@@ -107,31 +110,86 @@ export const entriesApi = {
   },
 };
 
-// Goals API
+// Goals API (unified)
 export const goalsApi = {
-  // Sprint Goals
-  getAllSprints: async (): Promise<Goal[]> => {
-    const response = await api.get<Goal[]>('/api/goals/sprint');
+  // =====================
+  // Unified Goals API (new)
+  // =====================
+  
+  getAll: async (includeHidden = false): Promise<Goal[]> => {
+    const response = await api.get<Goal[]>('/api/goals/', { params: { include_hidden: includeHidden } });
     return response.data;
   },
 
-  getSprintForDate: async (date: string): Promise<Goal> => {
-    const response = await api.get<Goal>(`/api/goals/sprint/${date}`, {
-      validateStatus: (status) => status === 200 || status === 404, // Don't throw on 404
+  getActiveForDate: async (date: string): Promise<Goal[]> => {
+    const response = await api.get<Goal[]>(`/api/goals/active/${date}`);
+    return response.data;
+  },
+
+  getById: async (goalId: number): Promise<Goal> => {
+    const response = await api.get<Goal>(`/api/goals/${goalId}`);
+    return response.data;
+  },
+
+  create: async (goal: GoalCreate): Promise<Goal> => {
+    const response = await api.post<Goal>('/api/goals/', goal);
+    return response.data;
+  },
+
+  update: async (goalId: number, update: GoalUpdate): Promise<Goal> => {
+    const response = await api.put<Goal>(`/api/goals/${goalId}`, update);
+    return response.data;
+  },
+
+  toggleComplete: async (goalId: number): Promise<Goal> => {
+    const response = await api.post<Goal>(`/api/goals/${goalId}/toggle-complete`);
+    return response.data;
+  },
+
+  toggleVisibility: async (goalId: number): Promise<Goal> => {
+    const response = await api.post<Goal>(`/api/goals/${goalId}/toggle-visibility`);
+    return response.data;
+  },
+
+  reorder: async (goals: { id: number; order_index: number }[]): Promise<void> => {
+    await api.put('/api/goals/reorder', goals);
+  },
+
+  delete: async (goalId: number): Promise<void> => {
+    await api.delete(`/api/goals/${goalId}`);
+  },
+
+  getTypes: async (): Promise<{ time_based: string[]; lifestyle: string[]; all_preset: string[] }> => {
+    const response = await api.get('/api/goals/types');
+    return response.data;
+  },
+
+  // =====================
+  // Legacy Sprint Goals (for backward compatibility)
+  // =====================
+  
+  getAllSprints: async (): Promise<LegacyGoal[]> => {
+    const response = await api.get<LegacyGoal[]>('/api/goals/sprint');
+    return response.data;
+  },
+
+  getSprintForDate: async (date: string): Promise<LegacyGoal> => {
+    const response = await api.get<LegacyGoal>(`/api/goals/sprint/${date}`, {
+      validateStatus: (status) => status === 200 || status === 404,
     });
     if (response.status === 404) {
-      throw { response: { status: 404 } }; // Throw a simple error for the caller to handle
+      throw { response: { status: 404 } };
     }
     return response.data;
   },
 
-  createSprint: async (goal: GoalCreate): Promise<Goal> => {
-    const response = await api.post<Goal>('/api/goals/sprint', goal);
+  createSprint: async (goal: LegacyGoalCreate): Promise<LegacyGoal> => {
+    const response = await api.post<LegacyGoal>('/api/goals/sprint', goal);
     return response.data;
   },
 
-  updateSprint: async (goalId: number, update: GoalUpdate): Promise<Goal> => {
-    const response = await api.put<Goal>(`/api/goals/sprint/${goalId}`, update);
+  updateSprint: async (goalId: number, update: LegacyGoalUpdate): Promise<LegacyGoal> => {
+    const response = await api.put<LegacyGoal>(`/api/goals/sprint/${goalId}`, update);
     return response.data;
   },
 
@@ -139,29 +197,32 @@ export const goalsApi = {
     await api.delete(`/api/goals/sprint/${goalId}`);
   },
 
-  // Quarterly Goals
-  getAllQuarterly: async (): Promise<Goal[]> => {
-    const response = await api.get<Goal[]>('/api/goals/quarterly');
+  // =====================
+  // Legacy Quarterly Goals (for backward compatibility)
+  // =====================
+  
+  getAllQuarterly: async (): Promise<LegacyGoal[]> => {
+    const response = await api.get<LegacyGoal[]>('/api/goals/quarterly');
     return response.data;
   },
 
-  getQuarterlyForDate: async (date: string): Promise<Goal> => {
-    const response = await api.get<Goal>(`/api/goals/quarterly/${date}`, {
-      validateStatus: (status) => status === 200 || status === 404, // Don't throw on 404
+  getQuarterlyForDate: async (date: string): Promise<LegacyGoal> => {
+    const response = await api.get<LegacyGoal>(`/api/goals/quarterly/${date}`, {
+      validateStatus: (status) => status === 200 || status === 404,
     });
     if (response.status === 404) {
-      throw { response: { status: 404 } }; // Throw a simple error for the caller to handle
+      throw { response: { status: 404 } };
     }
     return response.data;
   },
 
-  createQuarterly: async (goal: GoalCreate): Promise<Goal> => {
-    const response = await api.post<Goal>('/api/goals/quarterly', goal);
+  createQuarterly: async (goal: LegacyGoalCreate): Promise<LegacyGoal> => {
+    const response = await api.post<LegacyGoal>('/api/goals/quarterly', goal);
     return response.data;
   },
 
-  updateQuarterly: async (goalId: number, update: GoalUpdate): Promise<Goal> => {
-    const response = await api.put<Goal>(`/api/goals/quarterly/${goalId}`, update);
+  updateQuarterly: async (goalId: number, update: LegacyGoalUpdate): Promise<LegacyGoal> => {
+    const response = await api.put<LegacyGoal>(`/api/goals/quarterly/${goalId}`, update);
     return response.data;
   },
 

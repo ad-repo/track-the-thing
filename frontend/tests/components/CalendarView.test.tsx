@@ -8,8 +8,7 @@ const mockNotesApi = vi.hoisted(() => ({
 }));
 
 const mockGoalsApi = vi.hoisted(() => ({
-  getAllSprints: vi.fn(),
-  getAllQuarterly: vi.fn(),
+  getAll: vi.fn(),
 }));
 
 const mockRemindersApi = vi.hoisted(() => ({
@@ -83,11 +82,9 @@ describe('CalendarView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockNotesApi.getByMonth.mockResolvedValue([buildNote('2025-11-07')]);
-    mockGoalsApi.getAllSprints.mockResolvedValue([
-      { id: 1, text: 'Sprint Goal', start_date: '2025-11-01', end_date: '2025-11-30' },
-    ]);
-    mockGoalsApi.getAllQuarterly.mockResolvedValue([
-      { id: 2, text: 'Quarterly Goal', start_date: '2025-10-01', end_date: '2025-12-31' },
+    mockGoalsApi.getAll.mockResolvedValue([
+      { id: 1, name: 'Sprint Goal', goal_type: 'Sprint', text: 'Sprint Goal', start_date: '2025-11-01', end_date: '2025-11-30', is_visible: true },
+      { id: 2, name: 'Quarterly Goal', goal_type: 'Quarterly', text: 'Quarterly Goal', start_date: '2025-10-01', end_date: '2025-12-31', is_visible: true },
     ]);
     mockRemindersApi.getAll.mockResolvedValue([
       { id: 1, reminder_datetime: '2025-11-07T10:00:00Z' },
@@ -105,8 +102,7 @@ describe('CalendarView', () => {
     expect(screen.getByText('StarIcon')).toBeInTheDocument();
     expect(screen.getByText('CheckIcon')).toBeInTheDocument();
     expect(screen.getByText('BellIcon')).toBeInTheDocument();
-    expect(screen.getByText('🚀')).toBeInTheDocument();
-    expect(screen.getByText('🌟')).toBeInTheDocument();
+    expect(screen.getByText('🎯')).toBeInTheDocument();
   });
 
   it('invokes onDateSelect and navigates when a day is chosen', async () => {

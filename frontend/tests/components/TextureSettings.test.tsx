@@ -93,7 +93,7 @@ describe('TextureSettings', () => {
     fireEvent.click(screen.getByText(/Next pattern now/i));
     expect(nextRandomPattern).toHaveBeenCalled();
 
-    const slider = screen.getByRole('slider');
+    const slider = screen.getByLabelText('Rotation interval');
     fireEvent.change(slider, { target: { value: '10' } });
     expect(setRandomInterval).toHaveBeenCalledWith(10);
   });

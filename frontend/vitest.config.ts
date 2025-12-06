@@ -25,10 +25,16 @@ export default defineConfig({
         'vitest.config.ts',
       ],
     },
+    // Mock external Tauri plugins at the Vite level
+    deps: {
+      inline: ['@tauri-apps/plugin-opener'],
+    },
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Redirect Tauri plugin imports to mock file
+      '@tauri-apps/plugin-opener': path.resolve(__dirname, './tests/__mocks__/tauri-plugin-opener.ts'),
     },
   },
 });

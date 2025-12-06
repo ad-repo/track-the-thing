@@ -6,6 +6,9 @@ import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import React from 'react';
 
+// Define Vite globals that are normally injected at build time
+(globalThis as any).__APP_VERSION__ = '0.0.0-test';
+
 // Cleanup after each test case
 afterEach(() => {
   cleanup();

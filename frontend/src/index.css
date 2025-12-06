@@ -1093,3 +1093,67 @@ em-emoji-picker,
 .texture-fade {
   animation: texture-fade 0.3s ease-in;
 }
+
+/* Goal Form Date Picker */
+.goal-date-picker {
+  background-color: var(--color-bg-primary) !important;
+  border: none !important;
+  font-family: inherit;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.goal-date-picker .react-calendar__navigation {
+  margin-bottom: 0.5rem;
+}
+
+.goal-date-picker .react-calendar__navigation button {
+  color: var(--color-text-primary);
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.goal-date-picker .react-calendar__navigation button:enabled:hover,
+.goal-date-picker .react-calendar__navigation button:enabled:focus {
+  background-color: var(--color-bg-secondary);
+  border-radius: 0.5rem;
+}
+
+.goal-date-picker .react-calendar__month-view__weekdays {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.goal-date-picker .react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none;
+}
+
+.goal-date-picker .react-calendar__tile {
+  color: var(--color-text-primary);
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.goal-date-picker .react-calendar__tile:enabled:hover,
+.goal-date-picker .react-calendar__tile:enabled:focus {
+  background-color: var(--color-bg-secondary);
+}
+
+.goal-date-picker .react-calendar__tile--now {
+  background-color: var(--color-bg-secondary);
+  font-weight: 600;
+}
+
+.goal-date-picker .react-calendar__tile--active,
+.goal-date-picker .react-calendar__tile--active:enabled:hover,
+.goal-date-picker .react-calendar__tile--active:enabled:focus {
+  background-color: var(--color-accent) !important;
+  color: var(--color-accent-text) !important;
+}
+
+.goal-date-picker .react-calendar__month-view__days__day--neighboringMonth {
+  color: var(--color-text-tertiary);
+}

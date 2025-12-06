@@ -1,23 +1,23 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen } from 'lucide-react';
+import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target } from 'lucide-react';
 import axios from 'axios';
-import { listsApi, entriesApi } from '../api';
+import { listsApi, entriesApi, goalsApi } from '../api';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTheme, Theme } from '../contexts/ThemeContext';
 import { useCustomBackground } from '../contexts/CustomBackgroundContext';
 import { useTransparentLabels } from '../contexts/TransparentLabelsContext';
 import { useDailyGoals } from '../contexts/DailyGoalsContext';
-import { useSprintGoals } from '../contexts/SprintGoalsContext';
-import { useQuarterlyGoals } from '../contexts/QuarterlyGoalsContext';
 import { useDayLabels } from '../contexts/DayLabelsContext';
 import { useEmojiLibrary } from '../contexts/EmojiLibraryContext';
-import { useSprintName } from '../contexts/SprintNameContext';
 import CustomThemeCreator from './CustomThemeCreator';
 import CustomBackgroundSettings from './CustomBackgroundSettings';
 import CustomEmojiManager from './CustomEmojiManager';
 import TextureSettings from './TextureSettings';
+import GoalCard from './GoalCard';
+import GoalForm from './GoalForm';
 import { useTexture } from '../hooks/useTexture';
+import type { Goal, GoalCreate, GoalUpdate } from '../types';
 
 interface Label {
   id: number;
@@ -123,10 +123,14 @@ const Settings = () => {
   
   const { transparentLabels, toggleTransparentLabels } = useTransparentLabels();
   const { showDailyGoals, setShowDailyGoals } = useDailyGoals();
-  const { showSprintGoals, setShowSprintGoals } = useSprintGoals();
-  const { showQuarterlyGoals, setShowQuarterlyGoals } = useQuarterlyGoals();
   const { showDayLabels, setShowDayLabels } = useDayLabels();
   const { emojiLibrary, setEmojiLibrary } = useEmojiLibrary();
+  
+  // Goals state
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loadingGoals, setLoadingGoals] = useState(false);
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   
   // Archive data
   const [archivedLists, setArchivedLists] = useState<any[]>([]);
@@ -149,20 +153,108 @@ const Settings = () => {
     loadArchivedData();
   }, [loadArchivedData]);
   
+  // Load goals
+  const loadGoals = useCallback(async () => {
+    setLoadingGoals(true);
+    try {
+      const allGoals = await goalsApi.getAll(true); // Include hidden goals
+      setGoals(allGoals);
+    } catch (error) {
+      console.error('Failed to load goals:', error);
+    } finally {
+      setLoadingGoals(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGoals();
+  }, [loadGoals]);
+
+  // Goal handlers
+  const handleCreateGoal = async (goalData: GoalCreate) => {
+    try {
+      await goalsApi.create(goalData);
+      await loadGoals();
+      setShowGoalForm(false);
+      showMessage('success', 'Goal created successfully');
+    } catch (error: any) {
+      console.error('Failed to create goal:', error);
+      showMessage('error', error.response?.data?.detail || 'Failed to create goal');
+    }
+  };
+
+  const handleUpdateGoal = async (goalData: GoalUpdate) => {
+    if (!editingGoal) return;
+    try {
+      await goalsApi.update(editingGoal.id, goalData);
+      await loadGoals();
+      setEditingGoal(null);
+      setShowGoalForm(false);
+      showMessage('success', 'Goal updated successfully');
+    } catch (error: any) {
+      console.error('Failed to update goal:', error);
+      showMessage('error', error.response?.data?.detail || 'Failed to update goal');
+    }
+  };
+
+  const handleToggleGoalComplete = async (goalId: number) => {
+    // Optimistic update - toggle locally first for smooth UX
+    setGoals(prev => prev.map(g => 
+      g.id === goalId ? { ...g, is_completed: !g.is_completed } : g
+    ));
+    
+    try {
+      await goalsApi.toggleComplete(goalId);
+      // Don't reload all goals - optimistic update already applied
+    } catch (error) {
+      console.error('Failed to toggle goal completion:', error);
+      // Revert on error by reloading
+      await loadGoals();
+    }
+  };
+
+  const handleToggleGoalVisibility = async (goalId: number) => {
+    // Optimistic update - toggle locally first for smooth UX
+    setGoals(prev => prev.map(g => 
+      g.id === goalId ? { ...g, is_visible: !g.is_visible } : g
+    ));
+    
+    try {
+      await goalsApi.toggleVisibility(goalId);
+      // Don't reload all goals - optimistic update already applied
+    } catch (error) {
+      console.error('Failed to toggle goal visibility:', error);
+      // Revert on error by reloading
+      await loadGoals();
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: number) => {
+    try {
+      await goalsApi.delete(goalId);
+      await loadGoals();
+      showMessage('success', 'Goal deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      showMessage('error', 'Failed to delete goal');
+    }
+  };
+
+  const handleEditGoal = (goal: Goal) => {
+    setEditingGoal(goal);
+    setShowGoalForm(true);
+  };
+  
   // Strip HTML for preview
   const stripHtml = (html: string): string => {
     const div = document.createElement('div');
     div.innerHTML = html;
     return div.textContent || div.innerText || '';
   };
-  const { setSprintName: setSprintNameContext } = useSprintName();
-  
   const [labels, setLabels] = useState<Label[]>([]);
   const [showEmojiManager, setShowEmojiManager] = useState(false);
   const [deletingLabelId, setDeletingLabelId] = useState<number | null>(null);
   const [labelSearchQuery, setLabelSearchQuery] = useState('');
-  const [sprintName, setSprintName] = useState('Sprint');
-  const [savingSprintName, setSavingSprintName] = useState(false);
   const [dailyGoalEndTime, setDailyGoalEndTime] = useState('17:00');
   const [savingDailyGoalEndTime, setSavingDailyGoalEndTime] = useState(false);
   const [isUploadingCustomBgImage, setIsUploadingCustomBgImage] = useState(false);
@@ -179,29 +271,15 @@ const Settings = () => {
 
   useEffect(() => {
     loadLabels();
-    loadSprintName();
+    loadDailyGoalEndTime();
   }, []);
 
-  const loadSprintName = async () => {
+  const loadDailyGoalEndTime = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/settings`);
-      setSprintName(response.data.sprint_name || 'Sprint');
       setDailyGoalEndTime(response.data.daily_goal_end_time || '17:00');
     } catch (error) {
-      console.error('Error loading sprint name:', error);
-    }
-  };
-
-  const handleSprintNameChange = async (newName: string) => {
-    setSprintName(newName);
-    setSprintNameContext(newName); // Update context immediately for other components
-    setSavingSprintName(true);
-    try {
-      await axios.patch(`${API_URL}/api/settings`, { sprint_name: newName });
-    } catch (error) {
-      console.error('Error saving sprint name:', error);
-    } finally {
-      setSavingSprintName(false);
+      console.error('Error loading settings:', error);
     }
   };
 
@@ -611,21 +689,9 @@ const Settings = () => {
                 {[
                   {
                     label: 'Daily Goals',
-                    description: 'Show the daily goal summary card',
+                    description: 'Show the per-day daily goal section',
                     value: showDailyGoals,
                     toggle: () => setShowDailyGoals(!showDailyGoals),
-                  },
-                  {
-                    label: 'Sprint Goals',
-                    description: 'Display sprint goals beneath the daily list',
-                    value: showSprintGoals,
-                    toggle: () => setShowSprintGoals(!showSprintGoals),
-                  },
-                  {
-                    label: 'Quarterly Goals',
-                    description: 'Include quarterly milestone progress',
-                    value: showQuarterlyGoals,
-                    toggle: () => setShowQuarterlyGoals(!showQuarterlyGoals),
                   },
                   {
                     label: 'Day Labels',
@@ -667,24 +733,6 @@ const Settings = () => {
             <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
               <h3 className="font-medium mb-2 text-sm" style={{ color: 'var(--color-text-primary)' }}>Customization</h3>
               <div className="space-y-2">
-                {/* Sprint Name */}
-                <div className="flex items-center gap-2">
-                  <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Sprint Name</label>
-                  <input
-                    type="text"
-                    value={sprintName}
-                    onChange={(e) => handleSprintNameChange(e.target.value)}
-                    placeholder="Sprint"
-                    className="flex-1 px-2 py-1 rounded-md border text-sm"
-                    style={{
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-border-primary)',
-                      color: 'var(--color-text-primary)',
-                    }}
-                  />
-                  {savingSprintName && <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Saving...</span>}
-                </div>
-
                 {/* Daily Goal End Time */}
                 <div className="flex items-center gap-2">
                   <label className="text-sm w-24 flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>Day Goal End Time</label>
@@ -748,6 +796,130 @@ const Settings = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Goals Management Section */}
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+              <Target className="h-5 w-5" />
+              Goals
+              {goals.length > 0 && (
+                <span className="text-sm font-normal" style={{ color: 'var(--color-text-secondary)' }}>
+                  ({goals.length})
+                </span>
+              )}
+            </h2>
+            {/* Quick Add Button in Header */}
+            {!showGoalForm && (
+              <button
+                onClick={() => {
+                  setEditingGoal(null);
+                  setShowGoalForm(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-text)',
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Add Goal
+              </button>
+            )}
+          </div>
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+            {/* Inline Goal Form */}
+            {showGoalForm && (
+              <div className="mb-4">
+                <GoalForm
+                  goal={editingGoal}
+                  onSave={editingGoal ? handleUpdateGoal : handleCreateGoal}
+                  onClose={() => {
+                    setShowGoalForm(false);
+                    setEditingGoal(null);
+                  }}
+                  initialDate={new Date().toISOString().split('T')[0]}
+                  inline={true}
+                />
+              </div>
+            )}
+            
+            {/* Goals List */}
+            {loadingGoals ? (
+              <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
+                Loading goals...
+              </div>
+            ) : goals.length === 0 && !showGoalForm ? (
+              <div 
+                className="text-center py-8 border-2 border-dashed rounded-lg cursor-pointer transition-colors"
+                style={{ 
+                  color: 'var(--color-text-secondary)',
+                  borderColor: 'var(--color-border-primary)',
+                }}
+                onClick={() => {
+                  setEditingGoal(null);
+                  setShowGoalForm(true);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.backgroundColor = `${getComputedStyle(document.documentElement).getPropertyValue('--color-accent')}10`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <Plus className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--color-text-tertiary)' }} />
+                <p className="font-medium">No goals yet</p>
+                <p className="text-xs mt-1">Click here or the "Add Goal" button to create your first goal</p>
+              </div>
+            ) : goals.length > 0 ? (
+              <div className="space-y-3">
+                {goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    onToggleComplete={handleToggleGoalComplete}
+                    onToggleVisibility={handleToggleGoalVisibility}
+                    onEdit={handleEditGoal}
+                    onDelete={handleDeleteGoal}
+                    editable={true}
+                    showVisibilityToggle={true}
+                    showDeleteButton={true}
+                    compact={false}
+                  />
+                ))}
+                
+                {/* Add Goal Card at Bottom - only show when form is closed */}
+                {!showGoalForm && (
+                  <div 
+                    className="flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors"
+                    style={{ 
+                      borderColor: 'var(--color-border-primary)',
+                    }}
+                    onClick={() => {
+                      setEditingGoal(null);
+                      setShowGoalForm(true);
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-accent)';
+                      e.currentTarget.style.backgroundColor = `${getComputedStyle(document.documentElement).getPropertyValue('--color-accent')}10`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border-primary)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Plus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
+                    <span className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                      Add another goal
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         </section>
 

@@ -195,6 +195,119 @@ class TestMigration015:
 
 
 @pytest.mark.migration
+class TestMigration028:
+    """Test migration 028: Unified goals table (ensure name column exists)."""
+
+    def _load_migration(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location('migration_028', migrations_dir / '028_unified_goals.py')
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        return migration
+
+    def test_adds_name_column_when_missing(self, temp_db_file):
+        """Existing goals table without name column should be patched."""
+        conn = sqlite3.connect(temp_db_file)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_type TEXT NOT NULL,
+                text TEXT DEFAULT '',
+                is_visible INTEGER DEFAULT 1,
+                order_index INTEGER DEFAULT 0
+            )
+            """
+        )
+        cursor.execute(
+            "INSERT INTO goals (goal_type, text, is_visible, order_index) VALUES (?, ?, ?, ?)",
+            ('Personal', '<p>Do something</p>', 1, 0),
+        )
+        conn.commit()
+        conn.close()
+
+        migration = self._load_migration()
+        success = migration.migrate_up(temp_db_file)
+        assert success is True
+
+        conn = sqlite3.connect(temp_db_file)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(goals)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert 'name' in columns
+
+        cursor.execute("SELECT name, goal_type FROM goals")
+        row = cursor.fetchone()
+        assert row[0] == 'Personal'
+        conn.close()
+
+    def test_migration_028_is_idempotent(self, temp_db_file):
+        """Running migration twice should be safe."""
+        migration = self._load_migration()
+
+        # First run (table absent)
+        success_first = migration.migrate_up(temp_db_file)
+        assert success_first is True
+
+        # Second run (table exists with name column)
+        success_second = migration.migrate_up(temp_db_file)
+        assert success_second is True
+
+        conn = sqlite3.connect(temp_db_file)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(goals)")
+        columns = [col[1] for col in cursor.fetchall()]
+        assert 'name' in columns
+        assert 'end_time' in columns
+        conn.close()
+
+    def test_adds_end_time_column_when_missing(self, temp_db_file):
+        """Existing goals table without end_time should be patched."""
+        conn = sqlite3.connect(temp_db_file)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                goal_type TEXT NOT NULL,
+                text TEXT DEFAULT '',
+                start_date TEXT,
+                end_date TEXT NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            "INSERT INTO goals (name, goal_type, text, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
+            ('Existing Goal', 'Personal', '<p>Body</p>', '2025-12-01', '2025-12-31'),
+        )
+        conn.commit()
+        conn.close()
+
+        migration = self._load_migration()
+        success = migration.migrate_up(temp_db_file)
+        assert success is True
+
+        conn = sqlite3.connect(temp_db_file)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(goals)")
+        columns = cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        assert 'end_time' in columns
+        assert 'status_text' in column_names
+        assert 'show_countdown' in column_names
+        assert 'is_completed' in column_names
+        assert 'is_visible' in column_names
+
+        # Verify end_date is now nullable (notnull flag = 0)
+        end_date_info = next(col for col in columns if col[1] == 'end_date')
+        assert end_date_info[3] == 0
+        conn.close()
+
+
+@pytest.mark.migration
 class TestMigration014:
     """Test migration 014: Fix timezone entries."""
 

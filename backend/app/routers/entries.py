@@ -265,7 +265,7 @@ def get_archived_entries(db: Session = Depends(get_db)):
         .order_by(models.NoteEntry.updated_at.desc())
         .all()
     )
-    
+
     # Add daily_note_date to each entry for navigation
     result = []
     for entry in entries:
@@ -289,7 +289,7 @@ def get_archived_entries(db: Session = Depends(get_db)):
             'reminder': entry.reminder,
         }
         result.append(entry_dict)
-    
+
     return result
 
 

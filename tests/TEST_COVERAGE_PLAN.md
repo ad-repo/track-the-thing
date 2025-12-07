@@ -121,14 +121,16 @@ Improve existing test files:
 3. **`useWindowSize.ts`** - Debounced resize handling, breakpoint helpers, listener cleanup; `useMediaQuery` change notifications  
    - Tests: `frontend/tests/hooks/useWindowSize.test.tsx`
 
-### Phase 4: Backend Unit Tests with Mocks
+### Phase 4: Backend Unit Tests with Mocks (Completed)
 
-Add unit tests that mock the database for testing business logic in isolation:
-
-1. **`test_backup_logic.py`** - Test backup/restore validation logic without DB
-2. **`test_search_ranking.py`** - Test search scoring/ranking algorithms
-3. **`test_reminder_scheduling.py`** - Test reminder time calculations
-4. **`test_report_generation.py`** - Test report aggregation logic
+1. **`test_backup_logic.py`** - Validation paths for import and full-restore with mocked DB/UploadFile  
+   - Tests: invalid JSON, missing keys, bad extensions, corrupted ZIP rollback
+2. **`test_search_ranking.py`** - Search router filtering/limit behavior with mock query chains  
+   - Tests: label joins + kanban split, invalid label IDs ignored
+3. **`test_reminder_scheduling.py`** - Reminder creation/update flows without real DB  
+   - Tests: missing entry 404, active reminder guard, dismissed reactivation, dismiss toggle
+4. **`test_report_generation.py`** - Report window bounds and aggregation with fake queries  
+   - Tests: week bounds, include_in_report filtering, week aggregation
 
 ---
 

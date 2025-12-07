@@ -112,11 +112,14 @@ Improve existing test files:
    - Reminder setting
    - Markdown preview toggle
 
-### Phase 3: Remaining Frontend Contexts/Hooks
+### Phase 3: Frontend Hooks (Completed)
 
-1. **`useReminderPolling.ts`** - Polling interval, cleanup
-2. **`useTexture.ts`** - CSS variable updates, memoization
-3. **`useWindowSize.ts`** - Resize listener handling
+1. **`useReminderPolling.ts`** - Polling interval cadence, initial fetch, cleanup on unmount  
+   - Tests: `frontend/tests/hooks/useReminderPolling.test.tsx`
+2. **`useTexture.ts`** - CSS variable generation from context patterns/settings, disabled fallback, memoization  
+   - Tests: `frontend/tests/hooks/useTexture.test.tsx`
+3. **`useWindowSize.ts`** - Debounced resize handling, breakpoint helpers, listener cleanup; `useMediaQuery` change notifications  
+   - Tests: `frontend/tests/hooks/useWindowSize.test.tsx`
 
 ### Phase 4: Backend Unit Tests with Mocks
 

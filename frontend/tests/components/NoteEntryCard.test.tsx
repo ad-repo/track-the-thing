@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteEntryCard from '@/components/NoteEntryCard';
 import type { NoteEntry } from '@/types';
@@ -73,7 +73,16 @@ vi.mock('@/components/CodeEditor', () => ({
 
 vi.mock('@/components/LabelSelector', () => ({
   __esModule: true,
-  default: () => <div data-testid="label-selector" />,
+  default: ({ onOptimisticUpdate }: { onOptimisticUpdate?: (labels: any[]) => void }) => (
+    <div data-testid="label-selector">
+      <button
+        data-testid="add-label"
+        onClick={() => onOptimisticUpdate?.([{ id: 99, name: 'New', color: '#000000' }])}
+      >
+        Add Label
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/EntryListSelector', () => ({
@@ -83,7 +92,12 @@ vi.mock('@/components/EntryListSelector', () => ({
 
 vi.mock('@/components/ReminderModal', () => ({
   __esModule: true,
-  default: () => null,
+  default: ({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) => (
+    <div data-testid="reminder-modal">
+      <button onClick={onSuccess}>save reminder</button>
+      <button onClick={onClose}>close</button>
+    </div>
+  ),
 }));
 
 const baseEntry: NoteEntry = {
@@ -110,6 +124,12 @@ describe('NoteEntryCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAxiosPatch.mockResolvedValue({});
+    mockAxiosPost.mockResolvedValue({});
+    mockRemindersApi.getForEntry.mockResolvedValue(null);
+    (navigator as any).clipboard = {
+      writeText: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn().mockResolvedValue(undefined),
+    };
   });
 
   const renderCard = (entry: NoteEntry = baseEntry) =>
@@ -150,6 +170,54 @@ describe('NoteEntryCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /delete card/i }));
 
     expect(onDelete).toHaveBeenCalledWith(1);
+  });
+
+  it('toggles pin status and hits the toggle endpoint', async () => {
+    renderCard();
+
+    const pinButton = screen.getByTitle('Pin (copy to future days)');
+    fireEvent.click(pinButton);
+
+    await waitFor(() =>
+      expect(mockAxiosPost).toHaveBeenCalledWith(expect.stringContaining('/api/entries/1/toggle-pin')),
+    );
+    expect(screen.getByTitle('Unpin (stop copying to future days)')).toBeInTheDocument();
+  });
+
+  it('applies labels via the selector and notifies the parent', () => {
+    renderCard();
+
+    fireEvent.click(screen.getByTestId('add-label'));
+
+    expect(onLabelsUpdate).toHaveBeenCalledWith(1, expect.arrayContaining([expect.objectContaining({ id: 99 })]));
+  });
+
+  it('opens the reminder modal and refreshes reminder state on success', async () => {
+    mockRemindersApi.getForEntry.mockResolvedValueOnce({ id: 7, remind_at: '2025-11-08T09:00:00Z' } as any);
+    renderCard();
+
+    const reminderButton = screen.getByTitle('Set reminder');
+    fireEvent.click(reminderButton);
+
+    const modal = await screen.findByTestId('reminder-modal');
+    fireEvent.click(within(modal).getByText(/save reminder/i));
+
+    await waitFor(() => expect(mockRemindersApi.getForEntry).toHaveBeenCalledWith(1));
+    const updatedButton = screen.getByTitle('Edit reminder');
+    const reminderIcon = updatedButton.querySelector('svg');
+    expect(reminderIcon).toHaveClass('fill-current');
+  });
+
+  it('copies markdown content including the title', async () => {
+    renderCard();
+
+    fireEvent.click(screen.getByTitle('Copy as Markdown'));
+
+    await waitFor(() => expect((navigator as any).clipboard.writeText).toHaveBeenCalled());
+    const markdown = (navigator as any).clipboard.writeText.mock.calls[0][0] as string;
+    expect(markdown).toContain('# Original title');
+    expect(markdown).toContain('Body');
+    expect(screen.getByTitle('Copied as Markdown!')).toBeInTheDocument();
   });
 });
 

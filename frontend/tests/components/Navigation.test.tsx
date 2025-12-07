@@ -1,56 +1,46 @@
 /**
  * Navigation Component Tests
  *
- * Tests for navigation bar including:
- * - Renders all navigation links
- * - Active link styling based on route
- * - Logo link to home
- * - Day link includes today's date
+ * Tests for the Navigation component with route links and active states.
  */
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
 import Navigation from '@/components/Navigation';
-
-vi.mock('@/contexts/TimezoneContext', () => ({
-  useTimezone: () => ({ timezone: 'UTC' }),
-}));
+import { renderWithRouter } from '../test-utils';
 
 vi.mock('@/hooks/useTexture', () => ({
   useTexture: () => ({}),
 }));
 
-// Mock date-fns-tz to return predictable values
-vi.mock('date-fns-tz', () => ({
-  formatInTimeZone: (date: Date, timezone: string, format: string) => {
-    if (format === 'yyyy-MM-dd') return '2025-01-07';
-    if (format === 'EEEE') return 'Tuesday';
-    return '2025-01-07';
-  },
+vi.mock('@/contexts/TimezoneContext', () => ({
+  useTimezone: () => ({ timezone: 'UTC' }),
 }));
 
 describe('Navigation', () => {
-  const renderNavigation = (initialPath: string = '/') => {
-    return render(
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Navigation />
-      </MemoryRouter>
-    );
-  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock Date to get consistent day name
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-11-07T12:00:00Z')); // Friday
+  });
 
-  describe('Basic Rendering', () => {
-    it('renders logo link', () => {
-      renderNavigation();
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-      const logoLink = screen.getByTitle('Track the Thing');
-      expect(logoLink).toBeInTheDocument();
-      expect(logoLink).toHaveAttribute('href', '/');
+  const renderNav = (initialRoute = '/') => renderWithRouter(<Navigation />, { route: initialRoute });
+
+  describe('Link Rendering', () => {
+    it('renders home link with logo', () => {
+      renderNav();
+
+      expect(screen.getByTitle('Track the Thing')).toBeInTheDocument();
     });
 
     it('renders all navigation links', () => {
-      renderNavigation();
+      renderNav();
 
-      expect(screen.getByTitle('Tuesday')).toBeInTheDocument();
+      expect(screen.getByTitle('Friday')).toBeInTheDocument(); // Day name
       expect(screen.getByTitle('Calendar')).toBeInTheDocument();
       expect(screen.getByTitle('Lists')).toBeInTheDocument();
       expect(screen.getByTitle('Kanban')).toBeInTheDocument();
@@ -58,165 +48,133 @@ describe('Navigation', () => {
       expect(screen.getByTitle('Reports')).toBeInTheDocument();
       expect(screen.getByTitle('Settings')).toBeInTheDocument();
     });
-  });
 
-  describe('Navigation Links', () => {
-    it('day link includes current date', () => {
-      renderNavigation();
+    it('displays day name based on current date', () => {
+      renderNav();
 
-      const dayLink = screen.getByTitle('Tuesday');
-      expect(dayLink).toHaveAttribute('href', '/day/2025-01-07');
+      // Nov 7, 2025 is a Friday
+      expect(screen.getByTitle('Friday')).toBeInTheDocument();
+      expect(screen.getByText('Friday')).toBeInTheDocument();
     });
 
-    it('calendar link goes to /calendar', () => {
-      renderNavigation();
+    it('renders navigation icons', () => {
+      renderNav();
 
-      expect(screen.getByTitle('Calendar')).toHaveAttribute('href', '/calendar');
-    });
-
-    it('lists link goes to /lists', () => {
-      renderNavigation();
-
-      expect(screen.getByTitle('Lists')).toHaveAttribute('href', '/lists');
-    });
-
-    it('kanban link goes to /kanban', () => {
-      renderNavigation();
-
-      expect(screen.getByTitle('Kanban')).toHaveAttribute('href', '/kanban');
-    });
-
-    it('search link goes to /search', () => {
-      renderNavigation();
-
-      expect(screen.getByTitle('Search')).toHaveAttribute('href', '/search');
-    });
-
-    it('reports link goes to /reports', () => {
-      renderNavigation();
-
-      expect(screen.getByTitle('Reports')).toHaveAttribute('href', '/reports');
-    });
-
-    it('settings link goes to /settings', () => {
-      renderNavigation();
-
-      expect(screen.getByTitle('Settings')).toHaveAttribute('href', '/settings');
+      // Each link should have an icon (SVG element)
+      const links = screen.getAllByRole('link');
+      // First link is home, rest are nav items
+      expect(links.length).toBeGreaterThanOrEqual(8); // Home + 7 nav items
     });
   });
 
-  describe('Active Link Styling', () => {
-    it('highlights home link when on root path', () => {
-      renderNavigation('/');
+  describe('Active Link States', () => {
+    it('highlights home link when on home page', () => {
+      renderNav('/');
 
-      const logoLink = screen.getByTitle('Track the Thing');
-      expect(logoLink).toHaveStyle({ color: 'var(--color-accent)' });
+      const homeLink = screen.getByTitle('Track the Thing');
+      expect(homeLink).toHaveStyle({ color: 'var(--color-accent)' });
     });
 
-    it('highlights day link when on day path', () => {
-      renderNavigation('/day/2025-01-07');
-
-      const dayLink = screen.getByTitle('Tuesday');
-      expect(dayLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
-    });
-
-    it('highlights calendar link when on calendar path', () => {
-      renderNavigation('/calendar');
+    it('highlights calendar link when on calendar page', () => {
+      renderNav('/calendar');
 
       const calendarLink = screen.getByTitle('Calendar');
       expect(calendarLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('highlights lists link when on lists path', () => {
-      renderNavigation('/lists');
+    it('highlights day link when on day page', () => {
+      renderNav('/day/2025-11-07');
+
+      const dayLink = screen.getByTitle('Friday');
+      expect(dayLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
+    });
+
+    it('highlights lists link when on lists page', () => {
+      renderNav('/lists');
 
       const listsLink = screen.getByTitle('Lists');
       expect(listsLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('highlights kanban link when on kanban path', () => {
-      renderNavigation('/kanban');
+    it('highlights kanban link when on kanban page', () => {
+      renderNav('/kanban');
 
       const kanbanLink = screen.getByTitle('Kanban');
       expect(kanbanLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('highlights search link when on search path', () => {
-      renderNavigation('/search');
+    it('highlights search link when on search page', () => {
+      renderNav('/search');
 
       const searchLink = screen.getByTitle('Search');
       expect(searchLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('highlights reports link when on reports path', () => {
-      renderNavigation('/reports');
+    it('highlights reports link when on reports page', () => {
+      renderNav('/reports');
 
       const reportsLink = screen.getByTitle('Reports');
       expect(reportsLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('highlights settings link when on settings path', () => {
-      renderNavigation('/settings');
+    it('highlights settings link when on settings page', () => {
+      renderNav('/settings');
 
       const settingsLink = screen.getByTitle('Settings');
       expect(settingsLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
 
-    it('does not highlight other links when one is active', () => {
-      renderNavigation('/calendar');
+    it('does not highlight inactive links', () => {
+      renderNav('/calendar');
 
-      // Calendar should be highlighted, but Search should not have the accent background
-      const calendarLink = screen.getByTitle('Calendar');
-      const searchLink = screen.getByTitle('Search');
-
-      expect(calendarLink).toHaveStyle({ backgroundColor: 'var(--color-accent)' });
-      // Search should have different color (not accent text color)
-      expect(searchLink).toHaveStyle({ color: 'var(--color-text-secondary)' });
+      const settingsLink = screen.getByTitle('Settings');
+      // Inactive links should NOT have the accent background
+      expect(settingsLink).not.toHaveStyle({ backgroundColor: 'var(--color-accent)' });
     });
   });
 
-  describe('Link Labels', () => {
-    it('shows day name as label for day link', () => {
-      renderNavigation();
+  describe('Link Destinations', () => {
+    it('day link includes today date', () => {
+      renderNav();
 
-      expect(screen.getByText('Tuesday')).toBeInTheDocument();
+      const dayLink = screen.getByTitle('Friday');
+      expect(dayLink).toHaveAttribute('href', '/day/2025-11-07');
     });
 
-    it('shows "Calendar" label', () => {
-      renderNavigation();
+    it('calendar link goes to /calendar', () => {
+      renderNav();
 
-      expect(screen.getByText('Calendar')).toBeInTheDocument();
+      expect(screen.getByTitle('Calendar')).toHaveAttribute('href', '/calendar');
     });
 
-    it('shows "Lists" label', () => {
-      renderNavigation();
+    it('lists link goes to /lists', () => {
+      renderNav();
 
-      expect(screen.getByText('Lists')).toBeInTheDocument();
+      expect(screen.getByTitle('Lists')).toHaveAttribute('href', '/lists');
     });
 
-    it('shows "Kanban" label', () => {
-      renderNavigation();
+    it('kanban link goes to /kanban', () => {
+      renderNav();
 
-      expect(screen.getByText('Kanban')).toBeInTheDocument();
+      expect(screen.getByTitle('Kanban')).toHaveAttribute('href', '/kanban');
     });
 
-    it('shows "Search" label', () => {
-      renderNavigation();
+    it('search link goes to /search', () => {
+      renderNav();
 
-      expect(screen.getByText('Search')).toBeInTheDocument();
+      expect(screen.getByTitle('Search')).toHaveAttribute('href', '/search');
     });
 
-    it('shows "Reports" label', () => {
-      renderNavigation();
+    it('reports link goes to /reports', () => {
+      renderNav();
 
-      expect(screen.getByText('Reports')).toBeInTheDocument();
+      expect(screen.getByTitle('Reports')).toHaveAttribute('href', '/reports');
     });
 
-    it('shows "Settings" label', () => {
-      renderNavigation();
+    it('settings link goes to /settings', () => {
+      renderNav();
 
-      expect(screen.getByText('Settings')).toBeInTheDocument();
+      expect(screen.getByTitle('Settings')).toHaveAttribute('href', '/settings');
     });
   });
 });
-

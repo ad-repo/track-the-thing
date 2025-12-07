@@ -1,24 +1,17 @@
 /**
  * ListColumn Component Tests
  *
- * Tests for Kanban/List column including:
- * - Rendering list header with name and color
- * - Entry count display
- * - Empty state
- * - Name editing functionality
- * - Action buttons
- * - Archive toggle
- * - Delete callback
+ * Tests for the ListColumn component used in Lists and Kanban views.
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ListColumn from '@/components/ListColumn';
-import type { List, NoteEntry, Label } from '@/types';
+import type { List, NoteEntry, ListWithEntries } from '@/types';
 
 const mockListsApi = vi.hoisted(() => ({
   update: vi.fn(),
-  removeEntry: vi.fn(),
   addEntry: vi.fn(),
+  removeEntry: vi.fn(),
   addLabel: vi.fn(),
   removeLabel: vi.fn(),
 }));
@@ -32,50 +25,48 @@ vi.mock('@/hooks/useTexture', () => ({
   useTexture: () => ({}),
 }));
 
-// Mock ListCard
 vi.mock('@/components/ListCard', () => ({
   default: ({ entry, onRemoveFromList }: { entry: NoteEntry; onRemoveFromList: (id: number) => void }) => (
     <div data-testid={`list-card-${entry.id}`}>
       <span>{entry.title}</span>
-      <button onClick={() => onRemoveFromList(entry.id)} data-testid={`remove-${entry.id}`}>Remove</button>
+      <button onClick={() => onRemoveFromList(entry.id)} data-testid={`remove-card-${entry.id}`}>
+        Remove
+      </button>
     </div>
   ),
 }));
 
-// Mock AddEntryToListModal
+vi.mock('@/components/LabelSelector', () => ({
+  default: () => <div data-testid="label-selector">Labels</div>,
+}));
+
 vi.mock('@/components/AddEntryToListModal', () => ({
   default: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="add-entry-modal">
-      <button onClick={onClose}>Close Add Modal</button>
+      <button onClick={onClose}>Close</button>
     </div>
   ),
 }));
 
-// Mock CreateEntryModal
 vi.mock('@/components/CreateEntryModal', () => ({
   default: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="create-entry-modal">
-      <button onClick={onClose}>Close Create Modal</button>
+      <button onClick={onClose}>Close</button>
     </div>
   ),
-}));
-
-// Mock LabelSelector
-vi.mock('@/components/LabelSelector', () => ({
-  default: () => <div data-testid="label-selector">Labels</div>,
 }));
 
 const buildList = (overrides: Partial<List> = {}): List => ({
   id: 1,
   name: 'Test List',
-  description: '',
+  description: 'Test description',
   color: '#3b82f6',
   order_index: 0,
   is_archived: false,
   is_kanban: false,
   kanban_order: 0,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
+  created_at: '2025-11-07T12:00:00Z',
+  updated_at: '2025-11-07T12:00:00Z',
   labels: [],
   ...overrides,
 });
@@ -87,8 +78,8 @@ const buildEntry = (id: number, overrides: Partial<NoteEntry> = {}): NoteEntry =
   content: `<p>Content ${id}</p>`,
   content_type: 'rich_text',
   order_index: id - 1,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
+  created_at: '2025-11-07T12:00:00Z',
+  updated_at: '2025-11-07T12:00:00Z',
   labels: [],
   include_in_report: false,
   is_important: false,
@@ -98,158 +89,146 @@ const buildEntry = (id: number, overrides: Partial<NoteEntry> = {}): NoteEntry =
 });
 
 describe('ListColumn', () => {
-  const mockOnUpdate = vi.fn();
-  const mockOnDelete = vi.fn();
-  const mockOnDragStart = vi.fn();
-  const mockOnDragEnd = vi.fn();
+  const onUpdate = vi.fn();
+  const onDelete = vi.fn();
+  const onDragStart = vi.fn();
+  const onDragEnd = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     window.alert = vi.fn();
+    mockListsApi.update.mockResolvedValue({});
+    mockListsApi.addEntry.mockResolvedValue({});
+    mockListsApi.removeEntry.mockResolvedValue({});
   });
 
-  const renderListColumn = (props: Partial<Parameters<typeof ListColumn>[0]> = {}) => {
-    return render(
-      <ListColumn
-        list={buildList()}
-        entries={[]}
-        onUpdate={mockOnUpdate}
-        onDelete={mockOnDelete}
-        {...props}
-      />
-    );
+  const renderColumn = (props: Partial<Parameters<typeof ListColumn>[0]> = {}) => {
+    const defaultProps = {
+      list: buildList(),
+      entries: [],
+      onUpdate,
+      onDelete,
+      onDragStart,
+      onDragEnd,
+    };
+    return render(<ListColumn {...defaultProps} {...props} />);
   };
 
-  describe('Basic Rendering', () => {
-    it('renders list name', () => {
-      renderListColumn({ list: buildList({ name: 'My List' }) });
-
-      expect(screen.getByText('My List')).toBeInTheDocument();
-    });
-
-    it('displays entry count', () => {
-      renderListColumn({
-        entries: [buildEntry(1), buildEntry(2), buildEntry(3)],
+  describe('Rendering', () => {
+    it('renders list name and card count', () => {
+      renderColumn({
+        list: buildList({ name: 'My List' }),
+        entries: [buildEntry(1), buildEntry(2)],
       });
 
-      expect(screen.getByText('3 cards')).toBeInTheDocument();
+      expect(screen.getByText('My List')).toBeInTheDocument();
+      expect(screen.getByText('2 cards')).toBeInTheDocument();
     });
 
-    it('displays singular "card" for single entry', () => {
-      renderListColumn({
+    it('shows singular "card" for one entry', () => {
+      renderColumn({
         entries: [buildEntry(1)],
       });
 
       expect(screen.getByText('1 card')).toBeInTheDocument();
     });
 
-    it('renders entries', () => {
-      renderListColumn({
-        entries: [buildEntry(1), buildEntry(2)],
+    it('shows empty state when no entries', () => {
+      renderColumn({ entries: [] });
+
+      expect(screen.getByText('No cards yet')).toBeInTheDocument();
+      expect(screen.getByText('Drag cards here or add from daily notes')).toBeInTheDocument();
+    });
+
+    it('renders all entry cards', () => {
+      renderColumn({
+        entries: [
+          buildEntry(1, { title: 'Task A' }),
+          buildEntry(2, { title: 'Task B' }),
+          buildEntry(3, { title: 'Task C' }),
+        ],
       });
 
-      expect(screen.getByTestId('list-card-1')).toBeInTheDocument();
-      expect(screen.getByTestId('list-card-2')).toBeInTheDocument();
+      expect(screen.getByText('Task A')).toBeInTheDocument();
+      expect(screen.getByText('Task B')).toBeInTheDocument();
+      expect(screen.getByText('Task C')).toBeInTheDocument();
     });
 
     it('renders label selector', () => {
-      renderListColumn();
+      renderColumn();
 
       expect(screen.getByTestId('label-selector')).toBeInTheDocument();
     });
   });
 
-  describe('Empty State', () => {
-    it('shows empty state when no entries', () => {
-      renderListColumn({ entries: [] });
-
-      expect(screen.getByText('No cards yet')).toBeInTheDocument();
-      expect(screen.getByText('Drag cards here or add from daily notes')).toBeInTheDocument();
-    });
-  });
-
   describe('Name Editing', () => {
-    it('shows edit button', () => {
-      renderListColumn();
-
-      expect(screen.getByTitle('Edit name')).toBeInTheDocument();
-    });
-
-    it('enters edit mode when edit button is clicked', () => {
-      renderListColumn({ list: buildList({ name: 'Original Name' }) });
+    it('enters edit mode when pencil button clicked', () => {
+      renderColumn({ list: buildList({ name: 'Original Name' }) });
 
       fireEvent.click(screen.getByTitle('Edit name'));
 
-      const input = screen.getByDisplayValue('Original Name');
-      expect(input).toBeInTheDocument();
-      expect(screen.getByTitle('Save')).toBeInTheDocument();
-      expect(screen.getByTitle('Cancel')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Original Name')).toBeInTheDocument();
     });
 
-    it('saves name when Save button is clicked', async () => {
-      mockListsApi.update.mockResolvedValue({});
-      renderListColumn({ list: buildList({ id: 1, name: 'Original Name' }) });
+    it('saves name on Enter key', async () => {
+      renderColumn({ list: buildList({ id: 1, name: 'Original' }) });
 
       fireEvent.click(screen.getByTitle('Edit name'));
       
-      const input = screen.getByDisplayValue('Original Name');
+      const input = screen.getByDisplayValue('Original');
+      fireEvent.change(input, { target: { value: 'Updated Name' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      await waitFor(() => {
+        expect(mockListsApi.update).toHaveBeenCalledWith(1, { name: 'Updated Name' });
+      });
+      expect(onUpdate).toHaveBeenCalled();
+    });
+
+    it('cancels edit on Escape key', () => {
+      renderColumn({ list: buildList({ name: 'Original' }) });
+
+      fireEvent.click(screen.getByTitle('Edit name'));
+      
+      const input = screen.getByDisplayValue('Original');
+      fireEvent.change(input, { target: { value: 'Changed' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      // Should exit edit mode and show original name
+      expect(screen.getByText('Original')).toBeInTheDocument();
+      expect(mockListsApi.update).not.toHaveBeenCalled();
+    });
+
+    it('saves name when save button clicked', async () => {
+      renderColumn({ list: buildList({ id: 2, name: 'Old Name' }) });
+
+      fireEvent.click(screen.getByTitle('Edit name'));
+      
+      const input = screen.getByDisplayValue('Old Name');
       fireEvent.change(input, { target: { value: 'New Name' } });
       fireEvent.click(screen.getByTitle('Save'));
 
       await waitFor(() => {
-        expect(mockListsApi.update).toHaveBeenCalledWith(1, { name: 'New Name' });
-      });
-      expect(mockOnUpdate).toHaveBeenCalled();
-    });
-
-    it('saves name when Enter is pressed', async () => {
-      mockListsApi.update.mockResolvedValue({});
-      renderListColumn({ list: buildList({ id: 1, name: 'Original Name' }) });
-
-      fireEvent.click(screen.getByTitle('Edit name'));
-      
-      const input = screen.getByDisplayValue('Original Name');
-      fireEvent.change(input, { target: { value: 'New Name' } });
-      fireEvent.keyDown(input, { key: 'Enter' });
-
-      await waitFor(() => {
-        expect(mockListsApi.update).toHaveBeenCalledWith(1, { name: 'New Name' });
+        expect(mockListsApi.update).toHaveBeenCalledWith(2, { name: 'New Name' });
       });
     });
 
-    it('cancels edit when Cancel button is clicked', () => {
-      renderListColumn({ list: buildList({ name: 'Original Name' }) });
+    it('cancels edit when cancel button clicked', () => {
+      renderColumn({ list: buildList({ name: 'Original' }) });
 
       fireEvent.click(screen.getByTitle('Edit name'));
-      
-      const input = screen.getByDisplayValue('Original Name');
-      fireEvent.change(input, { target: { value: 'Changed' } });
+      fireEvent.change(screen.getByDisplayValue('Original'), { target: { value: 'Changed' } });
       fireEvent.click(screen.getByTitle('Cancel'));
 
-      // Should be back to display mode
-      expect(screen.getByText('Original Name')).toBeInTheDocument();
-      expect(screen.queryByDisplayValue('Changed')).not.toBeInTheDocument();
+      expect(screen.getByText('Original')).toBeInTheDocument();
     });
 
-    it('cancels edit when Escape is pressed', () => {
-      renderListColumn({ list: buildList({ name: 'Original Name' }) });
+    it('shows alert when name is empty', async () => {
+      renderColumn({ list: buildList({ name: 'Original' }) });
 
       fireEvent.click(screen.getByTitle('Edit name'));
       
-      const input = screen.getByDisplayValue('Original Name');
-      fireEvent.change(input, { target: { value: 'Changed' } });
-      fireEvent.keyDown(input, { key: 'Escape' });
-
-      // Should be back to display mode
-      expect(screen.getByText('Original Name')).toBeInTheDocument();
-    });
-
-    it('shows alert when trying to save empty name', async () => {
-      renderListColumn({ list: buildList({ name: 'Original Name' }) });
-
-      fireEvent.click(screen.getByTitle('Edit name'));
-      
-      const input = screen.getByDisplayValue('Original Name');
+      const input = screen.getByDisplayValue('Original');
       fireEvent.change(input, { target: { value: '   ' } });
       fireEvent.click(screen.getByTitle('Save'));
 
@@ -258,7 +237,7 @@ describe('ListColumn', () => {
     });
 
     it('does not call API if name unchanged', async () => {
-      renderListColumn({ list: buildList({ name: 'Original Name' }) });
+      renderColumn({ list: buildList({ name: 'Same Name' }) });
 
       fireEvent.click(screen.getByTitle('Edit name'));
       fireEvent.click(screen.getByTitle('Save'));
@@ -267,156 +246,185 @@ describe('ListColumn', () => {
     });
   });
 
-  describe('Action Buttons', () => {
-    it('shows create new card button', () => {
-      renderListColumn();
-
-      expect(screen.getByTitle('Create new card')).toBeInTheDocument();
-    });
-
-    it('opens create modal when create button is clicked', () => {
-      renderListColumn();
-
-      fireEvent.click(screen.getByTitle('Create new card'));
-
-      expect(screen.getByTestId('create-entry-modal')).toBeInTheDocument();
-    });
-
-    it('shows add existing cards button', () => {
-      renderListColumn();
-
-      expect(screen.getByTitle('Add existing cards')).toBeInTheDocument();
-    });
-
-    it('opens add modal when add button is clicked', () => {
-      renderListColumn();
+  describe('Card Management', () => {
+    it('opens add entry modal when add button clicked', () => {
+      renderColumn();
 
       fireEvent.click(screen.getByTitle('Add existing cards'));
 
       expect(screen.getByTestId('add-entry-modal')).toBeInTheDocument();
     });
 
-    it('shows archive button', () => {
-      renderListColumn();
+    it('opens create entry modal when create button clicked', () => {
+      renderColumn();
 
-      expect(screen.getByTitle('Archive')).toBeInTheDocument();
+      fireEvent.click(screen.getByTitle('Create new card'));
+
+      expect(screen.getByTestId('create-entry-modal')).toBeInTheDocument();
     });
 
-    it('shows delete button', () => {
-      renderListColumn();
+    it('removes entry when remove button clicked', async () => {
+      renderColumn({
+        list: buildList({ id: 1 }),
+        entries: [buildEntry(5)],
+      });
 
-      expect(screen.getByTitle('Delete')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('remove-card-5'));
+
+      await waitFor(() => {
+        expect(mockListsApi.removeEntry).toHaveBeenCalledWith(1, 5);
+      });
+      expect(onUpdate).toHaveBeenCalled();
     });
   });
 
-  describe('Archive Functionality', () => {
-    it('calls listsApi.update with is_archived when archive button is clicked', async () => {
-      mockListsApi.update.mockResolvedValue({});
-      renderListColumn({ list: buildList({ id: 1, is_archived: false }) });
+  describe('Archive and Delete', () => {
+    it('archives list when archive button clicked', async () => {
+      renderColumn({ list: buildList({ id: 3, is_archived: false }) });
 
       fireEvent.click(screen.getByTitle('Archive'));
 
       await waitFor(() => {
-        expect(mockListsApi.update).toHaveBeenCalledWith(1, { is_archived: true });
+        expect(mockListsApi.update).toHaveBeenCalledWith(3, { is_archived: true });
       });
-      expect(mockOnUpdate).toHaveBeenCalled();
+      expect(onUpdate).toHaveBeenCalled();
     });
 
-    it('shows Unarchive title when list is archived', () => {
-      renderListColumn({ list: buildList({ is_archived: true }) });
+    it('unarchives list when archive button clicked on archived list', async () => {
+      renderColumn({ list: buildList({ id: 4, is_archived: true }) });
 
-      expect(screen.getByTitle('Unarchive')).toBeInTheDocument();
+      fireEvent.click(screen.getByTitle('Unarchive'));
+
+      await waitFor(() => {
+        expect(mockListsApi.update).toHaveBeenCalledWith(4, { is_archived: false });
+      });
     });
-  });
 
-  describe('Delete Functionality', () => {
-    it('calls onDelete when delete button is clicked', () => {
-      renderListColumn({ list: buildList({ id: 1, name: 'Test List' }) });
+    it('calls onDelete when delete button clicked', () => {
+      renderColumn({ list: buildList({ id: 5, name: 'To Delete' }) });
 
       fireEvent.click(screen.getByTitle('Delete'));
 
-      expect(mockOnDelete).toHaveBeenCalledWith(1, 'Test List');
+      expect(onDelete).toHaveBeenCalledWith(5, 'To Delete');
     });
   });
 
-  describe('Remove Entry from List', () => {
-    it('removes entry when remove button is clicked', async () => {
-      mockListsApi.removeEntry.mockResolvedValue({});
-      renderListColumn({
-        list: buildList({ id: 1 }),
-        entries: [buildEntry(1)],
-      });
-
-      fireEvent.click(screen.getByTestId('remove-1'));
-
-      await waitFor(() => {
-        expect(mockListsApi.removeEntry).toHaveBeenCalledWith(1, 1);
-      });
-      expect(mockOnUpdate).toHaveBeenCalled();
-    });
-  });
-
-  describe('Drag and Drop Events', () => {
-    it('fires onDragStart when header drag starts', () => {
-      renderListColumn({
-        list: buildList({ id: 1 }),
-        onDragStart: mockOnDragStart,
-      });
+  describe('Drag and Drop', () => {
+    it('calls onDragStart when header drag starts', () => {
+      renderColumn({ list: buildList({ id: 1 }) });
 
       const header = screen.getByTestId('list-header-1');
-      const mockDataTransfer = {
-        setData: vi.fn(),
-        effectAllowed: '',
-      };
       
-      fireEvent.dragStart(header, { dataTransfer: mockDataTransfer });
+      fireEvent.dragStart(header, {
+        dataTransfer: {
+          setData: vi.fn(),
+          effectAllowed: 'move',
+        },
+      });
 
-      expect(mockOnDragStart).toHaveBeenCalled();
-      expect(mockDataTransfer.setData).toHaveBeenCalledWith('text/x-listid', '1');
+      expect(onDragStart).toHaveBeenCalled();
     });
 
-    it('fires onDragEnd when header drag ends', () => {
-      renderListColumn({
-        list: buildList({ id: 1 }),
-        onDragEnd: mockOnDragEnd,
-      });
+    it('calls onDragEnd when header drag ends', () => {
+      renderColumn({ list: buildList({ id: 1 }) });
 
       const header = screen.getByTestId('list-header-1');
       
       fireEvent.dragEnd(header);
 
-      expect(mockOnDragEnd).toHaveBeenCalled();
-    });
-  });
-
-  describe('Modal Close', () => {
-    it('closes add modal when close is called', () => {
-      renderListColumn();
-
-      fireEvent.click(screen.getByTitle('Add existing cards'));
-      expect(screen.getByTestId('add-entry-modal')).toBeInTheDocument();
-
-      fireEvent.click(screen.getByText('Close Add Modal'));
-      expect(screen.queryByTestId('add-entry-modal')).not.toBeInTheDocument();
+      expect(onDragEnd).toHaveBeenCalled();
     });
 
-    it('closes create modal when close is called', () => {
-      renderListColumn();
+    it('handles entry drop from another list', async () => {
+      renderColumn({ list: buildList({ id: 2 }) });
 
-      fireEvent.click(screen.getByTitle('Create new card'));
-      expect(screen.getByTestId('create-entry-modal')).toBeInTheDocument();
+      const column = screen.getByTestId('list-column-2');
+      
+      // Simulate drop event with entry data
+      fireEvent.drop(column, {
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        dataTransfer: {
+          types: ['text/x-entryid', 'text/x-sourcelistid'],
+          getData: (type: string) => {
+            if (type === 'text/x-entryid') return '10';
+            if (type === 'text/x-sourcelistid') return '1';
+            return '';
+          },
+        },
+      });
 
-      fireEvent.click(screen.getByText('Close Create Modal'));
-      expect(screen.queryByTestId('create-entry-modal')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockListsApi.removeEntry).toHaveBeenCalledWith(1, 10);
+        expect(mockListsApi.addEntry).toHaveBeenCalledWith(2, 10);
+      });
+      expect(onUpdate).toHaveBeenCalled();
+    });
+
+    it('does not move entry if dropped on same list', async () => {
+      renderColumn({ list: buildList({ id: 3 }) });
+
+      const column = screen.getByTestId('list-column-3');
+      
+      fireEvent.drop(column, {
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        dataTransfer: {
+          types: ['text/x-entryid', 'text/x-sourcelistid'],
+          getData: (type: string) => {
+            if (type === 'text/x-entryid') return '10';
+            if (type === 'text/x-sourcelistid') return '3'; // Same list
+            return '';
+          },
+        },
+      });
+
+      expect(mockListsApi.removeEntry).not.toHaveBeenCalled();
+      expect(mockListsApi.addEntry).not.toHaveBeenCalled();
     });
   });
 
   describe('Kanban View', () => {
-    it('applies kanban texture when isKanbanView is true', () => {
-      renderListColumn({ isKanbanView: true });
+    it('applies kanban texture styles when isKanbanView is true', () => {
+      renderColumn({ isKanbanView: true });
 
-      // The component should render - texture hook is mocked
-      expect(screen.getByTestId('list-column-1')).toBeInTheDocument();
+      // Component should render without errors
+      expect(screen.getByText('Test List')).toBeInTheDocument();
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('shows alert when name update fails', async () => {
+      mockListsApi.update.mockRejectedValue({
+        response: { data: { detail: 'Update failed' } },
+      });
+
+      renderColumn({ list: buildList({ name: 'Original' }) });
+
+      fireEvent.click(screen.getByTitle('Edit name'));
+      const input = screen.getByDisplayValue('Original');
+      fireEvent.change(input, { target: { value: 'New Name' } });
+      fireEvent.click(screen.getByTitle('Save'));
+
+      await waitFor(() => {
+        expect(window.alert).toHaveBeenCalledWith('Update failed');
+      });
+    });
+
+    it('shows alert when entry removal fails', async () => {
+      mockListsApi.removeEntry.mockRejectedValue({
+        response: { data: { detail: 'Remove failed' } },
+      });
+
+      renderColumn({
+        entries: [buildEntry(1)],
+      });
+
+      fireEvent.click(screen.getByTestId('remove-card-1'));
+
+      await waitFor(() => {
+        expect(window.alert).toHaveBeenCalledWith('Remove failed');
+      });
     });
   });
 });

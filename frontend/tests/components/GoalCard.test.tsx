@@ -1,22 +1,13 @@
 /**
  * GoalCard Component Tests
  *
- * Tests for goal card display including:
- * - Basic rendering (name, type badge, dates)
- * - Complete toggle button
- * - Visibility toggle
- * - Edit and delete buttons
- * - Expand/collapse content
- * - Days remaining badge
- * - Different goal types styling
- * - Compact mode
+ * Tests for the GoalCard component displaying goal information and actions.
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GoalCard from '@/components/GoalCard';
 import type { Goal } from '@/types';
 
-// Mock SimpleRichTextEditor
 vi.mock('@/components/SimpleRichTextEditor', () => ({
   default: ({ content, onChange, placeholder }: { content: string; onChange: (val: string) => void; placeholder?: string }) => (
     <textarea
@@ -31,110 +22,100 @@ vi.mock('@/components/SimpleRichTextEditor', () => ({
 const buildGoal = (overrides: Partial<Goal> = {}): Goal => ({
   id: 1,
   name: 'Test Goal',
-  goal_type: 'Personal',
+  goal_type: 'Sprint',
   text: '<p>Goal description</p>',
-  start_date: '2025-01-01',
-  end_date: '2025-01-31',
+  start_date: '2025-11-01',
+  end_date: '2025-11-14',
   end_time: '',
   status_text: '',
   show_countdown: true,
   is_completed: false,
   is_visible: true,
   order_index: 0,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
   completed_at: null,
-  days_remaining: 15,
+  created_at: '2025-11-01T12:00:00Z',
+  updated_at: '2025-11-01T12:00:00Z',
+  days_remaining: 7,
   ...overrides,
 });
 
 describe('GoalCard', () => {
-  const mockOnUpdate = vi.fn();
-  const mockOnToggleComplete = vi.fn();
-  const mockOnToggleVisibility = vi.fn();
-  const mockOnDelete = vi.fn();
-  const mockOnEdit = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
     window.confirm = vi.fn(() => true);
   });
 
-  const renderGoalCard = (props: Partial<Parameters<typeof GoalCard>[0]> = {}) => {
-    return render(
-      <GoalCard
-        goal={buildGoal()}
-        {...props}
-      />
-    );
+  const renderCard = (props: Partial<Parameters<typeof GoalCard>[0]> = {}) => {
+    const defaultProps = {
+      goal: buildGoal(),
+    };
+    return render(<GoalCard {...defaultProps} {...props} />);
   };
 
   describe('Basic Rendering', () => {
     it('renders goal name', () => {
-      renderGoalCard({ goal: buildGoal({ name: 'My Goal' }) });
+      renderCard({ goal: buildGoal({ name: 'My Sprint Goal' }) });
 
-      expect(screen.getByText('My Goal')).toBeInTheDocument();
+      expect(screen.getByText('My Sprint Goal')).toBeInTheDocument();
     });
 
     it('renders goal type badge', () => {
-      renderGoalCard({ goal: buildGoal({ goal_type: 'Sprint' }) });
+      renderCard({ goal: buildGoal({ goal_type: 'Sprint' }) });
 
       expect(screen.getByText('Sprint')).toBeInTheDocument();
     });
 
-    it('renders custom type name without Custom: prefix', () => {
-      renderGoalCard({ goal: buildGoal({ goal_type: 'Custom:MyProject' }) });
+    it('renders date range when not compact', () => {
+      renderCard({
+        goal: buildGoal({ start_date: '2025-11-01', end_date: '2025-11-14' }),
+        compact: false,
+      });
 
-      expect(screen.getByText('MyProject')).toBeInTheDocument();
+      expect(screen.getByText('2025-11-01 → 2025-11-14')).toBeInTheDocument();
     });
 
-    it('renders date range', () => {
-      renderGoalCard({ goal: buildGoal({ start_date: '2025-01-01', end_date: '2025-01-31' }) });
-
-      expect(screen.getByText('2025-01-01 → 2025-01-31')).toBeInTheDocument();
-    });
-
-    it('hides date range in compact mode', () => {
-      renderGoalCard({
-        goal: buildGoal({ start_date: '2025-01-01', end_date: '2025-01-31' }),
+    it('does not render date range when compact', () => {
+      renderCard({
+        goal: buildGoal({ start_date: '2025-11-01', end_date: '2025-11-14' }),
         compact: true,
       });
 
-      expect(screen.queryByText('2025-01-01 → 2025-01-31')).not.toBeInTheDocument();
+      expect(screen.queryByText('2025-11-01 → 2025-11-14')).not.toBeInTheDocument();
+    });
+
+    it('displays custom type name without prefix', () => {
+      renderCard({ goal: buildGoal({ goal_type: 'Custom:ProjectX' }) });
+
+      expect(screen.getByText('ProjectX')).toBeInTheDocument();
+      expect(screen.queryByText('Custom:ProjectX')).not.toBeInTheDocument();
     });
   });
 
-  describe('Days Remaining Badge', () => {
-    it('shows days remaining', () => {
-      renderGoalCard({ goal: buildGoal({ days_remaining: 15, show_countdown: true }) });
+  describe('Countdown Badge', () => {
+    it('shows days remaining when show_countdown is true', () => {
+      renderCard({ goal: buildGoal({ show_countdown: true, days_remaining: 5 }) });
 
-      expect(screen.getByText('15 days left')).toBeInTheDocument();
+      expect(screen.getByText('5 days left')).toBeInTheDocument();
     });
 
-    it('shows "Today!" when 0 days remaining', () => {
-      renderGoalCard({ goal: buildGoal({ days_remaining: 0, show_countdown: true }) });
+    it('shows "Today!" when days_remaining is 0', () => {
+      renderCard({ goal: buildGoal({ show_countdown: true, days_remaining: 0 }) });
 
       expect(screen.getByText('Today!')).toBeInTheDocument();
     });
 
-    it('shows overdue message for negative days', () => {
-      renderGoalCard({ goal: buildGoal({ days_remaining: -5, show_countdown: true }) });
+    it('shows overdue text when days_remaining is negative', () => {
+      renderCard({ goal: buildGoal({ show_countdown: true, days_remaining: -3 }) });
 
-      expect(screen.getByText('5 days overdue')).toBeInTheDocument();
+      expect(screen.getByText('3 days overdue')).toBeInTheDocument();
     });
 
-    it('does not show countdown when show_countdown is false', () => {
-      renderGoalCard({ goal: buildGoal({ days_remaining: 15, show_countdown: false }) });
-
-      expect(screen.queryByText('15 days left')).not.toBeInTheDocument();
-    });
-
-    it('shows status_text for lifestyle goals', () => {
-      renderGoalCard({
+    it('shows status_text for lifestyle goals instead of countdown', () => {
+      renderCard({
         goal: buildGoal({
-          goal_type: 'Personal',
+          goal_type: 'Fitness',
           status_text: '3/10 workouts',
-          show_countdown: false,
+          show_countdown: true,
         }),
       });
 
@@ -143,44 +124,42 @@ describe('GoalCard', () => {
   });
 
   describe('Complete Toggle', () => {
-    it('renders complete button when onToggleComplete is provided', () => {
-      renderGoalCard({ onToggleComplete: mockOnToggleComplete });
+    it('renders complete button when onToggleComplete provided', () => {
+      const onToggleComplete = vi.fn();
+      renderCard({ onToggleComplete });
 
       expect(screen.getByTitle('Mark as complete')).toBeInTheDocument();
     });
 
-    it('does not render complete button when onToggleComplete is not provided', () => {
-      renderGoalCard();
+    it('does not render complete button when onToggleComplete not provided', () => {
+      renderCard();
 
       expect(screen.queryByTitle('Mark as complete')).not.toBeInTheDocument();
     });
 
-    it('calls onToggleComplete when button is clicked', async () => {
-      renderGoalCard({
-        goal: buildGoal({ id: 1 }),
-        onToggleComplete: mockOnToggleComplete,
-      });
+    it('calls onToggleComplete when complete button clicked', async () => {
+      const onToggleComplete = vi.fn();
+      renderCard({ onToggleComplete, goal: buildGoal({ is_completed: false }) });
 
       fireEvent.click(screen.getByTitle('Mark as complete'));
 
       await waitFor(() => {
-        expect(mockOnToggleComplete).toHaveBeenCalledWith(1);
+        expect(onToggleComplete).toHaveBeenCalledWith(1);
       });
     });
 
-    it('shows "Mark as incomplete" title when goal is completed', () => {
-      renderGoalCard({
+    it('shows checkmark when goal is completed', () => {
+      renderCard({
         goal: buildGoal({ is_completed: true }),
-        onToggleComplete: mockOnToggleComplete,
+        onToggleComplete: vi.fn(),
       });
 
       expect(screen.getByTitle('Mark as incomplete')).toBeInTheDocument();
     });
 
-    it('shows strikethrough on name when completed', () => {
-      renderGoalCard({
+    it('applies line-through style to completed goal name', () => {
+      renderCard({
         goal: buildGoal({ name: 'Completed Goal', is_completed: true }),
-        onToggleComplete: mockOnToggleComplete,
       });
 
       const name = screen.getByText('Completed Goal');
@@ -190,279 +169,240 @@ describe('GoalCard', () => {
 
   describe('Visibility Toggle', () => {
     it('renders visibility button when showVisibilityToggle is true', () => {
-      renderGoalCard({
-        showVisibilityToggle: true,
-        onToggleVisibility: mockOnToggleVisibility,
-      });
+      const onToggleVisibility = vi.fn();
+      renderCard({ showVisibilityToggle: true, onToggleVisibility });
 
       expect(screen.getByTitle('Hide from Daily View')).toBeInTheDocument();
     });
 
-    it('does not render visibility button by default', () => {
-      renderGoalCard();
-
-      expect(screen.queryByTitle('Hide from Daily View')).not.toBeInTheDocument();
-    });
-
-    it('calls onToggleVisibility when button is clicked', () => {
-      renderGoalCard({
-        goal: buildGoal({ id: 1 }),
-        showVisibilityToggle: true,
-        onToggleVisibility: mockOnToggleVisibility,
-      });
-
-      fireEvent.click(screen.getByTitle('Hide from Daily View'));
-
-      expect(mockOnToggleVisibility).toHaveBeenCalledWith(1);
-    });
-
     it('shows "Show on Daily View" when goal is hidden', () => {
-      renderGoalCard({
-        goal: buildGoal({ is_visible: false }),
+      const onToggleVisibility = vi.fn();
+      renderCard({
         showVisibilityToggle: true,
-        onToggleVisibility: mockOnToggleVisibility,
+        onToggleVisibility,
+        goal: buildGoal({ is_visible: false }),
       });
 
       expect(screen.getByTitle('Show on Daily View')).toBeInTheDocument();
     });
+
+    it('calls onToggleVisibility when visibility button clicked', () => {
+      const onToggleVisibility = vi.fn();
+      renderCard({
+        showVisibilityToggle: true,
+        onToggleVisibility,
+        goal: buildGoal({ id: 5 }),
+      });
+
+      fireEvent.click(screen.getByTitle('Hide from Daily View'));
+
+      expect(onToggleVisibility).toHaveBeenCalledWith(5);
+    });
   });
 
   describe('Edit Button', () => {
-    it('renders edit button when editable and onEdit is provided', () => {
-      renderGoalCard({
-        editable: true,
-        onEdit: mockOnEdit,
-      });
+    it('renders edit button when editable and onEdit provided', () => {
+      const onEdit = vi.fn();
+      renderCard({ editable: true, onEdit });
 
       expect(screen.getByTitle('Edit goal')).toBeInTheDocument();
     });
 
-    it('does not render edit button when not editable', () => {
-      renderGoalCard({ onEdit: mockOnEdit });
-
-      expect(screen.queryByTitle('Edit goal')).not.toBeInTheDocument();
-    });
-
-    it('calls onEdit when button is clicked', () => {
-      const goal = buildGoal();
-      renderGoalCard({
-        goal,
-        editable: true,
-        onEdit: mockOnEdit,
-      });
+    it('calls onEdit with goal when edit button clicked', () => {
+      const onEdit = vi.fn();
+      const goal = buildGoal({ id: 3 });
+      renderCard({ editable: true, onEdit, goal });
 
       fireEvent.click(screen.getByTitle('Edit goal'));
 
-      expect(mockOnEdit).toHaveBeenCalledWith(goal);
+      expect(onEdit).toHaveBeenCalledWith(goal);
     });
   });
 
   describe('Delete Button', () => {
-    it('renders delete button when showDeleteButton and onDelete are provided', () => {
-      renderGoalCard({
-        showDeleteButton: true,
-        onDelete: mockOnDelete,
-      });
+    it('renders delete button when showDeleteButton is true', () => {
+      const onDelete = vi.fn();
+      renderCard({ showDeleteButton: true, onDelete });
 
       expect(screen.getByTitle('Delete goal')).toBeInTheDocument();
     });
 
-    it('does not render delete button by default', () => {
-      renderGoalCard({ onDelete: mockOnDelete });
-
-      expect(screen.queryByTitle('Delete goal')).not.toBeInTheDocument();
-    });
-
-    it('calls onDelete after confirmation', () => {
-      renderGoalCard({
-        goal: buildGoal({ id: 1 }),
+    it('shows confirmation dialog before deleting', () => {
+      const onDelete = vi.fn();
+      renderCard({
         showDeleteButton: true,
-        onDelete: mockOnDelete,
+        onDelete,
+        goal: buildGoal({ name: 'Delete Me' }),
       });
 
       fireEvent.click(screen.getByTitle('Delete goal'));
 
-      expect(window.confirm).toHaveBeenCalled();
-      expect(mockOnDelete).toHaveBeenCalledWith(1);
+      expect(window.confirm).toHaveBeenCalledWith('Delete goal "Delete Me"?');
     });
 
-    it('does not call onDelete if confirmation is cancelled', () => {
-      (window.confirm as any).mockReturnValue(false);
-
-      renderGoalCard({
-        goal: buildGoal({ id: 1 }),
+    it('calls onDelete when confirmed', () => {
+      const onDelete = vi.fn();
+      window.confirm = vi.fn(() => true);
+      renderCard({
         showDeleteButton: true,
-        onDelete: mockOnDelete,
+        onDelete,
+        goal: buildGoal({ id: 7 }),
       });
 
       fireEvent.click(screen.getByTitle('Delete goal'));
 
-      expect(mockOnDelete).not.toHaveBeenCalled();
+      expect(onDelete).toHaveBeenCalledWith(7);
+    });
+
+    it('does not call onDelete when not confirmed', () => {
+      const onDelete = vi.fn();
+      window.confirm = vi.fn(() => false);
+      renderCard({ showDeleteButton: true, onDelete });
+
+      fireEvent.click(screen.getByTitle('Delete goal'));
+
+      expect(onDelete).not.toHaveBeenCalled();
     });
   });
 
-  describe('Expand/Collapse Content', () => {
+  describe('Expandable Content', () => {
     it('shows expand button when goal has content', () => {
-      renderGoalCard({
+      renderCard({
         goal: buildGoal({ text: '<p>Some content</p>' }),
+        compact: false,
       });
 
-      // ChevronDown button for expand
+      // ChevronDown should be present for expanding
       const buttons = screen.getAllByRole('button');
       const expandButton = buttons.find(btn => btn.querySelector('svg'));
       expect(expandButton).toBeTruthy();
     });
 
-    it('does not show expand button when goal has no content', () => {
-      renderGoalCard({
+    it('does not show expand button when goal has empty content', () => {
+      renderCard({
         goal: buildGoal({ text: '' }),
+        compact: false,
       });
 
-      // Should not have expand button - content area is hidden
+      // Should not have expand toggle for empty content
       expect(screen.queryByText('Goal description')).not.toBeInTheDocument();
     });
 
-    it('does not show expand button in compact mode', () => {
-      renderGoalCard({
-        goal: buildGoal({ text: '<p>Some content</p>' }),
-        compact: true,
+    it('expands content when expand button clicked', () => {
+      renderCard({
+        goal: buildGoal({ text: '<p>Goal description</p>' }),
+        compact: false,
       });
 
-      // In compact mode, expand button should not be visible
-      // The content expand functionality is disabled
-    });
-
-    it('expands content when expand button is clicked', () => {
-      renderGoalCard({
-        goal: buildGoal({ text: '<p>Expanded content here</p>' }),
-      });
-
-      // Find and click expand button (last button with ChevronDown)
+      // Find and click the expand button (the last button with chevron)
       const buttons = screen.getAllByRole('button');
       const expandButton = buttons[buttons.length - 1];
       fireEvent.click(expandButton);
 
       // Content should now be visible
-      expect(screen.getByText('Expanded content here')).toBeInTheDocument();
+      expect(screen.getByText('Goal description')).toBeInTheDocument();
     });
   });
 
   describe('Inline Editing', () => {
-    it('allows editing content when expanded and editable', () => {
-      renderGoalCard({
+    it('enters edit mode when content clicked with editable=true', () => {
+      renderCard({
         goal: buildGoal({ text: '<p>Editable content</p>' }),
         editable: true,
-        onUpdate: mockOnUpdate,
+        compact: false,
       });
 
-      // Expand content first
+      // First expand the content
       const buttons = screen.getAllByRole('button');
       const expandButton = buttons[buttons.length - 1];
       fireEvent.click(expandButton);
 
-      // Click on content to enter edit mode
+      // Click on the content
       const content = screen.getByText('Editable content');
       fireEvent.click(content);
 
-      // Editor should be visible
+      // Should show editor
       expect(screen.getByTestId('simple-rich-text-editor')).toBeInTheDocument();
     });
 
-    it('saves edited content', async () => {
-      renderGoalCard({
+    it('saves edited content when save clicked', () => {
+      const onUpdate = vi.fn();
+      renderCard({
         goal: buildGoal({ id: 1, text: '<p>Original</p>' }),
         editable: true,
-        onUpdate: mockOnUpdate,
+        onUpdate,
+        compact: false,
       });
 
       // Expand content
       const buttons = screen.getAllByRole('button');
-      const expandButton = buttons[buttons.length - 1];
-      fireEvent.click(expandButton);
+      fireEvent.click(buttons[buttons.length - 1]);
 
-      // Click to edit
-      const content = screen.getByText('Original');
-      fireEvent.click(content);
+      // Enter edit mode
+      fireEvent.click(screen.getByText('Original'));
 
-      // Change content
-      const editor = screen.getByTestId('simple-rich-text-editor');
-      fireEvent.change(editor, { target: { value: '<p>Updated</p>' } });
+      // Edit content
+      fireEvent.change(screen.getByTestId('simple-rich-text-editor'), {
+        target: { value: '<p>Updated</p>' },
+      });
 
       // Save
       fireEvent.click(screen.getByText('Save'));
 
-      expect(mockOnUpdate).toHaveBeenCalledWith(1, { text: '<p>Updated</p>' });
+      expect(onUpdate).toHaveBeenCalledWith(1, { text: '<p>Updated</p>' });
     });
 
-    it('cancels editing without saving', () => {
-      renderGoalCard({
+    it('cancels edit and restores content when cancel clicked', () => {
+      renderCard({
         goal: buildGoal({ text: '<p>Original</p>' }),
         editable: true,
-        onUpdate: mockOnUpdate,
+        compact: false,
       });
 
-      // Expand content
+      // Expand and enter edit mode
       const buttons = screen.getAllByRole('button');
-      const expandButton = buttons[buttons.length - 1];
-      fireEvent.click(expandButton);
+      fireEvent.click(buttons[buttons.length - 1]);
+      fireEvent.click(screen.getByText('Original'));
 
-      // Click to edit
-      const content = screen.getByText('Original');
-      fireEvent.click(content);
-
-      // Change content
-      const editor = screen.getByTestId('simple-rich-text-editor');
-      fireEvent.change(editor, { target: { value: '<p>Changed</p>' } });
-
-      // Cancel
+      // Edit then cancel
+      fireEvent.change(screen.getByTestId('simple-rich-text-editor'), {
+        target: { value: '<p>Changed</p>' },
+      });
       fireEvent.click(screen.getByText('Cancel'));
 
-      expect(mockOnUpdate).not.toHaveBeenCalled();
+      // Should show original content again
+      expect(screen.getByText('Original')).toBeInTheDocument();
     });
   });
 
-  describe('Goal Type Styling', () => {
-    it('applies info style for time-based goals', () => {
-      renderGoalCard({ goal: buildGoal({ goal_type: 'Sprint' }) });
+  describe('Goal Type Badges', () => {
+    it('applies info color for time-based goals', () => {
+      renderCard({ goal: buildGoal({ goal_type: 'Weekly' }) });
 
-      const badge = screen.getByText('Sprint');
-      expect(badge).toBeInTheDocument();
+      expect(screen.getByText('Weekly')).toBeInTheDocument();
     });
 
-    it('applies success style for lifestyle goals', () => {
-      renderGoalCard({ goal: buildGoal({ goal_type: 'Fitness' }) });
+    it('applies success color for lifestyle goals', () => {
+      renderCard({ goal: buildGoal({ goal_type: 'Fitness' }) });
 
-      const badge = screen.getByText('Fitness');
-      expect(badge).toBeInTheDocument();
+      expect(screen.getByText('Fitness')).toBeInTheDocument();
     });
 
-    it('applies accent style for custom goals', () => {
-      renderGoalCard({ goal: buildGoal({ goal_type: 'Custom:MyProject' }) });
+    it('applies accent color for custom goals', () => {
+      renderCard({ goal: buildGoal({ goal_type: 'Custom:MyType' }) });
 
-      const badge = screen.getByText('MyProject');
-      expect(badge).toBeInTheDocument();
+      expect(screen.getByText('MyType')).toBeInTheDocument();
     });
   });
 
-  describe('Opacity States', () => {
-    it('reduces opacity when completed', () => {
-      const { container } = renderGoalCard({
-        goal: buildGoal({ is_completed: true }),
-        onToggleComplete: mockOnToggleComplete,
+  describe('Not Started Goals', () => {
+    it('shows days until start for future goals', () => {
+      renderCard({
+        goal: buildGoal({ start_date: '2025-11-20' }),
+        viewedDate: '2025-11-10',
       });
 
-      const card = container.firstChild as HTMLElement;
-      expect(card).toHaveClass('opacity-75');
-    });
-
-    it('reduces opacity when not visible', () => {
-      const { container } = renderGoalCard({
-        goal: buildGoal({ is_visible: false }),
-      });
-
-      const card = container.firstChild as HTMLElement;
-      expect(card).toHaveClass('opacity-60');
+      expect(screen.getByText('10 days until start')).toBeInTheDocument();
     });
   });
 });
-

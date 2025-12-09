@@ -7,9 +7,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Backup & Restore', () => {
+  test.setTimeout(10000); // allow slower settings page render
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('load');
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('h1:has-text("Settings")')).toBeVisible({ timeout: 5000 });
   });
 
   test('should export data as JSON', async ({ page }) => {

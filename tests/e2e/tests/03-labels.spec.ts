@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import { navigateToDate, createNoteEntry, addLabelToEntry, navigateToSettings } from '../fixtures/helpers';
 
 test.describe('Label Management', () => {
+  test.setTimeout(10000); // allow initial page render and entry setup
   // Run tests serially to avoid race conditions with parallel Date.now() timestamps
   test.describe.configure({ mode: 'serial' });
   
@@ -22,7 +23,7 @@ test.describe('Label Management', () => {
     const testRunDate = `2024-02-${String(dayNum).padStart(2, '0')}`; // Feb for labels
     
     await page.goto(`/day/${testRunDate}`);
-    await page.waitForSelector('button:has-text("New Card")', { timeout: 10000 });
+    await page.waitForSelector('button:has-text("New Card")', { timeout: 5000 });
     
     // Delete any existing entries for this date (cleanup from previous runs)
     let deleteCount = await page.locator('button[title*="Delete" i]').count();

@@ -10,9 +10,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 2, // Parallel execution with 2 workers - data isolation via unique dates per test
-  timeout: 30000, // 30 second timeout for E2E tests with auto-save + reload
+  timeout: 2000, // 2 second timeout per test as requested
   expect: {
-    timeout: 3000, // 3 second timeout for assertions
+    timeout: 1000, // 1 second timeout for assertions (lowered as requested)
   },
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],

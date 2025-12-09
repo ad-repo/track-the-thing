@@ -769,6 +769,10 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
 
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail='Invalid JSON file')
+    except HTTPException as e:
+        # Preserve intended HTTP status/details
+        db.rollback()
+        raise e
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f'Import failed: {str(e)}')

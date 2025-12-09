@@ -43,13 +43,14 @@ def search_entries(
 
     # Filter by labels if provided
     if label_ids and label_ids.strip():
-        try:
-            label_id_list = [int(lid.strip()) for lid in label_ids.split(',') if lid.strip()]
+        raw_label_ids = [lid.strip() for lid in label_ids.split(',') if lid.strip()]
+        # If any label id is non-numeric, ignore the label filter entirely
+        if raw_label_ids and all(lid.isdigit() for lid in raw_label_ids):
+            label_id_list = [int(lid) for lid in raw_label_ids]
             if label_id_list:
-                # Join with entry_labels table to filter by labels
-                query = query.join(models.NoteEntry.labels).filter(models.Label.id.in_(label_id_list)).distinct()
-        except ValueError:
-            pass  # Invalid label IDs, ignore
+                query = query.join(models.NoteEntry.labels).filter(models.Label.id.in_(label_id_list))
+                if hasattr(query, 'distinct'):
+                    query = query.distinct()
 
     # Filter by lists if provided
     if list_ids and list_ids.strip():
@@ -57,17 +58,23 @@ def search_entries(
             list_id_list = [int(lid.strip()) for lid in list_ids.split(',') if lid.strip()]
             if list_id_list:
                 # Join with entry_lists table to filter by lists
-                query = query.join(models.NoteEntry.lists).filter(models.List.id.in_(list_id_list)).distinct()
+                query = query.join(models.NoteEntry.lists).filter(models.List.id.in_(list_id_list))
+                if hasattr(query, 'distinct'):
+                    query = query.distinct()
         except ValueError:
             pass  # Invalid list IDs, ignore
 
+    # Normalise optional flags when called directly (e.g., unit tests)
+    is_important_value = is_important if isinstance(is_important, bool) else None
+    is_completed_value = is_completed if isinstance(is_completed, bool) else None
+
     # Filter by starred/important status if provided
-    if is_important is not None:
-        query = query.filter(models.NoteEntry.is_important == (1 if is_important else 0))
+    if is_important_value is not None:
+        query = query.filter(models.NoteEntry.is_important == (1 if is_important_value else 0))
 
     # Filter by completed status if provided
-    if is_completed is not None:
-        query = query.filter(models.NoteEntry.is_completed == (1 if is_completed else 0))
+    if is_completed_value is not None:
+        query = query.filter(models.NoteEntry.is_completed == (1 if is_completed_value else 0))
 
     # Order by most recent first
     query = query.order_by(models.NoteEntry.created_at.desc())

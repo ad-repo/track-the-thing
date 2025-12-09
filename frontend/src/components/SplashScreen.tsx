@@ -39,6 +39,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
   useEffect(() => {
     if (disableSplash) {
+      // Set completion guard even when disabled
+      hasCompletedRef.current = true;
       onComplete();
       return;
     }
@@ -110,10 +112,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       }
     };
   }, [disableSplash, finishSplash, onComplete]);
-
-  if (disableSplash) {
-    return null;
-  }
 
   return (
     <div

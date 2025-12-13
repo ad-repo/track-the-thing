@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Plus, RefreshCw } from 'lucide-react';
-import { notesApi, listsApi } from '../api';
+import { notesApi, listsApi } from '@/api';
 import type { NoteEntry, List } from '../types';
 import { format } from 'date-fns';
 import { useTimezone } from '../contexts/TimezoneContext';

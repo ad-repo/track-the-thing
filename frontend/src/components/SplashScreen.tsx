@@ -7,6 +7,7 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
+  const disableSplash = import.meta.env.VITE_DISABLE_SPLASH === 'true';
   const [fadeOut, setFadeOut] = useState(false);
   const [status, setStatus] = useState('Starting...');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -37,6 +38,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   }, [onComplete]);
 
   useEffect(() => {
+    if (disableSplash) {
+      // Set completion guard even when disabled
+      hasCompletedRef.current = true;
+      onComplete();
+      return;
+    }
+
     const checkBackend = async (): Promise<boolean> => {
       try {
         const controller = new AbortController();
@@ -103,7 +111,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         clearInterval(pollingRef.current);
       }
     };
-  }, [finishSplash]);
+  }, [disableSplash, finishSplash, onComplete]);
 
   return (
     <div

@@ -246,6 +246,3 @@ def temp_db_file():
 def fixed_datetime():
     """Return a fixed datetime for consistent testing."""
     return datetime(2025, 11, 7, 12, 0, 0)
-
-    """Return a fixed datetime for consistent testing."""
-    return datetime(2025, 11, 7, 12, 0, 0)

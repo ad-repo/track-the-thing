@@ -42,11 +42,11 @@ vi.mock('@/utils/timezone', () => ({
   formatTimestamp: (value: string) => `formatted-${value}`,
 }));
 
-const mockLabels = [
+const baseLabels = [
   { id: 1, name: 'Work', color: '#3b82f6' },
 ];
 
-const mockHistory = [
+const baseHistory = [
   { query: 'standup', created_at: '2025-11-06T10:00:00Z' },
 ];
 
@@ -84,16 +84,23 @@ const mockLists = [
   },
 ];
 
+let labelsResponse = [...baseLabels];
+let historyResponse = [...baseHistory];
+let searchResponse: { entries: typeof mockEntries; lists: typeof mockLists } = {
+  entries: mockEntries,
+  lists: mockLists,
+};
+
 const hydrateAxios = () => {
   mockAxiosGet.mockImplementation((url: string, config?: Record<string, any>) => {
     if (url.includes('/api/labels/')) {
-      return Promise.resolve({ data: mockLabels });
+      return Promise.resolve({ data: labelsResponse });
     }
     if (url.includes('/api/search-history/')) {
-      return Promise.resolve({ data: mockHistory });
+      return Promise.resolve({ data: historyResponse });
     }
     if (url.includes('/api/search/all')) {
-      return Promise.resolve({ data: { entries: mockEntries, lists: mockLists } });
+      return Promise.resolve({ data: searchResponse });
     }
     return Promise.resolve({ data: [] });
   });
@@ -103,6 +110,9 @@ const hydrateAxios = () => {
 describe('Search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    labelsResponse = [...baseLabels];
+    historyResponse = [...baseHistory];
+    searchResponse = { entries: mockEntries, lists: mockLists };
     hydrateAxios();
   });
 
@@ -154,6 +164,57 @@ describe('Search', () => {
     fireEvent.click(entryCard);
 
     expect(mockNavigate).toHaveBeenCalledWith('/day/2025-11-07#entry-1');
+  });
+
+  it('does not hit the search API until the query is submitted', async () => {
+    renderSearch();
+    await screen.findByText('Work');
+
+    const input = screen.getByPlaceholderText(/search by text/i);
+    fireEvent.change(input, { target: { value: 'retro' } });
+
+    expect(mockAxiosGet.mock.calls.filter(([url]) => url.includes('/api/search/all')).length).toBe(0);
+
+    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 });
+
+    await screen.findByText('Sprint Planning');
+    const searchCalls = mockAxiosGet.mock.calls.filter(([url]) => url.includes('/api/search/all'));
+    expect(searchCalls.length).toBe(1);
+  });
+
+  it('combines multiple label filters in the search params', async () => {
+    labelsResponse = [
+      ...baseLabels,
+      { id: 2, name: 'Personal', color: '#16a34a' },
+    ];
+    renderSearch();
+    await screen.findByText('Work');
+
+    fireEvent.click(screen.getByText('Work'));
+    fireEvent.click(screen.getByText('Personal'));
+
+    await waitFor(() => {
+      const searchCalls = mockAxiosGet.mock.calls.filter(([url]) => url.includes('/api/search/all'));
+      expect(searchCalls.some(([, config]) => config?.params?.label_ids === '1,2')).toBe(true);
+    });
+  });
+
+  it('saves searches to history and shows the updated history list', async () => {
+    mockAxiosPost.mockImplementation(() => {
+      historyResponse = [
+        ...historyResponse,
+        { query: 'retro', created_at: '2025-11-07T11:00:00Z' },
+      ];
+      return Promise.resolve({ data: {} });
+    });
+
+    renderSearch();
+    const input = await screen.findByPlaceholderText(/search by text/i);
+    fireEvent.change(input, { target: { value: 'retro' } });
+    fireEvent.keyPress(input, { key: 'Enter', code: 'Enter', charCode: 13 });
+
+    await screen.findByText('Sprint Planning');
+    await screen.findByText('retro');
   });
 });
 

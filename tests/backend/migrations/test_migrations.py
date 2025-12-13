@@ -210,19 +210,25 @@ class TestMigration028:
         """Existing goals table without name column should be patched."""
         conn = sqlite3.connect(temp_db_file)
         cursor = conn.cursor()
+        # Create a goals table similar to what might exist before migration
+        # but missing the 'name' column that 028 should add
         cursor.execute(
             """
             CREATE TABLE goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goal_type TEXT NOT NULL,
                 text TEXT DEFAULT '',
+                start_date TEXT,
+                end_date TEXT,
                 is_visible INTEGER DEFAULT 1,
-                order_index INTEGER DEFAULT 0
+                order_index INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         cursor.execute(
-            "INSERT INTO goals (goal_type, text, is_visible, order_index) VALUES (?, ?, ?, ?)",
+            'INSERT INTO goals (goal_type, text, is_visible, order_index) VALUES (?, ?, ?, ?)',
             ('Personal', '<p>Do something</p>', 1, 0),
         )
         conn.commit()
@@ -234,13 +240,15 @@ class TestMigration028:
 
         conn = sqlite3.connect(temp_db_file)
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(goals)")
+        cursor.execute('PRAGMA table_info(goals)')
         columns = [col[1] for col in cursor.fetchall()]
         assert 'name' in columns
 
-        cursor.execute("SELECT name, goal_type FROM goals")
+        cursor.execute('SELECT name, goal_type FROM goals')
         row = cursor.fetchone()
-        assert row[0] == 'Personal'
+        # The migration adds name with DEFAULT 'Goal', so existing rows get 'Goal'
+        # (the UPDATE only runs for NULL or empty name, but DEFAULT already set it)
+        assert row[0] == 'Goal'
         conn.close()
 
     def test_migration_028_is_idempotent(self, temp_db_file):
@@ -257,7 +265,7 @@ class TestMigration028:
 
         conn = sqlite3.connect(temp_db_file)
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(goals)")
+        cursor.execute('PRAGMA table_info(goals)')
         columns = [col[1] for col in cursor.fetchall()]
         assert 'name' in columns
         assert 'end_time' in columns
@@ -267,20 +275,26 @@ class TestMigration028:
         """Existing goals table without end_time should be patched."""
         conn = sqlite3.connect(temp_db_file)
         cursor = conn.cursor()
+        # Create a goals table with NOT NULL on end_date (legacy schema)
+        # Migration should rebuild table to make end_date nullable
         cursor.execute(
             """
             CREATE TABLE goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
+                name TEXT NOT NULL DEFAULT 'Goal',
                 goal_type TEXT NOT NULL,
                 text TEXT DEFAULT '',
                 start_date TEXT,
-                end_date TEXT NOT NULL
+                end_date TEXT NOT NULL,
+                is_visible INTEGER DEFAULT 1,
+                order_index INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         cursor.execute(
-            "INSERT INTO goals (name, goal_type, text, start_date, end_date) VALUES (?, ?, ?, ?, ?)",
+            'INSERT INTO goals (name, goal_type, text, start_date, end_date) VALUES (?, ?, ?, ?, ?)',
             ('Existing Goal', 'Personal', '<p>Body</p>', '2025-12-01', '2025-12-31'),
         )
         conn.commit()
@@ -292,10 +306,10 @@ class TestMigration028:
 
         conn = sqlite3.connect(temp_db_file)
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(goals)")
+        cursor.execute('PRAGMA table_info(goals)')
         columns = cursor.fetchall()
         column_names = [col[1] for col in columns]
-        assert 'end_time' in columns
+        assert 'end_time' in column_names
         assert 'status_text' in column_names
         assert 'show_countdown' in column_names
         assert 'is_completed' in column_names

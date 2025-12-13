@@ -3,16 +3,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Settings from '@/components/Settings';
 import { renderWithRouter } from '../test-utils';
 
-const mockAxiosGet = vi.hoisted(() => vi.fn());
-const mockAxiosPatch = vi.hoisted(() => vi.fn());
+// Create hoisted mocks for axios - both direct usage and instance created via axios.create()
+const mockAxios = vi.hoisted(() => {
+  const mockMethods = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    defaults: { headers: { common: {} } },
+    interceptors: {
+      request: { use: vi.fn(), eject: vi.fn() },
+      response: { use: vi.fn(), eject: vi.fn() },
+    },
+  };
+  return mockMethods;
+});
 
 vi.mock('axios', () => ({
   __esModule: true,
   default: {
-    get: mockAxiosGet,
-    patch: mockAxiosPatch,
-    post: vi.fn(),
-    delete: vi.fn(),
+    ...mockAxios,
+    create: vi.fn(() => mockAxios),
   },
 }));
 
@@ -80,11 +92,6 @@ vi.mock('@/contexts/EmojiLibraryContext', () => ({
   useEmojiLibrary: () => ({ emojiLibrary: 'emoji-picker-react', setEmojiLibrary: mockSetEmojiLibrary }),
 }));
 
-const mockSetSprintNameContext = vi.fn();
-vi.mock('@/contexts/SprintNameContext', () => ({
-  useSprintName: () => ({ setSprintName: mockSetSprintNameContext }),
-}));
-
 vi.mock('@/hooks/useTexture', () => ({
   useTexture: () => ({}),
 }));
@@ -110,10 +117,10 @@ vi.mock('@/components/TextureSettings', () => ({
 }));
 
 const hydrateAxios = () => {
-  mockAxiosGet.mockImplementation((url: string) => {
+  mockAxios.get.mockImplementation((url: string) => {
     if (url.includes('/api/settings')) {
       return Promise.resolve({
-        data: { sprint_name: 'Alpha', daily_goal_end_time: '17:30' },
+        data: { daily_goal_end_time: '17:30' },
       });
     }
     if (url.includes('/api/labels')) {
@@ -121,7 +128,9 @@ const hydrateAxios = () => {
     }
     return Promise.resolve({ data: {} });
   });
-  mockAxiosPatch.mockResolvedValue({});
+  mockAxios.patch.mockResolvedValue({ data: {} });
+  mockAxios.post.mockResolvedValue({ data: {} });
+  mockAxios.delete.mockResolvedValue({ data: {} });
 };
 
 describe('Settings', () => {
@@ -132,19 +141,17 @@ describe('Settings', () => {
 
   const renderSettings = () => renderWithRouter(<Settings />);
 
-  it('updates sprint name and persists it via API', async () => {
+  it('loads settings and renders the settings page', async () => {
     renderSettings();
 
-    const sprintInput = await screen.findByDisplayValue('Alpha');
+    // Wait for the settings page to load
+    await waitFor(() => {
+      expect(mockAxios.get).toHaveBeenCalled();
+    });
 
-    fireEvent.change(sprintInput, { target: { value: 'Focus' } });
-
-    await waitFor(() =>
-      expect(mockAxiosPatch).toHaveBeenCalledWith(expect.stringContaining('/api/settings'), {
-        sprint_name: 'Focus',
-      }),
-    );
-    expect(mockSetSprintNameContext).toHaveBeenCalledWith('Focus');
+    // Check that various sections are rendered
+    expect(screen.getByText('Transparent Backgrounds')).toBeInTheDocument();
+    expect(screen.getByText('Daily Goals')).toBeInTheDocument();
   });
 
   it('toggles transparent labels when the switch is clicked', async () => {

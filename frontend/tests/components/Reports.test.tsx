@@ -86,16 +86,20 @@ const allEntriesResponse = {
   ],
 };
 
+let currentWeeksResponse = weeksResponse;
+let currentReportResponse = reportResponse;
+let currentAllEntriesResponse = allEntriesResponse;
+
 const hydrateAxios = () => {
   mockAxiosGet.mockImplementation((url: string) => {
     if (url.includes('/api/reports/weeks')) {
-      return Promise.resolve({ data: weeksResponse });
+      return Promise.resolve({ data: currentWeeksResponse });
     }
     if (url.includes('/api/reports/generate')) {
-      return Promise.resolve({ data: reportResponse });
+      return Promise.resolve({ data: currentReportResponse });
     }
     if (url.includes('/api/reports/all-entries')) {
-      return Promise.resolve({ data: allEntriesResponse });
+      return Promise.resolve({ data: currentAllEntriesResponse });
     }
     return Promise.resolve({ data: {} });
   });
@@ -114,6 +118,9 @@ afterAll(() => {
 describe('Reports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentWeeksResponse = weeksResponse;
+    currentReportResponse = reportResponse;
+    currentAllEntriesResponse = allEntriesResponse;
     hydrateAxios();
     window.alert = vi.fn();
     (navigator as any).clipboard = {
@@ -160,6 +167,42 @@ describe('Reports', () => {
     await screen.findByText(/all entries/i);
 
     fireEvent.click(screen.getByRole('button', { name: /export to markdown/i }));
+
+    expect(window.URL.createObjectURL).toHaveBeenCalled();
+  });
+
+  it('populates the week selector with available options and triggers generate on change', async () => {
+    renderReports();
+
+    const select = await screen.findByRole('combobox');
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(currentWeeksResponse.weeks.length + 1); // includes placeholder
+
+    fireEvent.change(select, { target: { value: currentWeeksResponse.weeks[1].start } });
+
+    await waitFor(() =>
+      expect(mockAxiosGet).toHaveBeenCalledWith(expect.stringContaining(`/api/reports/generate?date=${currentWeeksResponse.weeks[1].start}`)),
+    );
+  });
+
+  it('shows the empty state when no entries are returned for the week', async () => {
+    currentReportResponse = { ...reportResponse, entries: [] };
+    renderReports();
+
+    await screen.findByRole('combobox');
+    fireEvent.click(getGenerateButtons()[0]);
+
+    await screen.findByText(/no entries marked for report this week/i);
+  });
+
+  it('exports the weekly report to Markdown when a report is loaded', async () => {
+    renderReports();
+    await screen.findByRole('combobox');
+
+    fireEvent.click(screen.getAllByRole('button', { name: /generate/i })[0]);
+    await screen.findByText(/report: 2025-11-04 to 2025-11-10/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /export as markdown/i }));
 
     expect(window.URL.createObjectURL).toHaveBeenCalled();
   });

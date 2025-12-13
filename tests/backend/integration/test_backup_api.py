@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.models import AppSettings, DailyNote, Label, NoteEntry, QuarterlyGoal, SearchHistory, SprintGoal
 
 # Keep in sync with export version in app.routers.backup.export_data.
-BACKUP_SCHEMA_VERSION = '8.0'
+BACKUP_SCHEMA_VERSION = '9.0'
 
 
 @pytest.mark.integration
@@ -439,7 +439,7 @@ class TestBackupImportAPI:
         assert response.status_code in [400, 500]
 
     def test_import_missing_version(self, client: TestClient):
-        """Test importing JSON without version field crashes (documents production behavior)."""
+        """Import without version should be rejected with a client error."""
         backup_data = {
             # Missing "version" field
             'notes': [],
@@ -451,8 +451,8 @@ class TestBackupImportAPI:
 
         response = client.post('/api/backup/import', files=files)
 
-        # Production returns 500 when version is missing
-        assert response.status_code == 500
+        # Missing version is treated as a bad request
+        assert response.status_code == 400
 
     def test_export_then_import_roundtrip(self, client: TestClient, db_session: Session):
         """Test that data can be exported and re-imported successfully."""

@@ -19,6 +19,7 @@ const mockEntriesApi = vi.hoisted(() => ({
 const mockGoalsApi = vi.hoisted(() => ({
   getSprintForDate: vi.fn(),
   getQuarterlyForDate: vi.fn(),
+  getActiveForDate: vi.fn(),
 }));
 
 const mockSettingsApi = vi.hoisted(() => ({
@@ -50,11 +51,14 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+let showDailyGoals = true;
+let showDayLabels = true;
+
 vi.mock('@/contexts/FullScreenContext', () => ({
   useFullScreen: () => ({ isFullScreen: false }),
 }));
 vi.mock('@/contexts/DailyGoalsContext', () => ({
-  useDailyGoals: () => ({ showDailyGoals: true }),
+  useDailyGoals: () => ({ showDailyGoals }),
 }));
 vi.mock('@/contexts/SprintGoalsContext', () => ({
   useSprintGoals: () => ({ showSprintGoals: true }),
@@ -66,7 +70,7 @@ vi.mock('@/contexts/QuarterlyGoalsContext', () => ({
   useQuarterlyGoals: () => ({ showQuarterlyGoals: true }),
 }));
 vi.mock('@/contexts/DayLabelsContext', () => ({
-  useDayLabels: () => ({ showDayLabels: true }),
+  useDayLabels: () => ({ showDayLabels }),
 }));
 
 vi.mock('@/hooks/useTexture', () => ({
@@ -92,18 +96,35 @@ vi.mock('@/components/NoteEntryCard', () => ({
     entry,
     onDelete,
     onSelectionChange,
+    selectionMode,
+    isSelected,
+    onMoveToTop,
   }: {
     entry: NoteEntry;
     onDelete: (id: number) => void;
     onSelectionChange: (id: number, selected: boolean) => void;
+    selectionMode?: boolean;
+    isSelected?: boolean;
+    onMoveToTop?: (id: number) => void;
   }) => (
-    <div>
+    <div data-testid={`card-${entry.id}`}>
       <span>{entry.title}</span>
+      {selectionMode && (
+        <input
+          type="checkbox"
+          data-testid={`select-${entry.id}`}
+          checked={isSelected}
+          onChange={(e) => onSelectionChange(entry.id, e.target.checked)}
+        />
+      )}
       <button onClick={() => onDelete(entry.id)} data-testid={`delete-${entry.id}`}>
         Delete {entry.id}
       </button>
-      <button onClick={() => onSelectionChange(entry.id, true)} data-testid={`select-${entry.id}`}>
+      <button onClick={() => onSelectionChange(entry.id, true)} data-testid={`quick-select-${entry.id}`}>
         Select {entry.id}
+      </button>
+      <button onClick={() => onMoveToTop?.(entry.id)} data-testid={`move-${entry.id}`}>
+        Move {entry.id}
       </button>
     </div>
   ),
@@ -142,6 +163,8 @@ describe('DailyView', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    showDailyGoals = true;
+    showDayLabels = true;
     window.scrollTo = vi.fn();
     window.alert = vi.fn();
     window.confirm = vi.fn(() => true);
@@ -150,6 +173,7 @@ describe('DailyView', () => {
     });
     mockGoalsApi.getSprintForDate.mockRejectedValue({ response: { status: 404 } });
     mockGoalsApi.getQuarterlyForDate.mockRejectedValue({ response: { status: 404 } });
+    mockGoalsApi.getActiveForDate.mockResolvedValue([]);
     mockNotesApi.getByDate.mockResolvedValue(buildDailyNote(baseEntries));
     mockEntriesApi.create.mockResolvedValue(buildEntry(99, { title: 'Fresh Card' }));
     mockEntriesApi.delete.mockResolvedValue(undefined);
@@ -164,6 +188,16 @@ describe('DailyView', () => {
 
     expect(mockNotesApi.getByDate).toHaveBeenCalledWith('2025-11-07');
     expect(screen.getByText('Entry 2')).toBeInTheDocument();
+  });
+
+  it('hides the daily goals section when the feature is disabled', async () => {
+    showDailyGoals = false;
+    showDayLabels = false;
+    renderDailyView();
+
+    await screen.findByText('Entry 1');
+
+    expect(screen.queryByText(/daily goals/i)).not.toBeInTheDocument();
   });
 
   it('creates a new entry via the New Card button', async () => {
@@ -205,6 +239,35 @@ describe('DailyView', () => {
       ),
     );
     expect(mockNotesApi.getByDate).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps merge disabled until two entries are selected and clears selection on cancel', async () => {
+    renderDailyView();
+    await screen.findByText('Entry 1');
+
+    fireEvent.click(screen.getByTitle('Select entries to merge'));
+
+    const mergeButton = await screen.findByRole('button', { name: /merge 0 entries/i });
+    expect(mergeButton).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('select-1'));
+    expect(screen.getByRole('button', { name: /merge 1 entries/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Cancel'));
+    fireEvent.click(screen.getByTitle('Select entries to merge'));
+
+    expect(screen.getByRole('button', { name: /merge 0 entries/i })).toBeDisabled();
+  });
+
+  it('moves a lower entry to the top when requested', async () => {
+    renderDailyView();
+    await screen.findByText('Entry 1');
+
+    fireEvent.click(screen.getByTestId('move-2'));
+
+    const orderedTitles = screen.getAllByText(/Entry/).map((el) => el.textContent);
+    expect(orderedTitles[0]).toContain('Entry 2');
+    expect(orderedTitles[1]).toContain('Entry 1');
   });
 });
 

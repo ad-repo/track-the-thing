@@ -2,6 +2,7 @@
 set -euo pipefail
 
 COMPOSE_CMD="docker-compose --env-file .dockerenv"
+source ./.dockerenv
 
 echo "=========================================="
 echo "Testing EXACTLY like CI (containerized)"
@@ -35,9 +36,21 @@ echo ""
 echo "4. Frontend Tests..."
 $COMPOSE_CMD run --rm frontend-test
 
-# echo ""
-# echo "5. E2E Tests..."
-# $COMPOSE_CMD --profile e2e up -d backend-e2e frontend-e2e >/dev/null
+#echo ""
+#echo "5. E2E Tests..."
+#$COMPOSE_CMD --profile e2e up -d backend-e2e frontend-e2e >/dev/null
+# # Wait for services to be reachable before running Playwright
+# for url in "${E2E_API_URL:-http://localhost:8001}/docs" "${E2E_BASE_URL:-http://localhost:3001}"; do
+#   echo "Waiting for $url ..."
+#   for i in {1..60}; do
+#     if curl -sSf "$url" >/dev/null 2>&1; then
+#       echo "✓ $url is up"
+#       break
+#     fi
+#     sleep 1
+#   done
+# done
+
 # E2E_EXIT=0
 # $COMPOSE_CMD --profile e2e run --rm e2e npx playwright test --grep-invert "media-features" || E2E_EXIT=$?
 # $COMPOSE_CMD --profile e2e down >/dev/null || true

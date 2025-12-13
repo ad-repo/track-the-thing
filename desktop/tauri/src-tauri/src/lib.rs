@@ -14,6 +14,12 @@ use shell_words;
 use tauri::{async_runtime, path::BaseDirectory, Manager, WindowEvent};
 use tokio::time::sleep;
 
+// A/V modules for native macOS speech recognition and media capture
+#[cfg(target_os = "macos")]
+mod speech;
+#[cfg(target_os = "macos")]
+mod media;
+
 #[derive(Default)]
 struct BackendProcess {
   child: Mutex<Option<Child>>,
@@ -178,6 +184,9 @@ pub fn run() {
       
       // Enable opening external URLs in system browser
       app.handle().plugin(tauri_plugin_opener::init())?;
+      
+      // Enable file system access for A/V file handling
+      app.handle().plugin(tauri_plugin_fs::init())?;
 
       let repo_root = resolve_repo_root();
       
@@ -197,9 +206,39 @@ pub fn run() {
       let child = spawn_backend(&app.handle(), &config)?;
       app.state::<BackendProcess>().replace(child);
 
+      // Initialize native speech recognition system on macOS
+      #[cfg(target_os = "macos")]
+      {
+        info!("Initializing native speech recognition system");
+        speech::init_speech_system(app.handle().clone());
+      }
+
       wait_for_backend_ready(app.handle().clone(), config);
       Ok(())
     })
+    // Register native A/V commands for macOS
+    .invoke_handler(tauri::generate_handler![
+      #[cfg(target_os = "macos")]
+      speech::request_speech_authorization,
+      #[cfg(target_os = "macos")]
+      speech::start_speech_recognition,
+      #[cfg(target_os = "macos")]
+      speech::stop_speech_recognition,
+      #[cfg(target_os = "macos")]
+      speech::is_speech_available,
+      #[cfg(target_os = "macos")]
+      media::capture_photo,
+      #[cfg(target_os = "macos")]
+      media::list_cameras,
+      #[cfg(target_os = "macos")]
+      media::start_video_recording,
+      #[cfg(target_os = "macos")]
+      media::stop_video_recording,
+      #[cfg(target_os = "macos")]
+      media::request_camera_permission,
+      #[cfg(target_os = "macos")]
+      media::request_microphone_permission,
+    ])
     .on_window_event(|window, event| {
       if window.label() == "main" {
         match event {

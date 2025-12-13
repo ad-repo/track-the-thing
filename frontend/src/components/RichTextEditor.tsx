@@ -139,8 +139,13 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const isSecureContext = typeof window !== 'undefined' ? window.isSecureContext : false;
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
   const supportsMediaDevices = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
-  const canUseMediaCapture = supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile);
-  const showMediaButtons = supportsMediaDevices;
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+  // In Tauri, we always support media capture via native APIs
+  const canUseMediaCapture = isTauri || (supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile));
+  const showMediaButtons = isTauri || supportsMediaDevices;
+  
+  // Tauri-specific state for video recording path
+  const tauriVideoPathRef = useRef<string | null>(null);
   const isPreviewMode = linkModalMode === 'preview';
   const linkModalTitle = isPreviewMode ? 'Add Link Preview' : editingExistingLink ? 'Edit Link' : 'Add Link';
   const linkModalSubmitLabel = isPreviewMode ? 'Insert Preview' : editingExistingLink ? 'Update Link' : 'Add Link';
@@ -921,6 +926,42 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openCamera = async () => {
     try {
+      // If running in Tauri, use native camera capture directly (no preview modal)
+      if (isTauri) {
+        console.log('[Tauri] Using native camera capture');
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        // Request camera permission first
+        await invoke('request_camera_permission');
+        
+        // Capture photo directly using native API
+        const photoPath = await invoke<string>('capture_photo');
+        console.log('[Tauri] Photo captured at:', photoPath);
+        
+        // Read the file and upload to backend
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const fileData = await readFile(photoPath);
+        const blob = new Blob([fileData], { type: 'image/jpeg' });
+        
+        const formData = new FormData();
+        formData.append('file', blob, 'camera-photo.jpg');
+        
+        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const imageUrl = `${API_BASE_URL}${data.url}`;
+          editor?.chain().focus().setImage({ src: imageUrl }).run();
+        } else {
+          throw new Error('Failed to upload photo');
+        }
+        return;
+      }
+      
+      // Web browser: show camera preview modal
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setShowCamera(true);
       
@@ -985,6 +1026,26 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openVideoRecorder = async () => {
     try {
+      // If running in Tauri, start recording directly without preview modal
+      if (isTauri) {
+        console.log('[Tauri] Using native video recording');
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        // Request permissions
+        await invoke('request_camera_permission');
+        await invoke('request_microphone_permission');
+        
+        // Start recording and get the output file path
+        const videoPath = await invoke<string>('start_video_recording');
+        console.log('[Tauri] Video recording started, output:', videoPath);
+        
+        tauriVideoPathRef.current = videoPath;
+        setIsRecordingVideo(true);
+        setShowVideoRecorder(true); // Show minimal UI to indicate recording
+        return;
+      }
+      
+      // Web browser: show camera preview modal
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: true, 
         audio: true 
@@ -1003,6 +1064,11 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const startVideoRecording = () => {
+    // For Tauri, recording already started in openVideoRecorder
+    if (isTauri) {
+      return;
+    }
+    
     if (!videoRef.current || !videoRef.current.srcObject) return;
     
     const stream = videoRef.current.srcObject as MediaStream;
@@ -1042,12 +1108,15 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               style: 'width: 100%; height: auto; border-radius: 0.5rem;',
             },
           }).run();
-          
-          closeVideoRecorder();
+        } else {
+          throw new Error('Upload failed');
         }
       } catch (error) {
         console.error('Failed to upload video:', error);
         alert('Failed to upload video. Please try again.');
+      } finally {
+        // Always close the recorder modal, even on failure
+        closeVideoRecorder();
       }
     };
     
@@ -1056,14 +1125,75 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     setIsRecordingVideo(true);
   };
 
-  const stopVideoRecording = () => {
+  const stopVideoRecording = async () => {
+    // For Tauri, stop native recording and upload
+    if (isTauri && tauriVideoPathRef.current) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const videoPath = await invoke<string>('stop_video_recording');
+        console.log('[Tauri] Video recording stopped, file:', videoPath);
+        
+        // Read the file and upload to backend
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const fileData = await readFile(videoPath);
+        const blob = new Blob([fileData], { type: 'video/webm' });
+        
+        const formData = new FormData();
+        formData.append('file', blob, 'recorded-video.webm');
+        
+        const response = await fetch(`${API_BASE_URL}/api/uploads/file`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const videoUrl = `${API_BASE_URL}${data.url}`;
+          
+          // Insert video using the custom video node
+          editor?.chain().focus().insertContent({
+            type: 'video',
+            attrs: {
+              src: videoUrl,
+              controls: true,
+              style: 'width: 100%; height: auto; border-radius: 0.5rem;',
+            },
+          }).run();
+        } else {
+          throw new Error('Failed to upload video');
+        }
+      } catch (error) {
+        console.error('[Tauri] Failed to stop/upload video:', error);
+        alert('Failed to save video. Please try again.');
+      } finally {
+        tauriVideoPathRef.current = null;
+        setIsRecordingVideo(false);
+        setShowVideoRecorder(false);
+      }
+      return;
+    }
+    
+    // Web browser: stop MediaRecorder
     if (mediaRecorderRef.current && isRecordingVideo) {
       mediaRecorderRef.current.stop();
       setIsRecordingVideo(false);
     }
   };
 
-  const closeVideoRecorder = () => {
+  const closeVideoRecorder = async () => {
+    // For Tauri, stop recording if still in progress
+    if (isTauri && isRecordingVideo && tauriVideoPathRef.current) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('stop_video_recording');
+        console.log('[Tauri] Video recording cancelled');
+      } catch (error) {
+        console.error('[Tauri] Error stopping video recording:', error);
+      }
+      tauriVideoPathRef.current = null;
+    }
+    
+    // Web browser: stop MediaRecorder and streams
     if (mediaRecorderRef.current && isRecordingVideo) {
       mediaRecorderRef.current.stop();
     }

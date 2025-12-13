@@ -27,14 +27,17 @@ export default defineConfig({
     },
     // Mock external Tauri plugins at the Vite level
     deps: {
-      inline: ['@tauri-apps/plugin-opener'],
+      inline: ['@tauri-apps/plugin-opener', '@tauri-apps/api', '@tauri-apps/plugin-fs'],
     },
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Redirect Tauri plugin imports to mock file
+      // Redirect Tauri plugin imports to mock files
       '@tauri-apps/plugin-opener': path.resolve(__dirname, './tests/__mocks__/tauri-plugin-opener.ts'),
+      '@tauri-apps/api/core': path.resolve(__dirname, './tests/__mocks__/tauri-api-core.ts'),
+      '@tauri-apps/api/event': path.resolve(__dirname, './tests/__mocks__/tauri-api-event.ts'),
+      '@tauri-apps/plugin-fs': path.resolve(__dirname, './tests/__mocks__/tauri-plugin-fs.ts'),
     },
   },
 });

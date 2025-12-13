@@ -206,6 +206,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         name: 'video',
         group: 'block',
         atom: true,
+        selectable: false, // Prevent selection/focus jump when clicking video
+        draggable: false,
         addAttributes() {
           return {
             src: {
@@ -312,6 +314,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
             const src = (target as HTMLImageElement).src;
             if (src) setLightboxSrc(src);
             return true;
+          }
+          // Prevent focus jump when clicking on video elements (play button, controls, etc)
+          if (target && (target.tagName === 'VIDEO' || target.closest('video'))) {
+            return true; // Don't let editor handle video clicks
           }
           return false;
         },

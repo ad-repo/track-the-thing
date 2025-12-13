@@ -113,6 +113,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const interimRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -929,9 +931,17 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openCamera = async () => {
     try {
-      // Use web camera API for preview (works in both browser and Tauri webview)
-      console.log('[Camera] Opening camera preview');
+      console.log('[Camera] Opening camera');
+      
+      // In Tauri, we use native capture - no preview stream needed
+      if (isTauri) {
+        setShowCamera(true);
+        return;
+      }
+      
+      // Web browser: get camera stream for live preview
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
       setShowCamera(true);
       
       // Wait for video element to be available
@@ -947,7 +957,50 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current || !editor) return;
+    if (!editor) return;
+    
+    // Tauri: use native capture
+    if (isTauri) {
+      setIsCapturingPhoto(true);
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        
+        // Capture photo using native API
+        const photoPath = await invoke<string>('capture_photo');
+        console.log('[Tauri] Photo captured at:', photoPath);
+        
+        // Read the file and upload to backend
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const fileData = await readFile(photoPath);
+        const blob = new Blob([fileData], { type: 'image/jpeg' });
+        
+        const formData = new FormData();
+        formData.append('file', blob, 'camera-photo.jpg');
+        
+        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const imageUrl = `${API_BASE_URL}${data.url}`;
+          editor.chain().focus().setImage({ src: imageUrl }).run();
+          closeCamera();
+        } else {
+          throw new Error('Failed to upload photo');
+        }
+      } catch (error) {
+        console.error('[Tauri] Camera capture error:', error);
+        alert(`Failed to capture photo: ${error}`);
+      } finally {
+        setIsCapturingPhoto(false);
+      }
+      return;
+    }
+    
+    // Web browser: capture from canvas
+    if (!videoRef.current || !canvasRef.current) return;
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -985,12 +1038,18 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const closeCamera = () => {
+    // Stop any camera stream
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
     setShowCamera(false);
+    setIsCapturingPhoto(false);
   };
 
   const openVideoRecorder = async () => {
@@ -1958,43 +2017,91 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
           <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Take Photo</h3>
-              <button
-                onClick={closeCamera}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-              >
-                ×
-              </button>
+              {!isCapturingPhoto && (
+                <button
+                  onClick={closeCamera}
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              )}
             </div>
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="mt-4 flex gap-3 justify-center">
-              <button
-                onClick={capturePhoto}
-                className="px-6 py-3 rounded-lg transition-colors font-medium"
-                style={{
-                  backgroundColor: 'var(--color-accent)',
-                  color: 'var(--color-accent-text)',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
-              >
-                <Camera className="h-5 w-5 inline mr-2" />
-                Capture Photo
-              </button>
-              <button
-                onClick={closeCamera}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
+            
+            {/* Tauri desktop: no live preview, just capture button */}
+            {isTauri ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                {isCapturingPhoto ? (
+                  <>
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+                    <p className="text-lg font-medium text-gray-700">Capturing photo...</p>
+                    <p className="text-sm text-gray-500 mt-2">Please wait</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mb-6">
+                      <Camera className="h-16 w-16 text-gray-400" />
+                    </div>
+                    <p className="text-lg font-medium text-gray-700 mb-2">Ready to capture</p>
+                    <p className="text-sm text-gray-500 mb-6">Click the button below to take a photo with your camera</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={capturePhoto}
+                        className="px-6 py-3 rounded-lg transition-colors font-medium"
+                        style={{
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-accent-text)',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                      >
+                        <Camera className="h-5 w-5 inline mr-2" />
+                        Capture Photo
+                      </button>
+                      <button
+                        onClick={closeCamera}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Web browser: live camera preview */}
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full rounded-lg"
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  <button
+                    onClick={capturePhoto}
+                    className="px-6 py-3 rounded-lg transition-colors font-medium"
+                    style={{
+                      backgroundColor: 'var(--color-accent)',
+                      color: 'var(--color-accent-text)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                  >
+                    <Camera className="h-5 w-5 inline mr-2" />
+                    Capture Photo
+                  </button>
+                  <button
+                    onClick={closeCamera}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -50,7 +50,18 @@ pub async fn capture_photo(app: AppHandle) -> Result<String, String> {
         .open_stream()
         .map_err(|e| format!("Failed to open camera stream: {}", e))?;
 
+    println!("[Media] Camera stream opened, warming up...");
+    
+    // Give the camera a moment to adjust (auto-exposure, etc)
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    
+    // Capture a few frames to let auto-exposure settle
+    for _ in 0..5 {
+        let _ = camera.frame();
+    }
+
     // Capture frame
+    println!("[Media] Capturing frame...");
     let frame = camera
         .frame()
         .map_err(|e| format!("Failed to capture frame: {}", e))?;

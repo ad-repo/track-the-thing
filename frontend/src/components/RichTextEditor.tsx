@@ -973,7 +973,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         
+        // Request camera permission first
+        console.log('[Tauri] Requesting camera permission...');
+        await invoke('request_camera_permission');
+        
         // Capture photo using native API
+        console.log('[Tauri] Capturing photo...');
         const photoPath = await invoke<string>('capture_photo');
         console.log('[Tauri] Photo captured at:', photoPath);
         

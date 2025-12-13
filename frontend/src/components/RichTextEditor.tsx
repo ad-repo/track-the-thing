@@ -1151,17 +1151,23 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const closeVideoRecorder = () => {
-    // Stop MediaRecorder and streams (works in both browser and Tauri webview)
+    // Stop MediaRecorder first
     if (mediaRecorderRef.current && isRecordingVideo) {
       mediaRecorderRef.current.stop();
     }
+    
+    // Stop camera stream before closing modal for smoother transition
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-    setShowVideoRecorder(false);
+    
+    // Small delay for smoother visual transition
     setIsRecordingVideo(false);
+    requestAnimationFrame(() => {
+      setShowVideoRecorder(false);
+    });
   };
 
   const toggleJsonFormat = () => {
@@ -2024,8 +2030,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
       {/* Camera Modal */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6 animate-scale-in">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
                 {capturedPhotoUrl ? 'Review Photo' : 'Take Photo'}
@@ -2113,8 +2119,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
       {/* Video Recorder Modal */}
       {showVideoRecorder && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6 animate-scale-in">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Record Video</h3>
               <button

@@ -939,15 +939,9 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openCamera = async () => {
     try {
-      console.log('[Camera] Opening camera');
+      console.log('[Camera] Opening camera with web API');
       
-      // In Tauri, we use native capture - no preview stream needed
-      if (isTauri) {
-        setShowCamera(true);
-        return;
-      }
-      
-      // Web browser: get camera stream for live preview
+      // Use web camera API for both browser and Tauri (it works in the webview!)
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setCameraStream(stream);
       setShowCamera(true);
@@ -967,40 +961,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const capturePhoto = async () => {
     if (!editor) return;
     
-    // Tauri: use native capture
-    if (isTauri) {
-      setIsCapturingPhoto(true);
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        
-        // Request camera permission first
-        console.log('[Tauri] Requesting camera permission...');
-        await invoke('request_camera_permission');
-        
-        // Capture photo using native API
-        console.log('[Tauri] Capturing photo...');
-        const photoPath = await invoke<string>('capture_photo');
-        console.log('[Tauri] Photo captured at:', photoPath);
-        
-        // Read the file for preview
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const fileData = await readFile(photoPath);
-        const blob = new Blob([fileData], { type: 'image/jpeg' });
-        
-        // Create preview URL and store blob for later upload
-        const previewUrl = URL.createObjectURL(blob);
-        setCapturedPhotoUrl(previewUrl);
-        setCapturedPhotoBlob(blob);
-      } catch (error) {
-        console.error('[Tauri] Camera capture error:', error);
-        alert(`Failed to capture photo: ${error}`);
-      } finally {
-        setIsCapturingPhoto(false);
-      }
-      return;
-    }
-    
-    // Web browser: capture from canvas
+    // Capture from video canvas (works in both browser and Tauri webview)
     if (!videoRef.current || !canvasRef.current) return;
     
     const video = videoRef.current;
@@ -1020,6 +981,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
       const previewUrl = URL.createObjectURL(blob);
       setCapturedPhotoUrl(previewUrl);
       setCapturedPhotoBlob(blob);
+      
+      // Stop the camera stream after capture (to release the camera)
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
     }, 'image/jpeg', 1.0);
   };
 
@@ -1052,13 +1019,27 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     }
   };
 
-  const retakePhoto = () => {
-    // Clear the captured photo and go back to capture mode
+  const retakePhoto = async () => {
+    // Clear the captured photo
     if (capturedPhotoUrl) {
       URL.revokeObjectURL(capturedPhotoUrl);
     }
     setCapturedPhotoUrl(null);
     setCapturedPhotoBlob(null);
+    
+    // Restart the camera stream
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
+      
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Failed to restart camera:', error);
+    }
   };
 
   const closeCamera = () => {
@@ -2097,40 +2078,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                   )}
                 </div>
               </>
-            ) : isTauri ? (
-              /* Tauri: capture button (no live preview) */
-              <div className="flex flex-col items-center justify-center py-12">
-                {isCapturingPhoto ? (
-                  <>
-                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
-                    <p className="text-lg font-medium text-gray-700">Capturing...</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-                      <Camera className="h-16 w-16 text-gray-400" />
-                    </div>
-                    <p className="text-gray-600 mb-6">Click to take a photo</p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={capturePhoto}
-                        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                      >
-                        <Camera className="h-5 w-5 inline mr-2" />
-                        Take Photo
-                      </button>
-                      <button
-                        onClick={closeCamera}
-                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
             ) : (
-              /* Web browser: live camera preview */
+              /* Live camera preview (works in both browser and Tauri) */
               <>
                 <div className="relative">
                   <video

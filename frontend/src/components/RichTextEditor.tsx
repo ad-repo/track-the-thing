@@ -108,10 +108,15 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const lowlight = createLowlight(common);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [dictationError, setDictationError] = useState<string | null>(null);
-  const [interimText, setInterimText] = useState<string>('');
-  const cursorPosRef = useRef<number | null>(null);
+  // Use refs for interim text tracking to avoid stale closure issues
+  const interimTextRef = useRef<string>('');
+  const interimRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [capturedPhotoBlob, setCapturedPhotoBlob] = useState<Blob | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -139,8 +144,11 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const isSecureContext = typeof window !== 'undefined' ? window.isSecureContext : false;
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
   const supportsMediaDevices = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
-  const canUseMediaCapture = supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile);
-  const showMediaButtons = supportsMediaDevices;
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+  // In Tauri, we always support media capture via native APIs
+  const canUseMediaCapture = isTauri || (supportsMediaDevices && (isSecureContext || isLocalhost || !isMobile));
+  const showMediaButtons = isTauri || supportsMediaDevices;
+  
   const isPreviewMode = linkModalMode === 'preview';
   const linkModalTitle = isPreviewMode ? 'Add Link Preview' : editingExistingLink ? 'Edit Link' : 'Add Link';
   const linkModalSubmitLabel = isPreviewMode ? 'Insert Preview' : editingExistingLink ? 'Update Link' : 'Add Link';
@@ -200,6 +208,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         name: 'video',
         group: 'block',
         atom: true,
+        selectable: false, // Prevent selection/focus jump when clicking video
+        draggable: false,
         addAttributes() {
           return {
             src: {
@@ -306,6 +316,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
             const src = (target as HTMLImageElement).src;
             if (src) setLightboxSrc(src);
             return true;
+          }
+          // Prevent focus jump when clicking on video elements (play button, controls, etc)
+          if (target && (target.tagName === 'VIDEO' || target.closest('video'))) {
+            return true; // Don't let editor handle video clicks
           }
           return false;
         },
@@ -447,50 +461,45 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     },
   });
 
-  // Speech recognition callback
+  // Speech recognition callback - uses refs to avoid stale closure issues
   const handleTranscript = useCallback((text: string, isFinal: boolean) => {
     if (!editor || !text.trim()) return;
     
+    // Delete any existing interim text first (using tracked range)
+    if (interimRangeRef.current) {
+      const { from, to } = interimRangeRef.current;
+      editor.chain()
+        .focus()
+        .deleteRange({ from, to })
+        .run();
+      interimRangeRef.current = null;
+      interimTextRef.current = '';
+    }
+    
     if (isFinal) {
-      // Final result: insert permanently and clear interim
-      // If there's interim text showing, remove it first
-      if (interimText && cursorPosRef.current !== null) {
-        // Remove interim text by deleting from saved position
-        editor.chain()
-          .focus()
-          .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-          .insertContentAt(cursorPosRef.current, text)
-          .run();
-      } else {
-        // No interim text, just insert
-        editor.chain().focus().insertContent(text).run();
-      }
-      
-      setInterimText('');
-      cursorPosRef.current = null;
+      // Final result: insert as plain text permanently
+      editor.chain().focus().insertContent(text + ' ').run();
       setDictationError(null);
     } else {
-      // Interim result: show as preview
-      // Remove previous interim text and insert new one
-      if (interimText && cursorPosRef.current !== null) {
-        editor.chain()
-          .focus()
-          .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-          .insertContentAt(cursorPosRef.current, `<span style="color: #9ca3af; font-style: italic;">${text}</span>`)
-          .run();
-      } else {
-        // First interim text, save cursor position
-        const { from } = editor.state.selection;
-        cursorPosRef.current = from;
-        editor.chain()
-          .focus()
-          .insertContent(`<span style="color: #9ca3af; font-style: italic;">${text}</span>`)
-          .run();
-      }
+      // Interim result: insert styled text and track the range
+      const { from } = editor.state.selection;
+      editor.chain()
+        .focus()
+        .insertContent(text)
+        .run();
       
-      setInterimText(text);
+      // Track the range we just inserted (from original position to new position)
+      const { to } = editor.state.selection;
+      interimRangeRef.current = { from, to };
+      interimTextRef.current = text;
+      
+      // Apply interim styling by selecting and setting color
+      editor.chain()
+        .setTextSelection({ from, to })
+        .setColor('#9ca3af')
+        .run();
     }
-  }, [editor, interimText]);
+  }, [editor]);
 
   // Initialize speech recognition
   const {
@@ -503,17 +512,26 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     continuous: true,
   });
   
-  // Clear interim text when recording stops
+  // When recording stops, convert any remaining interim text to permanent
   useEffect(() => {
-    if (!isRecording && interimText && cursorPosRef.current !== null && editor) {
-      editor.chain()
-        .focus()
-        .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-        .run();
-      setInterimText('');
-      cursorPosRef.current = null;
+    if (!isRecording && interimRangeRef.current && editor) {
+      const { from, to } = interimRangeRef.current;
+      const savedText = interimTextRef.current;
+      
+      if (savedText) {
+        // Remove the styled interim text and insert plain text
+        editor.chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContentAt(from, savedText + ' ')
+          .run();
+      }
+      
+      // Clear refs
+      interimRangeRef.current = null;
+      interimTextRef.current = '';
     }
-  }, [isRecording, interimText, editor]);
+  }, [isRecording, editor]);
 
 
   // Show dictation errors
@@ -921,7 +939,11 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openCamera = async () => {
     try {
+      console.log('[Camera] Opening camera with web API');
+      
+      // Use web camera API for both browser and Tauri (it works in the webview!)
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
       setShowCamera(true);
       
       // Wait for video element to be available
@@ -937,7 +959,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current || !editor) return;
+    if (!editor) return;
+    
+    // Capture from video canvas (works in both browser and Tauri webview)
+    if (!videoRef.current || !canvasRef.current) return;
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -949,42 +974,99 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    canvas.toBlob(async (blob) => {
+    canvas.toBlob((blob) => {
       if (!blob) return;
       
-      const formData = new FormData();
-      formData.append('file', blob, 'camera-photo.jpg');
+      // Create preview URL and store blob for later upload
+      const previewUrl = URL.createObjectURL(blob);
+      setCapturedPhotoUrl(previewUrl);
+      setCapturedPhotoBlob(blob);
       
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const imageUrl = `${API_BASE_URL}${data.url}`;
-          editor.chain().focus().setImage({ src: imageUrl }).run();
-          closeCamera();
-        }
-      } catch (error) {
-        console.error('Failed to upload photo:', error);
-        alert('Failed to upload photo. Please try again.');
+      // Stop the camera stream after capture (to release the camera)
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
       }
     }, 'image/jpeg', 1.0);
   };
 
+  const usePhoto = async () => {
+    if (!editor || !capturedPhotoBlob) return;
+    
+    setIsCapturingPhoto(true); // Reuse for "saving" state
+    try {
+      const formData = new FormData();
+      formData.append('file', capturedPhotoBlob, 'camera-photo.jpg');
+      
+      const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const imageUrl = `${API_BASE_URL}${data.url}`;
+        editor.chain().focus().setImage({ src: imageUrl }).run();
+        closeCamera();
+      } else {
+        throw new Error('Failed to upload photo');
+      }
+    } catch (error) {
+      console.error('Failed to upload photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setIsCapturingPhoto(false);
+    }
+  };
+
+  const retakePhoto = async () => {
+    // Clear the captured photo
+    if (capturedPhotoUrl) {
+      URL.revokeObjectURL(capturedPhotoUrl);
+    }
+    setCapturedPhotoUrl(null);
+    setCapturedPhotoBlob(null);
+    
+    // Restart the camera stream
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
+      
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Failed to restart camera:', error);
+    }
+  };
+
   const closeCamera = () => {
+    // Stop any camera stream
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
+    // Clean up captured photo preview
+    if (capturedPhotoUrl) {
+      URL.revokeObjectURL(capturedPhotoUrl);
+    }
+    setCapturedPhotoUrl(null);
+    setCapturedPhotoBlob(null);
     setShowCamera(false);
+    setIsCapturingPhoto(false);
   };
 
   const openVideoRecorder = async () => {
     try {
+      // Use web camera/mic API for preview (works in both browser and Tauri webview)
+      console.log('[Video] Opening video recorder');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: true, 
         audio: true 
@@ -1003,6 +1085,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const startVideoRecording = () => {
+    // Use web MediaRecorder for both browser and Tauri
     if (!videoRef.current || !videoRef.current.srcObject) return;
     
     const stream = videoRef.current.srcObject as MediaStream;
@@ -1042,12 +1125,15 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
               style: 'width: 100%; height: auto; border-radius: 0.5rem;',
             },
           }).run();
-          
-          closeVideoRecorder();
+        } else {
+          throw new Error('Upload failed');
         }
       } catch (error) {
         console.error('Failed to upload video:', error);
         alert('Failed to upload video. Please try again.');
+      } finally {
+        // Always close the recorder modal, even on failure
+        closeVideoRecorder();
       }
     };
     
@@ -1056,7 +1142,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     setIsRecordingVideo(true);
   };
 
-  const stopVideoRecording = () => {
+  const stopVideoRecording = async () => {
+    // Stop MediaRecorder (works in both browser and Tauri webview)
     if (mediaRecorderRef.current && isRecordingVideo) {
       mediaRecorderRef.current.stop();
       setIsRecordingVideo(false);
@@ -1064,16 +1151,23 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   };
 
   const closeVideoRecorder = () => {
+    // Stop MediaRecorder first
     if (mediaRecorderRef.current && isRecordingVideo) {
       mediaRecorderRef.current.stop();
     }
+    
+    // Stop camera stream before closing modal for smoother transition
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-    setShowVideoRecorder(false);
+    
+    // Small delay for smoother visual transition
     setIsRecordingVideo(false);
+    requestAnimationFrame(() => {
+      setShowVideoRecorder(false);
+    });
   };
 
   const toggleJsonFormat = () => {
@@ -1936,10 +2030,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
       {/* Camera Modal */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6 animate-scale-in">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Take Photo</h3>
+              <h3 className="text-lg font-semibold">
+                {capturedPhotoUrl ? 'Review Photo' : 'Take Photo'}
+              </h3>
               <button
                 onClick={closeCamera}
                 className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -1947,44 +2043,84 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                 ×
               </button>
             </div>
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="mt-4 flex gap-3 justify-center">
-              <button
-                onClick={capturePhoto}
-                className="px-6 py-3 rounded-lg transition-colors font-medium"
-                style={{
-                  backgroundColor: 'var(--color-accent)',
-                  color: 'var(--color-accent-text)',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
-              >
-                <Camera className="h-5 w-5 inline mr-2" />
-                Capture Photo
-              </button>
-              <button
-                onClick={closeCamera}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
+            
+            {/* Photo Preview - shown after capture */}
+            {capturedPhotoUrl ? (
+              <>
+                <div className="relative">
+                  <img 
+                    src={capturedPhotoUrl} 
+                    alt="Captured photo" 
+                    className="w-full rounded-lg"
+                  />
+                </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  {isCapturingPhoto ? (
+                    <div className="flex items-center gap-2 px-6 py-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-blue-600"></div>
+                      <span className="text-gray-600">Saving...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={usePhoto}
+                        className="px-6 py-3 rounded-lg transition-colors font-medium"
+                        style={{
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-accent-text)',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                      >
+                        Use Photo
+                      </button>
+                      <button
+                        onClick={retakePhoto}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                      >
+                        Retake
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Live camera preview (works in both browser and Tauri) */
+              <>
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full rounded-lg"
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  <button
+                    onClick={capturePhoto}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  >
+                    <Camera className="h-5 w-5 inline mr-2" />
+                    Take Photo
+                  </button>
+                  <button
+                    onClick={closeCamera}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
 
       {/* Video Recorder Modal */}
       {showVideoRecorder && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6 animate-scale-in">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Record Video</h3>
               <button

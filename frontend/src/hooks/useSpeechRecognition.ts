@@ -26,7 +26,126 @@ declare global {
   }
 }
 
-export const useSpeechRecognition = ({
+// Check if running in Tauri
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+/**
+ * Native Tauri implementation for macOS speech recognition
+ * Uses native Apple Speech framework via Rust FFI
+ */
+const useTauriSpeechRecognition = ({
+  onTranscript,
+}: UseSpeechRecognitionProps): UseSpeechRecognitionReturn => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<RecognitionState>('idle');
+  const onTranscriptRef = useRef(onTranscript);
+  const unlistenRef = useRef<(() => void) | null>(null);
+
+  // Keep callback ref up to date
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+  }, [onTranscript]);
+
+  // Set up event listener for speech transcription events from Rust
+  useEffect(() => {
+    let mounted = true;
+
+    const setupListener = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlisten = await listen<{ text: string; isFinal: boolean }>('speech-transcription', (event) => {
+          if (mounted) {
+            const { text, isFinal } = event.payload;
+            console.log('[TauriSpeech] Received transcription:', text, 'isFinal:', isFinal);
+            onTranscriptRef.current(text, isFinal);
+          }
+        });
+        unlistenRef.current = unlisten;
+      } catch (err) {
+        console.error('[TauriSpeech] Failed to set up event listener:', err);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      mounted = false;
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
+    };
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    try {
+      setError(null);
+      console.log('[TauriSpeech] Starting recording...');
+      
+      const { invoke } = await import('@tauri-apps/api/core');
+      
+      // First request authorization
+      const authorized = await invoke<boolean>('request_speech_authorization');
+      console.log('[TauriSpeech] Authorization result:', authorized);
+      
+      if (!authorized) {
+        setError('Speech recognition permission denied. Please grant permission in System Preferences > Security & Privacy > Privacy > Speech Recognition.');
+        return;
+      }
+      
+      // Start speech recognition
+      await invoke('start_speech_recognition');
+      setIsRecording(true);
+      setState('recording');
+      console.log('[TauriSpeech] Recording started successfully');
+    } catch (err: any) {
+      console.error('[TauriSpeech] Error starting recording:', err);
+      setError(`Failed to start speech recognition: ${err.message || err}`);
+      setIsRecording(false);
+      setState('idle');
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    try {
+      console.log('[TauriSpeech] Stopping recording...');
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('stop_speech_recognition');
+      setIsRecording(false);
+      setState('idle');
+      console.log('[TauriSpeech] Recording stopped successfully');
+    } catch (err: any) {
+      console.error('[TauriSpeech] Error stopping recording:', err);
+      setIsRecording(false);
+      setState('idle');
+    }
+  }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
+  return {
+    isRecording,
+    isSupported: true, // Native implementation always supported on macOS
+    error,
+    startRecording,
+    stopRecording,
+    toggleRecording,
+    state,
+  };
+};
+
+/**
+ * Web Speech API implementation for browsers
+ * Falls back to this when not running in Tauri
+ */
+const useWebSpeechRecognition = ({
   onTranscript,
   continuous = true,
   language = 'en-US',
@@ -298,3 +417,18 @@ export const useSpeechRecognition = ({
   };
 };
 
+/**
+ * Speech recognition hook that automatically uses native Tauri implementation
+ * when running in desktop app, or Web Speech API when running in browser.
+ */
+export const useSpeechRecognition = (props: UseSpeechRecognitionProps): UseSpeechRecognitionReturn => {
+  // Use native Tauri implementation when running in desktop app
+  if (isTauri) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useTauriSpeechRecognition(props);
+  }
+  
+  // Fall back to Web Speech API for browsers
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useWebSpeechRecognition(props);
+};

@@ -18,6 +18,12 @@
         { "url": "https://**" },
         { "url": "http://**" }
       ]
-    }
+    },
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-app-read",
+    "fs:allow-app-write",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-write"
   ]
 }

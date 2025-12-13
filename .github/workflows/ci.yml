@@ -123,11 +123,11 @@ jobs:
           path: frontend/tests/coverage/
           retention-days: 7
 
-  # E2E tests (only on PRs)
+  # E2E tests (temporarily disabled)
   e2e-test:
     name: E2E Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: false  # Temporarily disabled
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

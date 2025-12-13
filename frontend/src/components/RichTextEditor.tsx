@@ -113,6 +113,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const interimRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [isTauriMode, setIsTauriMode] = useState(false); // Track if using Tauri native capture
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -931,42 +933,54 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
 
   const openCamera = async () => {
     try {
-      // If running in Tauri, use native camera capture directly (no preview modal)
+      // If running in Tauri, show modal with capturing indicator
       if (isTauri) {
         console.log('[Tauri] Using native camera capture');
-        const { invoke } = await import('@tauri-apps/api/core');
+        setIsTauriMode(true);
+        setShowCamera(true);
+        setIsCapturingPhoto(true);
         
-        // Request camera permission first
-        await invoke('request_camera_permission');
-        
-        // Capture photo directly using native API
-        const photoPath = await invoke<string>('capture_photo');
-        console.log('[Tauri] Photo captured at:', photoPath);
-        
-        // Read the file and upload to backend
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const fileData = await readFile(photoPath);
-        const blob = new Blob([fileData], { type: 'image/jpeg' });
-        
-        const formData = new FormData();
-        formData.append('file', blob, 'camera-photo.jpg');
-        
-        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const imageUrl = `${API_BASE_URL}${data.url}`;
-          editor?.chain().focus().setImage({ src: imageUrl }).run();
-        } else {
-          throw new Error('Failed to upload photo');
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          
+          // Request camera permission first
+          await invoke('request_camera_permission');
+          
+          // Capture photo directly using native API
+          const photoPath = await invoke<string>('capture_photo');
+          console.log('[Tauri] Photo captured at:', photoPath);
+          
+          // Read the file and upload to backend
+          const { readFile } = await import('@tauri-apps/plugin-fs');
+          const fileData = await readFile(photoPath);
+          const blob = new Blob([fileData], { type: 'image/jpeg' });
+          
+          const formData = new FormData();
+          formData.append('file', blob, 'camera-photo.jpg');
+          
+          const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const imageUrl = `${API_BASE_URL}${data.url}`;
+            editor?.chain().focus().setImage({ src: imageUrl }).run();
+            closeCamera();
+          } else {
+            throw new Error('Failed to upload photo');
+          }
+        } catch (error) {
+          console.error('[Tauri] Camera capture error:', error);
+          alert(`Failed to capture photo: ${error}`);
+          closeCamera();
         }
         return;
       }
       
       // Web browser: show camera preview modal
+      setIsTauriMode(false);
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setShowCamera(true);
       
@@ -1027,30 +1041,41 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
       videoRef.current.srcObject = null;
     }
     setShowCamera(false);
+    setIsCapturingPhoto(false);
+    setIsTauriMode(false);
   };
 
   const openVideoRecorder = async () => {
     try {
-      // If running in Tauri, start recording directly without preview modal
+      // If running in Tauri, start recording directly with native API
       if (isTauri) {
         console.log('[Tauri] Using native video recording');
-        const { invoke } = await import('@tauri-apps/api/core');
+        setIsTauriMode(true);
+        setShowVideoRecorder(true); // Show modal first
         
-        // Request permissions
-        await invoke('request_camera_permission');
-        await invoke('request_microphone_permission');
-        
-        // Start recording and get the output file path
-        const videoPath = await invoke<string>('start_video_recording');
-        console.log('[Tauri] Video recording started, output:', videoPath);
-        
-        tauriVideoPathRef.current = videoPath;
-        setIsRecordingVideo(true);
-        setShowVideoRecorder(true); // Show minimal UI to indicate recording
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          
+          // Request permissions
+          await invoke('request_camera_permission');
+          await invoke('request_microphone_permission');
+          
+          // Start recording and get the output file path
+          const videoPath = await invoke<string>('start_video_recording');
+          console.log('[Tauri] Video recording started, output:', videoPath);
+          
+          tauriVideoPathRef.current = videoPath;
+          setIsRecordingVideo(true);
+        } catch (error) {
+          console.error('[Tauri] Video recording error:', error);
+          alert(`Failed to start video recording: ${error}`);
+          closeVideoRecorder();
+        }
         return;
       }
       
       // Web browser: show camera preview modal
+      setIsTauriMode(false);
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: true, 
         audio: true 
@@ -1209,6 +1234,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     }
     setShowVideoRecorder(false);
     setIsRecordingVideo(false);
+    setIsTauriMode(false);
   };
 
   const toggleJsonFormat = () => {
@@ -2075,43 +2101,56 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
           <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Take Photo</h3>
-              <button
-                onClick={closeCamera}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-              >
-                ×
-              </button>
+              {!isCapturingPhoto && (
+                <button
+                  onClick={closeCamera}
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              )}
             </div>
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="mt-4 flex gap-3 justify-center">
-              <button
-                onClick={capturePhoto}
-                className="px-6 py-3 rounded-lg transition-colors font-medium"
-                style={{
-                  backgroundColor: 'var(--color-accent)',
-                  color: 'var(--color-accent-text)',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
-              >
-                <Camera className="h-5 w-5 inline mr-2" />
-                Capture Photo
-              </button>
-              <button
-                onClick={closeCamera}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
+            {/* Tauri mode: show capturing indicator */}
+            {isTauriMode ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+                <p className="text-lg font-medium text-gray-700">Capturing photo...</p>
+                <p className="text-sm text-gray-500 mt-2">Please wait while the camera captures your image</p>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full rounded-lg"
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  <button
+                    onClick={capturePhoto}
+                    className="px-6 py-3 rounded-lg transition-colors font-medium"
+                    style={{
+                      backgroundColor: 'var(--color-accent)',
+                      color: 'var(--color-accent-text)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                  >
+                    <Camera className="h-5 w-5 inline mr-2" />
+                    Capture Photo
+                  </button>
+                  <button
+                    onClick={closeCamera}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2129,53 +2168,91 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                 ×
               </button>
             </div>
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted={!isRecordingVideo}
-                className="w-full rounded-lg"
-              />
-              {isRecordingVideo && (
-                <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 animate-pulse">
-                  <div className="w-3 h-3 bg-white rounded-full"></div>
-                  Recording...
+            {/* Tauri mode: show recording indicator without video preview */}
+            {isTauriMode ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                {isRecordingVideo ? (
+                  <>
+                    <div className="relative mb-6">
+                      <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full bg-red-600 animate-pulse flex items-center justify-center">
+                          <div className="w-6 h-6 bg-white rounded-sm"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-lg font-medium text-gray-700 mb-2">Recording in progress...</p>
+                    <p className="text-sm text-gray-500 mb-6">Video is being captured from your camera</p>
+                    <button
+                      onClick={stopVideoRecording}
+                      className="px-6 py-3 rounded-lg transition-colors font-medium"
+                      style={{
+                        backgroundColor: 'var(--color-accent)',
+                        color: 'var(--color-accent-text)',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                    >
+                      Stop & Save
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+                    <p className="text-lg font-medium text-gray-700">Starting recording...</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted={!isRecordingVideo}
+                    className="w-full rounded-lg"
+                  />
+                  {isRecordingVideo && (
+                    <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 animate-pulse">
+                      <div className="w-3 h-3 bg-white rounded-full"></div>
+                      Recording...
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="mt-4 flex gap-3 justify-center">
-              {!isRecordingVideo ? (
-                <>
-                  <button
-                    onClick={startVideoRecording}
-                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                  >
-                    <Video className="h-5 w-5 inline mr-2" />
-                    Start Recording
-                  </button>
-                  <button
-                    onClick={closeVideoRecorder}
-                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={stopVideoRecording}
-                  className="px-6 py-3 rounded-lg transition-colors font-medium"
-                  style={{
-                    backgroundColor: 'var(--color-accent)',
-                    color: 'var(--color-accent-text)',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
-                >
-                  Stop & Save
-                </button>
-              )}
-            </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  {!isRecordingVideo ? (
+                    <>
+                      <button
+                        onClick={startVideoRecording}
+                        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                      >
+                        <Video className="h-5 w-5 inline mr-2" />
+                        Start Recording
+                      </button>
+                      <button
+                        onClick={closeVideoRecorder}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={stopVideoRecording}
+                      className="px-6 py-3 rounded-lg transition-colors font-medium"
+                      style={{
+                        backgroundColor: 'var(--color-accent)',
+                        color: 'var(--color-accent-text)',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                    >
+                      Stop & Save
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

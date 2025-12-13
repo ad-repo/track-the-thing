@@ -114,6 +114,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [capturedPhotoBlob, setCapturedPhotoBlob] = useState<Blob | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -975,27 +977,15 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         const photoPath = await invoke<string>('capture_photo');
         console.log('[Tauri] Photo captured at:', photoPath);
         
-        // Read the file and upload to backend
+        // Read the file for preview
         const { readFile } = await import('@tauri-apps/plugin-fs');
         const fileData = await readFile(photoPath);
         const blob = new Blob([fileData], { type: 'image/jpeg' });
         
-        const formData = new FormData();
-        formData.append('file', blob, 'camera-photo.jpg');
-        
-        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const imageUrl = `${API_BASE_URL}${data.url}`;
-          editor.chain().focus().setImage({ src: imageUrl }).run();
-          closeCamera();
-        } else {
-          throw new Error('Failed to upload photo');
-        }
+        // Create preview URL and store blob for later upload
+        const previewUrl = URL.createObjectURL(blob);
+        setCapturedPhotoUrl(previewUrl);
+        setCapturedPhotoBlob(blob);
       } catch (error) {
         console.error('[Tauri] Camera capture error:', error);
         alert(`Failed to capture photo: ${error}`);
@@ -1018,29 +1008,52 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    canvas.toBlob(async (blob) => {
+    canvas.toBlob((blob) => {
       if (!blob) return;
       
-      const formData = new FormData();
-      formData.append('file', blob, 'camera-photo.jpg');
-      
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const imageUrl = `${API_BASE_URL}${data.url}`;
-          editor.chain().focus().setImage({ src: imageUrl }).run();
-          closeCamera();
-        }
-      } catch (error) {
-        console.error('Failed to upload photo:', error);
-        alert('Failed to upload photo. Please try again.');
-      }
+      // Create preview URL and store blob for later upload
+      const previewUrl = URL.createObjectURL(blob);
+      setCapturedPhotoUrl(previewUrl);
+      setCapturedPhotoBlob(blob);
     }, 'image/jpeg', 1.0);
+  };
+
+  const usePhoto = async () => {
+    if (!editor || !capturedPhotoBlob) return;
+    
+    setIsCapturingPhoto(true); // Reuse for "saving" state
+    try {
+      const formData = new FormData();
+      formData.append('file', capturedPhotoBlob, 'camera-photo.jpg');
+      
+      const response = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const imageUrl = `${API_BASE_URL}${data.url}`;
+        editor.chain().focus().setImage({ src: imageUrl }).run();
+        closeCamera();
+      } else {
+        throw new Error('Failed to upload photo');
+      }
+    } catch (error) {
+      console.error('Failed to upload photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setIsCapturingPhoto(false);
+    }
+  };
+
+  const retakePhoto = () => {
+    // Clear the captured photo and go back to capture mode
+    if (capturedPhotoUrl) {
+      URL.revokeObjectURL(capturedPhotoUrl);
+    }
+    setCapturedPhotoUrl(null);
+    setCapturedPhotoBlob(null);
   };
 
   const closeCamera = () => {
@@ -1054,6 +1067,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
+    // Clean up captured photo preview
+    if (capturedPhotoUrl) {
+      URL.revokeObjectURL(capturedPhotoUrl);
+    }
+    setCapturedPhotoUrl(null);
+    setCapturedPhotoBlob(null);
     setShowCamera(false);
     setIsCapturingPhoto(false);
   };
@@ -2022,36 +2041,37 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Take Photo</h3>
-              {!isCapturingPhoto && (
-                <button
-                  onClick={closeCamera}
-                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-                >
-                  ×
-                </button>
-              )}
+              <h3 className="text-lg font-semibold">
+                {capturedPhotoUrl ? 'Review Photo' : 'Take Photo'}
+              </h3>
+              <button
+                onClick={closeCamera}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                ×
+              </button>
             </div>
             
-            {/* Tauri desktop: no live preview, just capture button */}
-            {isTauri ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                {isCapturingPhoto ? (
-                  <>
-                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
-                    <p className="text-lg font-medium text-gray-700">Capturing photo...</p>
-                    <p className="text-sm text-gray-500 mt-2">Please wait</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-                      <Camera className="h-16 w-16 text-gray-400" />
+            {/* Photo Preview - shown after capture */}
+            {capturedPhotoUrl ? (
+              <>
+                <div className="relative">
+                  <img 
+                    src={capturedPhotoUrl} 
+                    alt="Captured photo" 
+                    className="w-full rounded-lg"
+                  />
+                </div>
+                <div className="mt-4 flex gap-3 justify-center">
+                  {isCapturingPhoto ? (
+                    <div className="flex items-center gap-2 px-6 py-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-blue-600"></div>
+                      <span className="text-gray-600">Saving...</span>
                     </div>
-                    <p className="text-lg font-medium text-gray-700 mb-2">Ready to capture</p>
-                    <p className="text-sm text-gray-500 mb-6">Click the button below to take a photo with your camera</p>
-                    <div className="flex gap-3">
+                  ) : (
+                    <>
                       <button
-                        onClick={capturePhoto}
+                        onClick={usePhoto}
                         className="px-6 py-3 rounded-lg transition-colors font-medium"
                         style={{
                           backgroundColor: 'var(--color-accent)',
@@ -2060,8 +2080,39 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
                       >
+                        Use Photo
+                      </button>
+                      <button
+                        onClick={retakePhoto}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                      >
+                        Retake
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : isTauri ? (
+              /* Tauri: capture button (no live preview) */
+              <div className="flex flex-col items-center justify-center py-12">
+                {isCapturingPhoto ? (
+                  <>
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+                    <p className="text-lg font-medium text-gray-700">Capturing...</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mb-6">
+                      <Camera className="h-16 w-16 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 mb-6">Click to take a photo</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={capturePhoto}
+                        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                      >
                         <Camera className="h-5 w-5 inline mr-2" />
-                        Capture Photo
+                        Take Photo
                       </button>
                       <button
                         onClick={closeCamera}
@@ -2074,8 +2125,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                 )}
               </div>
             ) : (
+              /* Web browser: live camera preview */
               <>
-                {/* Web browser: live camera preview */}
                 <div className="relative">
                   <video
                     ref={videoRef}
@@ -2088,16 +2139,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
                 <div className="mt-4 flex gap-3 justify-center">
                   <button
                     onClick={capturePhoto}
-                    className="px-6 py-3 rounded-lg transition-colors font-medium"
-                    style={{
-                      backgroundColor: 'var(--color-accent)',
-                      color: 'var(--color-accent-text)',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-accent)'}
+                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                   >
                     <Camera className="h-5 w-5 inline mr-2" />
-                    Capture Photo
+                    Take Photo
                   </button>
                   <button
                     onClick={closeCamera}

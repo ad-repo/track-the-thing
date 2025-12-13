@@ -108,8 +108,9 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const lowlight = createLowlight(common);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [dictationError, setDictationError] = useState<string | null>(null);
-  const [interimText, setInterimText] = useState<string>('');
-  const cursorPosRef = useRef<number | null>(null);
+  // Use refs for interim text tracking to avoid stale closure issues
+  const interimTextRef = useRef<string>('');
+  const interimRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -452,50 +453,45 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     },
   });
 
-  // Speech recognition callback
+  // Speech recognition callback - uses refs to avoid stale closure issues
   const handleTranscript = useCallback((text: string, isFinal: boolean) => {
     if (!editor || !text.trim()) return;
     
+    // Delete any existing interim text first (using tracked range)
+    if (interimRangeRef.current) {
+      const { from, to } = interimRangeRef.current;
+      editor.chain()
+        .focus()
+        .deleteRange({ from, to })
+        .run();
+      interimRangeRef.current = null;
+      interimTextRef.current = '';
+    }
+    
     if (isFinal) {
-      // Final result: insert permanently and clear interim
-      // If there's interim text showing, remove it first
-      if (interimText && cursorPosRef.current !== null) {
-        // Remove interim text by deleting from saved position
-        editor.chain()
-          .focus()
-          .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-          .insertContentAt(cursorPosRef.current, text)
-          .run();
-      } else {
-        // No interim text, just insert
-        editor.chain().focus().insertContent(text).run();
-      }
-      
-      setInterimText('');
-      cursorPosRef.current = null;
+      // Final result: insert as plain text permanently
+      editor.chain().focus().insertContent(text + ' ').run();
       setDictationError(null);
     } else {
-      // Interim result: show as preview
-      // Remove previous interim text and insert new one
-      if (interimText && cursorPosRef.current !== null) {
-        editor.chain()
-          .focus()
-          .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-          .insertContentAt(cursorPosRef.current, `<span style="color: #9ca3af; font-style: italic;">${text}</span>`)
-          .run();
-      } else {
-        // First interim text, save cursor position
-        const { from } = editor.state.selection;
-        cursorPosRef.current = from;
-        editor.chain()
-          .focus()
-          .insertContent(`<span style="color: #9ca3af; font-style: italic;">${text}</span>`)
-          .run();
-      }
+      // Interim result: insert styled text and track the range
+      const { from } = editor.state.selection;
+      editor.chain()
+        .focus()
+        .insertContent(text)
+        .run();
       
-      setInterimText(text);
+      // Track the range we just inserted (from original position to new position)
+      const { to } = editor.state.selection;
+      interimRangeRef.current = { from, to };
+      interimTextRef.current = text;
+      
+      // Apply interim styling by selecting and setting color
+      editor.chain()
+        .setTextSelection({ from, to })
+        .setColor('#9ca3af')
+        .run();
     }
-  }, [editor, interimText]);
+  }, [editor]);
 
   // Initialize speech recognition
   const {
@@ -508,21 +504,26 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     continuous: true,
   });
   
-  // When recording stops, convert interim text to permanent text (not styled as interim)
+  // When recording stops, convert any remaining interim text to permanent
   useEffect(() => {
-    if (!isRecording && interimText && cursorPosRef.current !== null && editor) {
-      // Remove the styled interim text and insert plain text
-      // This handles cases where we have interim text but never got a final result
-      // (e.g., when user manually stops recording in Tauri native mode)
-      editor.chain()
-        .focus()
-        .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
-        .insertContentAt(cursorPosRef.current, interimText)
-        .run();
-      setInterimText('');
-      cursorPosRef.current = null;
+    if (!isRecording && interimRangeRef.current && editor) {
+      const { from, to } = interimRangeRef.current;
+      const savedText = interimTextRef.current;
+      
+      if (savedText) {
+        // Remove the styled interim text and insert plain text
+        editor.chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContentAt(from, savedText + ' ')
+          .run();
+      }
+      
+      // Clear refs
+      interimRangeRef.current = null;
+      interimTextRef.current = '';
     }
-  }, [isRecording, interimText, editor]);
+  }, [isRecording, editor]);
 
 
   // Show dictation errors

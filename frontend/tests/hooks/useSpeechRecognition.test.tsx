@@ -2,17 +2,20 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
-const TestComponent = () => {
-  const { isRecording, startRecording, stopRecording, isSupported } = useSpeechRecognition({
-    onTranscript: vi.fn(),
+const TestComponent = ({ onTranscript = vi.fn() }: { onTranscript?: (text: string, isFinal: boolean) => void }) => {
+  const { isRecording, startRecording, stopRecording, isSupported, error, state, toggleRecording } = useSpeechRecognition({
+    onTranscript,
   });
 
   return (
     <div>
       <span data-testid="supported">{isSupported ? 'supported' : 'unsupported'}</span>
       <span data-testid="status">{isRecording ? 'recording' : 'idle'}</span>
+      <span data-testid="state">{state}</span>
+      <span data-testid="error">{error || 'no-error'}</span>
       <button onClick={startRecording}>start</button>
       <button onClick={stopRecording}>stop</button>
+      <button onClick={toggleRecording}>toggle</button>
     </div>
   );
 };
@@ -102,6 +105,53 @@ describe('useSpeechRecognition', () => {
     renderHook();
 
     expect(screen.getByTestId('supported')).toHaveTextContent('unsupported');
+  });
+
+  it('toggles recording state when toggleRecording is called', async () => {
+    renderHook();
+
+    // Start recording via toggle
+    fireEvent.click(screen.getByText('toggle'));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('recording'));
+
+    // Stop recording via toggle
+    fireEvent.click(screen.getByText('toggle'));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('idle'));
+  });
+
+  it('reports idle state initially', () => {
+    renderHook();
+    expect(screen.getByTestId('state')).toHaveTextContent('idle');
+  });
+
+  it('reports recording state after starting', async () => {
+    renderHook();
+    
+    fireEvent.click(screen.getByText('start'));
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('recording'));
+  });
+
+  it('reports no error initially', () => {
+    renderHook();
+    expect(screen.getByTestId('error')).toHaveTextContent('no-error');
+  });
+
+  it('starts recognition when start is clicked', async () => {
+    render(<TestComponent />);
+
+    fireEvent.click(screen.getByText('start'));
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('recording'));
+
+    // Recognition instance start should have been called
+    expect(recognitionInstance.start).toHaveBeenCalled();
+  });
+
+  it('supports webkit prefixed speech recognition', () => {
+    window.SpeechRecognition = undefined as any;
+    window.webkitSpeechRecognition = vi.fn(() => recognitionInstance) as any;
+    
+    renderHook();
+    expect(screen.getByTestId('supported')).toHaveTextContent('supported');
   });
 });
 

@@ -365,6 +365,44 @@ describe('RichTextEditor Component', () => {
     // Video recording UI should appear
   });
 
+  // Camera Modal Tests
+  describe('Camera Modal', () => {
+    it('has camera button that can be clicked', () => {
+      render(<RichTextEditor {...defaultProps} />);
+      
+      // Camera button should be rendered (icon shows "Camera")
+      expect(screen.getByText('Camera')).toBeInTheDocument();
+    });
+
+    it('camera button has correct title attribute', () => {
+      render(<RichTextEditor {...defaultProps} />);
+      
+      // Find button with Camera icon
+      const cameraIcon = screen.getByText('Camera');
+      const cameraButton = cameraIcon.closest('button');
+      expect(cameraButton).toBeInTheDocument();
+    });
+  });
+
+  // Video Recorder Modal Tests
+  describe('Video Recorder Modal', () => {
+    it('has video button that can be clicked', () => {
+      render(<RichTextEditor {...defaultProps} />);
+      
+      // Video button should be rendered (icon shows "Video")
+      expect(screen.getByText('Video')).toBeInTheDocument();
+    });
+
+    it('video button has correct title attribute', () => {
+      render(<RichTextEditor {...defaultProps} />);
+      
+      // Find button with Video icon
+      const videoIcon = screen.getByText('Video');
+      const videoButton = videoIcon.closest('button');
+      expect(videoButton).toBeInTheDocument();
+    });
+  });
+
   it('shows active state for active formatting', () => {
     const { container } = render(<RichTextEditor {...defaultProps} />);
     

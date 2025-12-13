@@ -47,8 +47,18 @@ const useTauriSpeechRecognition = ({
     onTranscriptRef.current = onTranscript;
   }, [onTranscript]);
 
-  // Set up event listener for speech transcription events from Rust
+  // Set up event listener ONLY when this editor is recording
+  // This prevents multiple editors from all receiving the same transcription
   useEffect(() => {
+    if (!isRecording) {
+      // Clean up listener when not recording
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
+      return;
+    }
+
     let mounted = true;
 
     const setupListener = async () => {
@@ -76,7 +86,7 @@ const useTauriSpeechRecognition = ({
         unlistenRef.current = null;
       }
     };
-  }, []);
+  }, [isRecording]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -94,10 +104,10 @@ const useTauriSpeechRecognition = ({
         return;
       }
       
-      // Start speech recognition
-      await invoke('start_speech_recognition');
+      // Start speech recognition - set isRecording first so listener is set up
       setIsRecording(true);
       setState('recording');
+      await invoke('start_speech_recognition');
       console.log('[TauriSpeech] Recording started successfully');
     } catch (err: any) {
       console.error('[TauriSpeech] Error starting recording:', err);

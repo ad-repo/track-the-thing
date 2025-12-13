@@ -16,24 +16,31 @@ extern "C" {
 // Global state to hold the app handle for callbacks (using OnceLock for thread safety)
 static APP_HANDLE: OnceLock<Arc<Mutex<AppHandle>>> = OnceLock::new();
 
-// Global state for authorization callback
-static AUTH_SENDER: OnceLock<Arc<Mutex<Option<oneshot::Sender<bool>>>>> = OnceLock::new();
+// Queue of pending authorization senders. Since all requests are asking about
+// the same system-level permission, when the callback fires we complete all
+// pending requests with the same result.
+static AUTH_SENDERS: OnceLock<Arc<Mutex<Vec<oneshot::Sender<bool>>>>> = OnceLock::new();
 
 // Initialize the speech recognition system
 pub fn init_speech_system(app: AppHandle) {
     let _ = APP_HANDLE.set(Arc::new(Mutex::new(app)));
-    let _ = AUTH_SENDER.set(Arc::new(Mutex::new(None)));
+    let _ = AUTH_SENDERS.set(Arc::new(Mutex::new(Vec::new())));
 }
 
-// Callback for authorization
+// Callback for authorization - completes all pending authorization requests
+// since they all ask about the same system-level permission
 #[cfg(target_os = "macos")]
 extern "C" fn authorization_callback(authorized: bool) {
     println!("[Speech] Authorization callback: {}", authorized);
-    if let Some(sender_arc) = AUTH_SENDER.get() {
-        if let Ok(mut guard) = sender_arc.lock() {
-            if let Some(sender) = guard.take() {
+    if let Some(senders_arc) = AUTH_SENDERS.get() {
+        if let Ok(mut guard) = senders_arc.lock() {
+            // Drain all pending senders and complete them with the result
+            let senders: Vec<_> = guard.drain(..).collect();
+            let count = senders.len();
+            for sender in senders {
                 let _ = sender.send(authorized);
             }
+            println!("[Speech] Completed {} pending authorization request(s)", count);
         }
     }
 }
@@ -85,20 +92,25 @@ pub async fn request_speech_authorization() -> Result<bool, String> {
         // Create a oneshot channel for the callback
         let (tx, rx) = oneshot::channel();
         
-        // Store the sender in the global state
-        if let Some(sender_arc) = AUTH_SENDER.get() {
-            if let Ok(mut guard) = sender_arc.lock() {
-                *guard = Some(tx);
+        // Check if this is the first request (queue was empty)
+        let should_request = if let Some(senders_arc) = AUTH_SENDERS.get() {
+            if let Ok(mut guard) = senders_arc.lock() {
+                let was_empty = guard.is_empty();
+                guard.push(tx);
+                was_empty
             } else {
-                return Err("Failed to acquire lock on AUTH_SENDER".to_string());
+                return Err("Failed to acquire lock on AUTH_SENDERS".to_string());
             }
         } else {
             return Err("Speech system not initialized".to_string());
-        }
+        };
         
-        // Request authorization
-        unsafe {
-            speech_request_authorization(authorization_callback);
+        // Only request authorization if we're the first request
+        // (subsequent requests will wait for the same callback)
+        if should_request {
+            unsafe {
+                speech_request_authorization(authorization_callback);
+            }
         }
         
         // Wait for the callback with a timeout

@@ -33,60 +33,68 @@ pub async fn capture_photo(app: AppHandle) -> Result<String, String> {
     let photos_dir = get_media_dir(&app, "photos")?;
     println!("[Media] Photos directory: {:?}", photos_dir);
 
-    // Initialize camera
-    println!("[Media] Initializing camera...");
-    let index = CameraIndex::Index(0); // Use first camera
-    let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+    // Run camera operations in a blocking thread since Camera is not Send
+    // and cannot be held across await points. Using spawn_blocking allows
+    // std::thread::sleep without blocking the async runtime.
+    let result = tokio::task::spawn_blocking(move || {
+        // Initialize camera
+        println!("[Media] Initializing camera...");
+        let index = CameraIndex::Index(0); // Use first camera
+        let requested = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
-    let mut camera = Camera::new(index, requested)
-        .map_err(|e| {
-            let err_msg = format!("Failed to initialize camera: {}", e);
-            println!("[Media] Error: {}", err_msg);
-            err_msg
-        })?;
+        let mut camera = Camera::new(index, requested)
+            .map_err(|e| {
+                let err_msg = format!("Failed to initialize camera: {}", e);
+                println!("[Media] Error: {}", err_msg);
+                err_msg
+            })?;
 
-    // Open camera stream
-    camera
-        .open_stream()
-        .map_err(|e| format!("Failed to open camera stream: {}", e))?;
+        // Open camera stream
+        camera
+            .open_stream()
+            .map_err(|e| format!("Failed to open camera stream: {}", e))?;
 
-    println!("[Media] Camera stream opened, warming up...");
-    
-    // Give the camera a moment to adjust (auto-exposure, etc)
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    
-    // Capture a few frames to let auto-exposure settle
-    for _ in 0..5 {
-        let _ = camera.frame();
-    }
+        println!("[Media] Camera stream opened, warming up...");
+        
+        // Give the camera a moment to adjust (auto-exposure, etc)
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        
+        // Capture a few frames to let auto-exposure settle
+        for _ in 0..5 {
+            let _ = camera.frame();
+        }
 
-    // Capture frame
-    println!("[Media] Capturing frame...");
-    let frame = camera
-        .frame()
-        .map_err(|e| format!("Failed to capture frame: {}", e))?;
+        // Capture frame
+        println!("[Media] Capturing frame...");
+        let frame = camera
+            .frame()
+            .map_err(|e| format!("Failed to capture frame: {}", e))?;
 
-    // Convert to image
-    let image = frame.decode_image::<RgbFormat>()
-        .map_err(|e| format!("Failed to decode image: {}", e))?;
+        // Convert to image
+        let image = frame.decode_image::<RgbFormat>()
+            .map_err(|e| format!("Failed to decode image: {}", e))?;
 
-    // Generate filename
-    let filename = format!("photo_{}.jpg", chrono::Utc::now().timestamp());
-    let file_path = photos_dir.join(&filename);
+        // Generate filename
+        let filename = format!("photo_{}.jpg", chrono::Utc::now().timestamp());
+        let file_path = photos_dir.join(&filename);
 
-    // Save image
-    image
-        .save(&file_path)
-        .map_err(|e| format!("Failed to save image: {}", e))?;
+        // Save image
+        image
+            .save(&file_path)
+            .map_err(|e| format!("Failed to save image: {}", e))?;
 
-    // Stop camera
-    camera.stop_stream()
-        .map_err(|e| format!("Failed to stop camera: {}", e))?;
+        // Stop camera
+        camera.stop_stream()
+            .map_err(|e| format!("Failed to stop camera: {}", e))?;
 
-    println!("[Media] Photo saved to: {:?}", file_path);
-    
-    // Return the file path for uploading to backend
-    Ok(file_path.to_string_lossy().to_string())
+        println!("[Media] Photo saved to: {:?}", file_path);
+        
+        Ok::<String, String>(file_path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Camera task panicked: {}", e))??;
+
+    Ok(result)
 }
 
 #[tauri::command]

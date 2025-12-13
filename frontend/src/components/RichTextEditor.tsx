@@ -508,12 +508,16 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     continuous: true,
   });
   
-  // Clear interim text when recording stops
+  // When recording stops, convert interim text to permanent text (not styled as interim)
   useEffect(() => {
     if (!isRecording && interimText && cursorPosRef.current !== null && editor) {
+      // Remove the styled interim text and insert plain text
+      // This handles cases where we have interim text but never got a final result
+      // (e.g., when user manually stops recording in Tauri native mode)
       editor.chain()
         .focus()
         .deleteRange({ from: cursorPosRef.current, to: cursorPosRef.current + interimText.length })
+        .insertContentAt(cursorPosRef.current, interimText)
         .run();
       setInterimText('');
       cursorPosRef.current = null;

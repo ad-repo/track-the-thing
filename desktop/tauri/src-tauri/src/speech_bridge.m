@@ -12,6 +12,7 @@ static SFSpeechRecognitionTask *recognitionTask = nil;
 static AVAudioEngine *audioEngine = nil;
 static TranscriptionCallback transcriptionCallback = NULL;
 static BOOL tapInstalled = NO;  // Track if audio tap is installed
+static NSString *lastTranscription = nil;  // Store last transcription for final emit
 
 // Helper function to safely remove audio tap
 static void safelyRemoveTap(void) {
@@ -95,6 +96,9 @@ void speech_request_authorization(void (*callback)(bool)) {
 // Start recording and recognizing speech
 bool speech_start_recording(TranscriptionCallback callback) {
     speech_initialize();
+    
+    // Clear any previous transcription
+    lastTranscription = nil;
     
     // Check authorization first
     SFSpeechRecognizerAuthorizationStatus authStatus = [SFSpeechRecognizer authorizationStatus];
@@ -187,15 +191,20 @@ bool speech_start_recording(TranscriptionCallback callback) {
                   error.localizedDescription, error.domain, (long)error.code);
         }
         
-        if (result != nil && transcriptionCallback != NULL) {
+        if (result != nil) {
             NSString *transcription = result.bestTranscription.formattedString;
-            const char *cString = [transcription UTF8String];
             bool isFinal = result.isFinal;
             
             NSLog(@"[SpeechBridge] Transcription: %@ (final: %d)", transcription, isFinal);
             
-            // Call the callback
-            transcriptionCallback(cString, isFinal);
+            // Store the last transcription (for when user manually stops)
+            lastTranscription = [transcription copy];
+            
+            // Call the callback if still active
+            if (transcriptionCallback != NULL) {
+                const char *cString = [transcription UTF8String];
+                transcriptionCallback(cString, isFinal);
+            }
         }
         
         // Only clean up on error - let speech_stop_recording handle normal completion
@@ -220,6 +229,18 @@ bool speech_start_recording(TranscriptionCallback callback) {
 // Stop recording
 void speech_stop_recording(void) {
     NSLog(@"[SpeechBridge] speech_stop_recording called");
+    
+    // Emit the last transcription as final before cleanup
+    // This ensures any interim text gets saved when user manually stops
+    if (lastTranscription != nil && lastTranscription.length > 0 && transcriptionCallback != NULL) {
+        NSLog(@"[SpeechBridge] Emitting final transcription: %@", lastTranscription);
+        const char *cString = [lastTranscription UTF8String];
+        transcriptionCallback(cString, true);  // true = isFinal
+    }
+    
+    // Clear last transcription
+    lastTranscription = nil;
+    
     cleanupRecognition();
 }
 

@@ -11,6 +11,7 @@ from app.routers import (
     custom_emojis,
     entries,
     goals,
+    jupyter,
     labels,
     link_preview,
     lists,
@@ -58,6 +59,7 @@ app.include_router(goals.router)
 app.include_router(reminders.router)
 app.include_router(llm.router)
 app.include_router(mcp.router)
+app.include_router(jupyter.router)
 
 
 @app.get('/')

@@ -456,3 +456,51 @@ export interface McpMatchResult {
   description?: string;
 }
 
+// ===========================
+// Jupyter Types
+// ===========================
+
+export interface JupyterStatus {
+  docker_available: boolean;
+  container_running: boolean;
+  kernel_id: string | null;
+  error: string | null;
+}
+
+export interface JupyterSettings {
+  jupyter_enabled: boolean;
+  jupyter_auto_start: boolean;
+  jupyter_python_version: string;
+  jupyter_custom_image: string;
+  docker_available: boolean;
+}
+
+export interface JupyterSettingsUpdate {
+  jupyter_enabled?: boolean;
+  jupyter_auto_start?: boolean;
+  jupyter_python_version?: string;
+  jupyter_custom_image?: string;
+}
+
+export interface JupyterOutput {
+  type: 'stdout' | 'stderr' | 'display_data' | 'execute_result' | 'error';
+  text?: string;
+  data?: Record<string, string>;  // mime_type -> content
+  mime_type?: string;
+}
+
+export interface JupyterExecuteResponse {
+  outputs: JupyterOutput[];
+  execution_count: number;
+  status: 'ok' | 'error';
+  error_name?: string;
+  error_value?: string;
+  traceback?: string[];
+}
+
+export interface JupyterExportCell {
+  code: string;
+  outputs: JupyterOutput[];
+  execution_count: number | null;
+}
+

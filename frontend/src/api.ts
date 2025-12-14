@@ -40,6 +40,11 @@ import type {
   McpDockerStatus,
   McpServerLogs,
   McpMatchResult,
+  JupyterStatus,
+  JupyterSettings,
+  JupyterSettingsUpdate,
+  JupyterExecuteResponse,
+  JupyterExportCell,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -537,6 +542,66 @@ export const mcpApi = {
 
   updateSettings: async (settings: McpSettingsUpdate): Promise<McpSettings> => {
     const response = await api.patch<McpSettings>('/api/mcp/settings', settings);
+    return response.data;
+  },
+};
+
+// Jupyter API
+export const jupyterApi = {
+  getStatus: async (): Promise<JupyterStatus> => {
+    const response = await api.get<JupyterStatus>('/api/jupyter/status');
+    return response.data;
+  },
+
+  getSettings: async (): Promise<JupyterSettings> => {
+    const response = await api.get<JupyterSettings>('/api/jupyter/settings');
+    return response.data;
+  },
+
+  updateSettings: async (settings: JupyterSettingsUpdate): Promise<JupyterSettings> => {
+    const response = await api.patch<JupyterSettings>('/api/jupyter/settings', settings);
+    return response.data;
+  },
+
+  start: async (): Promise<{ success: boolean; kernel_id?: string; error?: string }> => {
+    const response = await api.post<{ success: boolean; kernel_id?: string; error?: string }>('/api/jupyter/start');
+    return response.data;
+  },
+
+  stop: async (): Promise<{ success: boolean; error?: string }> => {
+    const response = await api.post<{ success: boolean; error?: string }>('/api/jupyter/stop');
+    return response.data;
+  },
+
+  execute: async (code: string): Promise<JupyterExecuteResponse> => {
+    const response = await api.post<JupyterExecuteResponse>('/api/jupyter/execute', { code });
+    return response.data;
+  },
+
+  interrupt: async (): Promise<{ success: boolean; error?: string }> => {
+    const response = await api.post<{ success: boolean; error?: string }>('/api/jupyter/interrupt');
+    return response.data;
+  },
+
+  restart: async (): Promise<{ success: boolean; error?: string }> => {
+    const response = await api.post<{ success: boolean; error?: string }>('/api/jupyter/restart');
+    return response.data;
+  },
+
+  getLogs: async (tail?: number): Promise<{ logs: string }> => {
+    const response = await api.get<{ logs: string }>('/api/jupyter/logs', { params: { tail } });
+    return response.data;
+  },
+
+  healthCheck: async (): Promise<{ healthy: boolean; error?: string }> => {
+    const response = await api.get<{ healthy: boolean; error?: string }>('/api/jupyter/health');
+    return response.data;
+  },
+
+  exportNotebook: async (cells: JupyterExportCell[], filename?: string): Promise<Blob> => {
+    const response = await api.post('/api/jupyter/export', { cells, filename: filename || 'notebook.ipynb' }, {
+      responseType: 'blob',
+    });
     return response.data;
   },
 };

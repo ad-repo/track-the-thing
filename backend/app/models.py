@@ -105,6 +105,11 @@ class AppSettings(Base):
     mcp_enabled = Column(Integer, default=0)  # 0/1 boolean - enable MCP routing
     mcp_idle_timeout = Column(Integer, default=300)  # Seconds before stopping idle containers
     mcp_fallback_to_llm = Column(Integer, default=1)  # 0/1 boolean - fallback to LLM if MCP fails
+    # Jupyter integration settings
+    jupyter_enabled = Column(Integer, default=0)  # 0/1 boolean - enable Jupyter notebooks
+    jupyter_auto_start = Column(Integer, default=0)  # 0/1 boolean - auto-start container
+    jupyter_python_version = Column(String, default='3.11')  # Python version: 3.9, 3.10, 3.11, 3.12, or 'custom'
+    jupyter_custom_image = Column(String, default='')  # Custom Docker image when version is 'custom'
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -319,3 +324,15 @@ class McpRoutingRule(Base):
 
     # Relationships
     mcp_server = relationship('McpServer', back_populates='routing_rules')
+
+
+class JupyterSession(Base):
+    """Model for tracking Jupyter kernel sessions"""
+
+    __tablename__ = 'jupyter_sessions'
+
+    id = Column(Integer, primary_key=True, index=True)
+    kernel_id = Column(String, unique=True, nullable=False, index=True)
+    status = Column(String, default='idle')  # idle, busy, dead
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target, Sparkles, Server } from 'lucide-react';
+import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target, Sparkles, Server, FileCode, Play, Square, RefreshCw } from 'lucide-react';
 import axios from 'axios';
-import { listsApi, entriesApi, goalsApi } from '../api';
+import { listsApi, entriesApi, goalsApi, jupyterApi } from '../api';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { useTheme, Theme } from '../contexts/ThemeContext';
 import { useCustomBackground } from '../contexts/CustomBackgroundContext';
@@ -18,7 +18,7 @@ import GoalCard from './GoalCard';
 import GoalForm from './GoalForm';
 import McpServerManager from './McpServerManager';
 import { useTexture } from '../hooks/useTexture';
-import type { Goal, GoalCreate, GoalUpdate, LlmProvider, OpenaiApiType } from '../types';
+import type { Goal, GoalCreate, GoalUpdate, LlmProvider, OpenaiApiType, JupyterStatus, JupyterSettings } from '../types';
 
 interface Label {
   id: number;
@@ -282,6 +282,135 @@ const Settings = () => {
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
   const [savingLlmSettings, setSavingLlmSettings] = useState(false);
 
+  // Jupyter Notebooks state
+  const [jupyterStatus, setJupyterStatus] = useState<JupyterStatus | null>(null);
+  const [jupyterSettings, setJupyterSettings] = useState<JupyterSettings | null>(null);
+  const [jupyterLoading, setJupyterLoading] = useState(false);
+  const [jupyterActionLoading, setJupyterActionLoading] = useState<string | null>(null);
+
+  const loadJupyterSettings = useCallback(async () => {
+    try {
+      const [status, settings] = await Promise.all([
+        jupyterApi.getStatus(),
+        jupyterApi.getSettings(),
+      ]);
+      setJupyterStatus(status);
+      setJupyterSettings(settings);
+    } catch (error) {
+      console.error('Error loading Jupyter settings:', error);
+    }
+  }, []);
+
+  const handleJupyterToggle = async (field: 'jupyter_enabled' | 'jupyter_auto_start') => {
+    if (!jupyterSettings) return;
+    
+    const newValue = !jupyterSettings[field];
+    
+    // Optimistic update
+    setJupyterSettings(prev => prev ? { ...prev, [field]: newValue } : prev);
+    
+    try {
+      await jupyterApi.updateSettings({ [field]: newValue });
+      await loadJupyterSettings();
+    } catch (error) {
+      console.error('Error updating Jupyter setting:', error);
+      // Revert on error
+      setJupyterSettings(prev => prev ? { ...prev, [field]: !newValue } : prev);
+      showMessage('error', 'Failed to update Jupyter setting');
+    }
+  };
+
+  const handleJupyterVersionChange = async (version: string) => {
+    if (!jupyterSettings) return;
+    
+    const oldValue = jupyterSettings.jupyter_python_version;
+    
+    // Optimistic update
+    setJupyterSettings(prev => prev ? { ...prev, jupyter_python_version: version } : prev);
+    
+    try {
+      await jupyterApi.updateSettings({ jupyter_python_version: version });
+      // If container is running, show message about restart
+      if (jupyterStatus?.container_running) {
+        showMessage('success', 'Python version updated. Restart container for changes to take effect.');
+      }
+    } catch (error) {
+      console.error('Error updating Python version:', error);
+      setJupyterSettings(prev => prev ? { ...prev, jupyter_python_version: oldValue } : prev);
+      showMessage('error', 'Failed to update Python version');
+    }
+  };
+
+  const handleJupyterCustomImageChange = async (image: string) => {
+    if (!jupyterSettings) return;
+    
+    // Optimistic update
+    setJupyterSettings(prev => prev ? { ...prev, jupyter_custom_image: image } : prev);
+    
+    // Debounce the API call - only save after user stops typing
+    // For simplicity, we'll save immediately but could add debounce
+    try {
+      await jupyterApi.updateSettings({ jupyter_custom_image: image });
+    } catch (error) {
+      console.error('Error updating custom image:', error);
+      showMessage('error', 'Failed to update custom image');
+    }
+  };
+
+  const handleJupyterStart = async () => {
+    setJupyterActionLoading('start');
+    try {
+      const result = await jupyterApi.start();
+      if (result.success) {
+        showMessage('success', 'Jupyter container started successfully');
+        await loadJupyterSettings();
+      } else {
+        showMessage('error', result.error || 'Failed to start Jupyter container');
+      }
+    } catch (error: any) {
+      console.error('Error starting Jupyter:', error);
+      showMessage('error', error.response?.data?.detail || 'Failed to start Jupyter container');
+    } finally {
+      setJupyterActionLoading(null);
+    }
+  };
+
+  const handleJupyterStop = async () => {
+    setJupyterActionLoading('stop');
+    try {
+      const result = await jupyterApi.stop();
+      if (result.success) {
+        showMessage('success', 'Jupyter container stopped');
+        await loadJupyterSettings();
+      } else {
+        showMessage('error', result.error || 'Failed to stop Jupyter container');
+      }
+    } catch (error: any) {
+      console.error('Error stopping Jupyter:', error);
+      showMessage('error', error.response?.data?.detail || 'Failed to stop Jupyter container');
+    } finally {
+      setJupyterActionLoading(null);
+    }
+  };
+
+  const handleJupyterRestart = async () => {
+    setJupyterActionLoading('restart');
+    try {
+      const result = await jupyterApi.restart();
+      if (result.success) {
+        showMessage('success', 'Jupyter kernel restarted');
+        await loadJupyterSettings();
+      } else {
+        showMessage('error', 'Failed to restart Jupyter kernel');
+      }
+    } catch (error: any) {
+      console.error('Error restarting Jupyter:', error);
+      showMessage('error', error.response?.data?.detail || 'Failed to restart Jupyter kernel');
+    } finally {
+      setJupyterActionLoading(null);
+    }
+  };
+
   const loadLlmSettings = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/settings`);
@@ -333,7 +462,8 @@ const Settings = () => {
     loadLabels();
     loadDailyGoalEndTime();
     loadLlmSettings();
-  }, []);
+    loadJupyterSettings();
+  }, [loadJupyterSettings]);
 
   const loadDailyGoalEndTime = async () => {
     try {
@@ -1159,6 +1289,287 @@ const Settings = () => {
               will be processed by MCP servers instead of cloud LLMs.
             </p>
             <McpServerManager onMessage={showMessage} />
+          </div>
+        </section>
+
+        {/* Jupyter Notebooks Section */}
+        <section className="mb-6">
+          <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <FileCode className="h-5 w-5" />
+            Jupyter Notebooks
+          </h2>
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+              Enable Jupyter notebook cells in the rich text editor for inline Python code execution.
+              Requires Docker to be running on your system.
+            </p>
+
+            {/* Docker Status Banner */}
+            {jupyterSettings && !jupyterSettings.docker_available && (
+              <div 
+                className="mb-4 p-3 rounded-lg flex items-center gap-2"
+                style={{
+                  backgroundColor: `${getComputedStyle(document.documentElement).getPropertyValue('--color-warning')}15`,
+                  border: '1px solid var(--color-warning)'
+                }}
+              >
+                <span className="text-lg">⚠️</span>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-warning)' }}>
+                    Docker Not Available
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    Install and start Docker Desktop to use Jupyter notebooks
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Container Status Row - MCP style */}
+            {jupyterStatus && jupyterSettings?.docker_available && (
+              <div 
+                className="mb-4 p-3 rounded-lg flex items-center gap-3"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-primary)'
+                }}
+              >
+                {/* Status dot */}
+                <div 
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ 
+                    backgroundColor: jupyterStatus.container_running 
+                      ? 'var(--color-success)' 
+                      : 'var(--color-text-tertiary)'
+                  }}
+                />
+                
+                {/* Container info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                    <span className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                      Jupyter Kernel Gateway
+                    </span>
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: jupyterStatus.container_running 
+                          ? 'rgba(34, 197, 94, 0.2)' 
+                          : 'rgba(148, 163, 184, 0.2)',
+                        color: jupyterStatus.container_running 
+                          ? 'var(--color-success)' 
+                          : 'var(--color-text-tertiary)',
+                      }}
+                    >
+                      {jupyterActionLoading === 'start' ? 'starting' : 
+                       jupyterActionLoading === 'stop' ? 'stopping' :
+                       jupyterStatus.container_running ? 'running' : 'stopped'}
+                    </span>
+                  </div>
+                  <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                    {jupyterStatus.kernel_id 
+                      ? `Kernel: ${jupyterStatus.kernel_id.slice(0, 8)}... • Port 8888`
+                      : 'jupyter/minimal-notebook:python-3.11 • Port 8888'}
+                  </p>
+                </div>
+
+                {/* Action Buttons - icon only like MCP */}
+                <div className="flex items-center gap-1">
+                  {jupyterStatus.container_running ? (
+                    <>
+                      <button
+                        onClick={handleJupyterStop}
+                        disabled={jupyterActionLoading !== null}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ 
+                          color: 'var(--color-text-secondary)',
+                          opacity: jupyterActionLoading !== null ? 0.5 : 1,
+                        }}
+                        title="Stop"
+                      >
+                        <Square className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleJupyterRestart}
+                        disabled={jupyterActionLoading !== null}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ 
+                          color: 'var(--color-text-secondary)',
+                          opacity: jupyterActionLoading !== null ? 0.5 : 1,
+                        }}
+                        title="Restart Kernel"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleJupyterStart}
+                      disabled={jupyterActionLoading !== null}
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ 
+                        color: 'var(--color-success)',
+                        opacity: jupyterActionLoading !== null ? 0.5 : 1,
+                      }}
+                      title="Start"
+                    >
+                      <Play className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Settings Toggles */}
+            <div className="space-y-3">
+              {/* Enable Jupyter */}
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{ 
+                  backgroundColor: 'var(--color-bg-secondary)', 
+                  border: '1px solid var(--color-border-primary)',
+                  opacity: jupyterSettings?.docker_available ? 1 : 0.5,
+                }}
+              >
+                <div>
+                  <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    Enable Jupyter Integration
+                  </h3>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    Show notebook cell button in the editor toolbar
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleJupyterToggle('jupyter_enabled')}
+                  disabled={!jupyterSettings?.docker_available}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                  style={{
+                    backgroundColor: jupyterSettings?.jupyter_enabled ? 'var(--color-accent)' : 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border-primary)',
+                    cursor: jupyterSettings?.docker_available ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  <span
+                    className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"
+                    style={{
+                      transform: jupyterSettings?.jupyter_enabled ? 'translateX(1.4rem)' : 'translateX(0.2rem)',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Auto-start Container */}
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{ 
+                  backgroundColor: 'var(--color-bg-secondary)', 
+                  border: '1px solid var(--color-border-primary)',
+                  opacity: jupyterSettings?.docker_available && jupyterSettings?.jupyter_enabled ? 1 : 0.5,
+                }}
+              >
+                <div>
+                  <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    Auto-start Container
+                  </h3>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    Automatically start the Jupyter container when inserting a notebook cell
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleJupyterToggle('jupyter_auto_start')}
+                  disabled={!jupyterSettings?.docker_available || !jupyterSettings?.jupyter_enabled}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                  style={{
+                    backgroundColor: jupyterSettings?.jupyter_auto_start ? 'var(--color-accent)' : 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border-primary)',
+                    cursor: (jupyterSettings?.docker_available && jupyterSettings?.jupyter_enabled) ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  <span
+                    className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"
+                    style={{
+                      transform: jupyterSettings?.jupyter_auto_start ? 'translateX(1.4rem)' : 'translateX(0.2rem)',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Python Version Selector */}
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{ 
+                  backgroundColor: 'var(--color-bg-secondary)', 
+                  border: '1px solid var(--color-border-primary)',
+                  opacity: jupyterSettings?.docker_available && jupyterSettings?.jupyter_enabled ? 1 : 0.5,
+                }}
+              >
+                <div>
+                  <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    Python Version
+                  </h3>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    Requires container restart to take effect
+                  </p>
+                </div>
+                <select
+                  value={jupyterSettings?.jupyter_python_version || '3.11'}
+                  onChange={(e) => handleJupyterVersionChange(e.target.value)}
+                  disabled={!jupyterSettings?.docker_available || !jupyterSettings?.jupyter_enabled}
+                  className="px-3 py-1.5 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                    cursor: (jupyterSettings?.docker_available && jupyterSettings?.jupyter_enabled) ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  <option value="3.9">Python 3.9</option>
+                  <option value="3.10">Python 3.10</option>
+                  <option value="3.11">Python 3.11</option>
+                  <option value="3.12">Python 3.12</option>
+                  <option value="custom">Custom Image...</option>
+                </select>
+              </div>
+
+              {/* Custom Image Input - only shown when 'custom' is selected */}
+              {jupyterSettings?.jupyter_python_version === 'custom' && (
+                <div 
+                  className="p-3 rounded-lg"
+                  style={{ 
+                    backgroundColor: 'var(--color-bg-secondary)', 
+                    border: '1px solid var(--color-border-primary)',
+                  }}
+                >
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                    Custom Docker Image
+                  </label>
+                  <input
+                    type="text"
+                    value={jupyterSettings?.jupyter_custom_image || ''}
+                    onChange={(e) => handleJupyterCustomImageChange(e.target.value)}
+                    placeholder="e.g., python:3.11.5-slim or jupyter/scipy-notebook"
+                    className="w-full px-3 py-1.5 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border-primary)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                    Use any Docker image (e.g., python:3.11.5, jupyter/scipy-notebook)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Info Footer */}
+            <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--color-border-primary)' }}>
+              <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                💡 Insert notebook cells in the editor using the <FileCode className="inline h-3 w-3" /> button.
+                Code is executed in an isolated Docker container with Python {jupyterSettings?.jupyter_python_version === 'custom' ? (jupyterSettings?.jupyter_custom_image || 'custom image') : jupyterSettings?.jupyter_python_version || '3.11'}.
+              </p>
+            </div>
           </div>
         </section>
 

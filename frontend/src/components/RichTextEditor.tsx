@@ -38,17 +38,19 @@ import {
   CaseSensitive,
   CheckSquare,
   Sparkles,
+  FileCode,
 } from 'lucide-react';
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
 import { AiResponseExtension } from '../extensions/AiResponse';
+import { NotebookCellExtension } from '../extensions/NotebookCell';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
 import { normalizeColorForInput } from '../utils/color';
-import { llmApi } from '../api';
-import type { McpMatchResult } from '../types';
+import { llmApi, jupyterApi } from '../api';
+import type { McpMatchResult, JupyterStatus } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -148,6 +150,8 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
   const [llmError, setLlmError] = useState<string | null>(null);
   const [mcpMatch, setMcpMatch] = useState<McpMatchResult | null>(null);
   const [hasTextSelection, setHasTextSelection] = useState(false);
+  const [jupyterStatus, setJupyterStatus] = useState<JupyterStatus | null>(null);
+  const [jupyterLoading, setJupyterLoading] = useState(false);
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -286,6 +290,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
       }),
       LinkPreviewExtension,
       AiResponseExtension,
+      NotebookCellExtension,
       Placeholder.configure({
         placeholder,
       }),
@@ -600,6 +605,19 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Fetch Jupyter status on mount
+  useEffect(() => {
+    const fetchJupyterStatus = async () => {
+      try {
+        const status = await jupyterApi.getStatus();
+        setJupyterStatus(status);
+      } catch {
+        setJupyterStatus({ docker_available: false, container_running: false, kernel_id: null, error: 'Failed to check status' });
+      }
+    };
+    fetchJupyterStatus();
   }, []);
 
   // Close font menus when clicking outside (must be before conditional return)
@@ -978,6 +996,46 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     setLinkModalError(null);
     linkSelectionRef.current = null;
     setShowLinkModal(true);
+  };
+
+  const insertNotebookCell = async () => {
+    if (!editor || !jupyterStatus?.docker_available) return;
+
+    // Start container if not running
+    if (!jupyterStatus.container_running) {
+      setJupyterLoading(true);
+      try {
+        await jupyterApi.start();
+        const status = await jupyterApi.getStatus();
+        setJupyterStatus(status);
+      } catch (error) {
+        console.error('Failed to start Jupyter:', error);
+        setJupyterLoading(false);
+        return;
+      }
+      setJupyterLoading(false);
+    }
+
+    // Count existing cells to set cell number
+    let cellCount = 0;
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === 'notebookCell') {
+        cellCount++;
+      }
+    });
+
+    editor.chain()
+      .focus()
+      .insertContent({
+        type: 'notebookCell',
+        attrs: {
+          cellNumber: cellCount + 1,
+          code: '',
+          outputs: '[]',
+          status: 'idle',
+        },
+      })
+      .run();
   };
 
   const sendToLlm = async () => {
@@ -1957,6 +2015,43 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
             )}
           </div>
         </button>
+
+        {/* Jupyter Notebook Cell Button */}
+        <ToolbarButton
+          onClick={insertNotebookCell}
+          disabled={!jupyterStatus?.docker_available || jupyterLoading}
+          title={
+            !jupyterStatus?.docker_available
+              ? 'Jupyter requires Docker to be installed and running'
+              : jupyterLoading
+              ? 'Starting Jupyter...'
+              : jupyterStatus?.container_running
+              ? 'Insert Jupyter Cell'
+              : 'Insert Jupyter Cell (will start container)'
+          }
+        >
+          <div className="relative">
+            <FileCode
+              className="h-4 w-4"
+              style={{
+                opacity: jupyterStatus?.docker_available ? 1 : 0.4,
+              }}
+            />
+            {jupyterLoading && (
+              <div
+                className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: '#f59e0b' }}
+              />
+            )}
+            {jupyterStatus?.container_running && !jupyterLoading && (
+              <div
+                className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: '#22c55e' }}
+                title="Jupyter container running"
+              />
+            )}
+          </div>
+        </ToolbarButton>
 
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />

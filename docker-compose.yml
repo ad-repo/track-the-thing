@@ -115,8 +115,30 @@ services:
       - test
       - e2e
 
+  jupyter:
+    image: jupyter/minimal-notebook:python-3.11
+    container_name: track-the-thing-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN:-trackthething}
+    volumes:
+      - jupyter_data:/home/jovyan/work
+    command: >
+      bash -c "pip install --quiet jupyter_kernel_gateway &&
+      jupyter kernelgateway
+      --KernelGatewayApp.api=kernel_gateway.jupyter_websocket
+      --KernelGatewayApp.ip=0.0.0.0
+      --KernelGatewayApp.port=8888
+      --KernelGatewayApp.allow_origin=*
+      --KernelGatewayApp.auth_token=${JUPYTER_TOKEN:-trackthething}"
+    restart: unless-stopped
+    profiles:
+      - jupyter
+
 volumes:
   backend_data:
+  jupyter_data:
 
 networks:
   default:

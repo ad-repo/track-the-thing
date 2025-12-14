@@ -10,35 +10,42 @@ Adds fields to support building MCP server images from Dockerfiles:
 import sqlite3
 
 
-def migrate_up(db_path: str) -> None:
+def migrate_up(db_path: str) -> bool:
     """Add Dockerfile build fields to mcp_servers table."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Check if columns already exist
-    cursor.execute("PRAGMA table_info(mcp_servers)")
-    columns = {row[1] for row in cursor.fetchall()}
+    try:
+        # Check if columns already exist
+        cursor.execute("PRAGMA table_info(mcp_servers)")
+        columns = {row[1] for row in cursor.fetchall()}
 
-    if 'build_source' not in columns:
-        cursor.execute(
-            "ALTER TABLE mcp_servers ADD COLUMN build_source TEXT DEFAULT 'image'"
-        )
-        print("Added build_source column to mcp_servers")
+        if 'build_source' not in columns:
+            cursor.execute(
+                "ALTER TABLE mcp_servers ADD COLUMN build_source TEXT DEFAULT 'image'"
+            )
+            print("Added build_source column to mcp_servers")
 
-    if 'build_context' not in columns:
-        cursor.execute(
-            "ALTER TABLE mcp_servers ADD COLUMN build_context TEXT DEFAULT ''"
-        )
-        print("Added build_context column to mcp_servers")
+        if 'build_context' not in columns:
+            cursor.execute(
+                "ALTER TABLE mcp_servers ADD COLUMN build_context TEXT DEFAULT ''"
+            )
+            print("Added build_context column to mcp_servers")
 
-    if 'dockerfile_path' not in columns:
-        cursor.execute(
-            "ALTER TABLE mcp_servers ADD COLUMN dockerfile_path TEXT DEFAULT ''"
-        )
-        print("Added dockerfile_path column to mcp_servers")
+        if 'dockerfile_path' not in columns:
+            cursor.execute(
+                "ALTER TABLE mcp_servers ADD COLUMN dockerfile_path TEXT DEFAULT ''"
+            )
+            print("Added dockerfile_path column to mcp_servers")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Migration failed: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
 
 
 def migrate_down(db_path: str) -> None:

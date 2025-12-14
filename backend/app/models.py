@@ -271,16 +271,22 @@ class LlmConversation(Base):
 
 
 class McpServer(Base):
-    """Model for MCP server configurations"""
+    """Model for MCP server configurations - supports Docker and remote HTTP servers"""
 
     __tablename__ = 'mcp_servers'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
-    image = Column(String, nullable=False)
-    port = Column(Integer, nullable=False)
+    server_type = Column(String, default='docker')  # 'docker' or 'remote'
+    # Docker-specific fields
+    image = Column(String, default='')  # Docker image (required for docker type)
+    port = Column(Integer, default=0)  # Container port (required for docker type)
+    # Remote-specific fields
+    url = Column(String, default='')  # Remote endpoint URL (required for remote type)
+    headers = Column(Text, default='{}')  # JSON object of HTTP headers for auth
+    # Common fields
     description = Column(Text, default='')
-    env_vars = Column(Text, default='[]')  # JSON array of env var names
+    env_vars = Column(Text, default='[]')  # JSON array of env var names (docker) or config values (remote)
     status = Column(String, default='stopped')  # stopped, starting, running, error
     last_health_check = Column(DateTime, nullable=True)
     auto_start = Column(Integer, default=0)  # 0/1 boolean

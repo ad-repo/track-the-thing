@@ -113,8 +113,11 @@ async def export_data(db: Session = Depends(get_db)):
             {
                 'id': server.id,
                 'name': server.name,
-                'image': server.image,
-                'port': server.port,
+                'server_type': getattr(server, 'server_type', 'docker') or 'docker',
+                'image': server.image or '',
+                'port': server.port or 0,
+                'url': getattr(server, 'url', '') or '',
+                'headers': getattr(server, 'headers', '{}') or '{}',
                 'description': server.description or '',
                 'env_vars': server.env_vars or '[]',
                 'auto_start': bool(server.auto_start),
@@ -711,8 +714,11 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                     if not existing_server:
                         new_server = models.McpServer(
                             name=server_data['name'],
-                            image=server_data['image'],
-                            port=server_data['port'],
+                            server_type=server_data.get('server_type', 'docker'),
+                            image=server_data.get('image', ''),
+                            port=server_data.get('port', 0),
+                            url=server_data.get('url', ''),
+                            headers=server_data.get('headers', '{}'),
                             description=server_data.get('description', ''),
                             env_vars=server_data.get('env_vars', '[]'),
                             auto_start=1 if server_data.get('auto_start', False) else 0,

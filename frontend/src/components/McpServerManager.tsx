@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Globe,
+  Container,
 } from 'lucide-react';
 import { mcpApi } from '../api';
 import type {
@@ -23,6 +25,7 @@ import type {
   McpDockerStatus,
   McpRoutingRule,
   McpRoutingRuleCreate,
+  McpServerType,
 } from '../types';
 
 interface McpServerManagerProps {
@@ -47,12 +50,17 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
   // Form state
   const [newServer, setNewServer] = useState<McpServerCreate>({
     name: '',
+    server_type: 'docker',
     image: '',
     port: 8011,
+    url: '',
+    headers: {},
     description: '',
     env_vars: [],
     auto_start: false,
   });
+  const [headerKey, setHeaderKey] = useState('');
+  const [headerValue, setHeaderValue] = useState('');
   const [manifestUrl, setManifestUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -169,8 +177,16 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
   };
 
   const handleCreateServer = async () => {
-    if (!newServer.name || !newServer.image) {
-      onMessageRef.current?.('error', 'Name and image are required');
+    if (!newServer.name) {
+      onMessageRef.current?.('error', 'Name is required');
+      return;
+    }
+    if (newServer.server_type === 'docker' && !newServer.image) {
+      onMessageRef.current?.('error', 'Docker image is required for Docker servers');
+      return;
+    }
+    if (newServer.server_type === 'remote' && !newServer.url) {
+      onMessageRef.current?.('error', 'URL is required for remote servers');
       return;
     }
     setSaving(true);
@@ -180,12 +196,17 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setShowAddForm(false);
       setNewServer({
         name: '',
+        server_type: 'docker',
         image: '',
         port: 8011,
+        url: '',
+        headers: {},
         description: '',
         env_vars: [],
         auto_start: false,
       });
+      setHeaderKey('');
+      setHeaderValue('');
       onMessageRef.current?.('success', 'MCP server created');
     } catch (error: any) {
       console.error('Failed to create server:', error);
@@ -193,6 +214,24 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddHeader = () => {
+    if (!headerKey.trim()) return;
+    setNewServer((prev) => ({
+      ...prev,
+      headers: { ...prev.headers, [headerKey]: headerValue },
+    }));
+    setHeaderKey('');
+    setHeaderValue('');
+  };
+
+  const handleRemoveHeader = (key: string) => {
+    setNewServer((prev) => {
+      const updated = { ...prev.headers };
+      delete updated[key];
+      return { ...prev, headers: updated };
+    });
   };
 
   const handleImportManifest = async () => {
@@ -302,7 +341,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               Docker is not available
             </p>
             <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              MCP servers require Docker to run. Please install and start Docker.
+              Docker-based MCP servers require Docker. Remote HTTP servers still work.
             </p>
           </div>
         </div>
@@ -321,13 +360,12 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
             Enable MCP Servers
           </h3>
           <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Route text selections to local AI containers based on patterns
+            Route text selections to local Docker or remote HTTP MCP servers
           </p>
         </div>
         <button
           onClick={handleToggleEnabled}
-          disabled={!dockerStatus?.available}
-          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
           style={{
             backgroundColor: settings?.mcp_enabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
             border: '1px solid var(--color-border-primary)',
@@ -465,6 +503,11 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
+                        {server.server_type === 'remote' ? (
+                          <Globe className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                        ) : (
+                          <Container className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                        )}
                         <span className="font-medium text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
                           {server.name}
                         </span>
@@ -479,7 +522,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                         </span>
                       </div>
                       <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-                        {server.image} • Port {server.port}
+                        {server.server_type === 'remote' ? server.url : `${server.image} • Port ${server.port}`}
                       </p>
                     </div>
 
@@ -660,99 +703,248 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
         </div>
       )}
 
-      {/* Add Server Modal */}
+      {/* Inline Add Server Form */}
       {showAddForm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+          className="rounded-xl shadow-lg"
+          style={{
+            backgroundColor: 'var(--color-bg-primary)',
+            border: '1px solid var(--color-border-primary)',
+          }}
         >
+          {/* Header */}
           <div
-            className="w-full max-w-md rounded-2xl shadow-2xl p-6"
+            className="flex items-center justify-between p-4 border-b rounded-t-xl"
             style={{
-              backgroundColor: 'var(--color-bg-primary)',
-              border: '1px solid var(--color-border-primary)',
+              borderColor: 'var(--color-border-primary)',
+              backgroundColor: 'var(--color-bg-secondary)',
             }}
           >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              Add MCP Server
-            </h3>
+            <div className="flex items-center gap-2">
+              <Server className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+              <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                Add MCP Server
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="p-1.5 rounded-lg transition-colors hover:bg-[var(--color-bg-tertiary)]"
+              style={{ color: 'var(--color-text-tertiary)' }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={newServer.name}
-                  onChange={(e) => setNewServer((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g. summarizer"
-                  className="w-full px-3 py-2 rounded-lg text-sm"
+          {/* Form Content */}
+          <div className="p-4 space-y-4">
+            {/* Server Type Toggle */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                Server Type
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'docker' }))}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
+                    backgroundColor: newServer.server_type === 'docker' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: newServer.server_type === 'docker' ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
                     border: '1px solid var(--color-border-primary)',
-                    color: 'var(--color-text-primary)',
                   }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                  Docker Image
-                </label>
-                <input
-                  type="text"
-                  value={newServer.image}
-                  onChange={(e) => setNewServer((prev) => ({ ...prev, image: e.target.value }))}
-                  placeholder="e.g. ghcr.io/user/mcp-summarizer:latest"
-                  className="w-full px-3 py-2 rounded-lg text-sm"
+                >
+                  <Container className="w-4 h-4" />
+                  Docker
+                </button>
+                <button
+                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'remote' }))}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
+                    backgroundColor: newServer.server_type === 'remote' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: newServer.server_type === 'remote' ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
                     border: '1px solid var(--color-border-primary)',
-                    color: 'var(--color-text-primary)',
                   }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                  Port
-                </label>
-                <input
-                  type="number"
-                  value={newServer.port}
-                  onChange={(e) => setNewServer((prev) => ({ ...prev, port: parseInt(e.target.value) || 8011 }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    border: '1px solid var(--color-border-primary)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                  Description (optional)
-                </label>
-                <input
-                  type="text"
-                  value={newServer.description}
-                  onChange={(e) => setNewServer((prev) => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    border: '1px solid var(--color-border-primary)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                />
+                >
+                  <Globe className="w-4 h-4" />
+                  Remote
+                </button>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                Name
+              </label>
+              <input
+                type="text"
+                value={newServer.name}
+                onChange={(e) => setNewServer((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder={newServer.server_type === 'remote' ? 'e.g. github-copilot' : 'e.g. summarizer'}
+                className="w-full px-3 py-2 rounded-lg text-sm"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-primary)',
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+            </div>
+
+            {/* Docker-specific fields */}
+            {newServer.server_type === 'docker' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                    Docker Image
+                  </label>
+                  <input
+                    type="text"
+                    value={newServer.image}
+                    onChange={(e) => setNewServer((prev) => ({ ...prev, image: e.target.value }))}
+                    placeholder="e.g. ghcr.io/user/mcp-summarizer:latest"
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border-primary)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                    Port
+                  </label>
+                  <input
+                    type="number"
+                    value={newServer.port}
+                    onChange={(e) => setNewServer((prev) => ({ ...prev, port: parseInt(e.target.value) || 8011 }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border-primary)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Remote-specific fields */}
+            {newServer.server_type === 'remote' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                    Endpoint URL
+                  </label>
+                  <input
+                    type="url"
+                    value={newServer.url}
+                    onChange={(e) => setNewServer((prev) => ({ ...prev, url: e.target.value }))}
+                    placeholder="e.g. https://api.githubcopilot.com/mcp/"
+                    className="w-full px-3 py-2 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border-primary)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                    HTTP Headers
+                  </label>
+                  <p className="text-xs mb-2" style={{ color: 'var(--color-text-tertiary)' }}>
+                    Add authentication headers (e.g., Authorization: Bearer TOKEN)
+                  </p>
+                  <div className="space-y-2">
+                    {Object.entries(newServer.headers || {}).map(([key, value]) => (
+                      <div
+                        key={key}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+                        style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
+                      >
+                        <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {key}:
+                        </span>
+                        <span className="flex-1 truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                          {key.toLowerCase().includes('auth') || key.toLowerCase().includes('key')
+                            ? '••••••••'
+                            : value}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveHeader(key)}
+                          className="p-1 rounded hover:bg-red-500/10"
+                          style={{ color: 'var(--color-error)' }}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={headerKey}
+                        onChange={(e) => setHeaderKey(e.target.value)}
+                        placeholder="Header name"
+                        className="flex-1 px-3 py-2 rounded-lg text-sm"
+                        style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          border: '1px solid var(--color-border-primary)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={headerValue}
+                        onChange={(e) => setHeaderValue(e.target.value)}
+                        placeholder="Value"
+                        className="flex-1 px-3 py-2 rounded-lg text-sm"
+                        style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          border: '1px solid var(--color-border-primary)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      />
+                      <button
+                        onClick={handleAddHeader}
+                        className="px-3 py-2 rounded-lg text-sm font-medium"
+                        style={{
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-accent-text)',
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                Description
+              </label>
+              <input
+                type="text"
+                value={newServer.description}
+                onChange={(e) => setNewServer((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Optional description"
+                className="w-full px-3 py-2 rounded-lg text-sm"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-primary)',
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="px-4 py-2 rounded-lg text-sm"
+                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: 'var(--color-bg-secondary)',
                   color: 'var(--color-text-primary)',
@@ -764,39 +956,57 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               <button
                 onClick={handleCreateServer}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: 'var(--color-accent)',
                   color: 'var(--color-accent-text)',
                   opacity: saving ? 0.5 : 1,
                 }}
               >
-                {saving ? 'Creating...' : 'Create Server'}
+                {saving ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Import Modal */}
+      {/* Inline Import Form */}
       {showImportForm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+          className="rounded-xl shadow-lg"
+          style={{
+            backgroundColor: 'var(--color-bg-primary)',
+            border: '1px solid var(--color-border-primary)',
+          }}
         >
+          {/* Header */}
           <div
-            className="w-full max-w-md rounded-2xl shadow-2xl p-6"
+            className="flex items-center justify-between p-4 border-b rounded-t-xl"
             style={{
-              backgroundColor: 'var(--color-bg-primary)',
-              border: '1px solid var(--color-border-primary)',
+              borderColor: 'var(--color-border-primary)',
+              backgroundColor: 'var(--color-bg-secondary)',
             }}
           >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              Import from GitHub Manifest
-            </h3>
+            <div className="flex items-center gap-2">
+              <ExternalLink className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+              <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                Import from GitHub
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowImportForm(false)}
+              className="p-1.5 rounded-lg transition-colors hover:bg-[var(--color-bg-tertiary)]"
+              style={{ color: 'var(--color-text-tertiary)' }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
+          {/* Content */}
+          <div className="p-4 space-y-4">
             <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                 Manifest URL
               </label>
               <input
@@ -811,15 +1021,16 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                   color: 'var(--color-text-primary)',
                 }}
               />
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+              <p className="text-xs mt-2" style={{ color: 'var(--color-text-tertiary)' }}>
                 Enter the raw URL to an MCP manifest JSON file
               </p>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
               <button
                 onClick={() => setShowImportForm(false)}
-                className="px-4 py-2 rounded-lg text-sm"
+                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: 'var(--color-bg-secondary)',
                   color: 'var(--color-text-primary)',
@@ -831,7 +1042,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               <button
                 onClick={handleImportManifest}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: 'var(--color-accent)',
                   color: 'var(--color-accent-text)',
@@ -848,40 +1059,64 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       {/* Logs Modal */}
       {showLogsModal !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+          className="fixed inset-0 z-50 overflow-y-auto"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowLogsModal(null);
+          }}
         >
-          <div
-            className="w-full max-w-3xl max-h-[80vh] rounded-2xl shadow-2xl flex flex-col"
-            style={{
-              backgroundColor: 'var(--color-bg-primary)',
-              border: '1px solid var(--color-border-primary)',
-            }}
-          >
-            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--color-border-primary)' }}>
-              <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                Server Logs
-              </h3>
-              <button onClick={() => setShowLogsModal(null)} style={{ color: 'var(--color-text-secondary)' }}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              {logsLoading ? (
-                <p style={{ color: 'var(--color-text-secondary)' }}>Loading logs...</p>
-              ) : (
-                <pre
-                  className="text-xs whitespace-pre-wrap font-mono"
-                  style={{
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    padding: '1rem',
-                    borderRadius: '0.5rem',
-                  }}
+          <div className="min-h-full px-4 py-8">
+            <div
+              className="w-full max-w-3xl mx-auto rounded-2xl shadow-2xl"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                border: '1px solid var(--color-border-primary)',
+              }}
+            >
+              {/* Header */}
+              <div
+                className="flex items-center justify-between p-4 border-b rounded-t-2xl"
+                style={{
+                  borderColor: 'var(--color-border-primary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    Server Logs
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLogsModal(null)}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: 'var(--color-text-tertiary)' }}
                 >
-                  {logs || 'No logs available'}
-                </pre>
-              )}
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-4 max-h-[60vh] overflow-auto">
+                {logsLoading ? (
+                  <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
+                    Loading logs...
+                  </div>
+                ) : (
+                  <pre
+                    className="text-xs whitespace-pre-wrap font-mono"
+                    style={{
+                      color: 'var(--color-text-primary)',
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                    }}
+                  >
+                    {logs || 'No logs available'}
+                  </pre>
+                )}
+              </div>
             </div>
           </div>
         </div>

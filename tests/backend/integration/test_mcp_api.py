@@ -346,3 +346,182 @@ class TestMcpRoutingRules:
         # Rules should be gone (can't directly verify without the server)
         # Just verify server is deleted
         assert client.get(f'/api/mcp/servers/{server_id}').status_code == 404
+
+
+class TestRemoteMcpServers:
+    """Tests for remote MCP server endpoints."""
+
+    def test_create_remote_server(self, client):
+        """Test creating a remote MCP server."""
+        response = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'test-remote',
+                'server_type': 'remote',
+                'url': 'https://api.example.com/mcp/',
+                'headers': {'Authorization': 'Bearer token123'},
+                'description': 'Test remote server',
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['name'] == 'test-remote'
+        assert data['server_type'] == 'remote'
+        assert data['url'] == 'https://api.example.com/mcp/'
+        # Headers are stored as JSON string in DB but returned as parsed dict
+        assert 'Authorization' in str(data['headers'])
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{data["id"]}')
+
+    def test_create_remote_server_without_image(self, client):
+        """Test that remote servers don't require image field."""
+        response = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'remote-no-image',
+                'server_type': 'remote',
+                'url': 'https://api.example.com/mcp/',
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['server_type'] == 'remote'
+        assert data['image'] == ''  # Should be empty for remote
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{data["id"]}')
+
+    def test_update_remote_server(self, client):
+        """Test updating a remote server."""
+        # Create remote server
+        create_resp = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'update-remote',
+                'server_type': 'remote',
+                'url': 'https://old.example.com/mcp/',
+            },
+        )
+        assert create_resp.status_code == 200
+        server_id = create_resp.json()['id']
+
+        # Update server
+        response = client.put(
+            f'/api/mcp/servers/{server_id}',
+            json={
+                'url': 'https://new.example.com/mcp/',
+                'headers': {'X-Custom': 'value'},
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()['url'] == 'https://new.example.com/mcp/'
+        assert 'X-Custom' in str(response.json()['headers'])
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{server_id}')
+
+    def test_remote_server_routing_rule(self, client):
+        """Test creating routing rule for remote server."""
+        # Create remote server
+        server_resp = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'remote-routing-test',
+                'server_type': 'remote',
+                'url': 'https://api.example.com/mcp/',
+            },
+        )
+        server_id = server_resp.json()['id']
+
+        # Create routing rule
+        rule_resp = client.post(
+            '/api/mcp/routing-rules',
+            json={
+                'mcp_server_id': server_id,
+                'pattern': 'github|repo',
+                'priority': 100,
+                'is_enabled': True,
+            },
+        )
+        assert rule_resp.status_code == 200
+        assert rule_resp.json()['pattern'] == 'github|repo'
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{server_id}')
+
+
+class TestMcpMatchEndpoint:
+    """Tests for MCP match checking endpoint."""
+
+    def test_check_mcp_match_disabled(self, client):
+        """Test MCP match check when MCP is disabled."""
+        # Ensure MCP is disabled
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})
+
+        response = client.post(
+            '/api/llm/check-mcp-match',
+            json={'prompt': 'test text', 'entry_id': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['matched'] is False
+        assert data['mcp_enabled'] is False
+
+    def test_check_mcp_match_enabled_no_match(self, client):
+        """Test MCP match check when enabled but no pattern matches."""
+        # Enable MCP
+        client.patch('/api/mcp/settings', json={'mcp_enabled': True})
+
+        response = client.post(
+            '/api/llm/check-mcp-match',
+            json={'prompt': 'random text that wont match', 'entry_id': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['matched'] is False
+        assert data['mcp_enabled'] is True
+
+        # Cleanup
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})
+
+    def test_check_mcp_match_with_remote_server(self, client):
+        """Test MCP match check with a remote server configured."""
+        # Enable MCP
+        client.patch('/api/mcp/settings', json={'mcp_enabled': True})
+
+        # Create remote server with routing rule
+        server_resp = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'match-test-remote',
+                'server_type': 'remote',
+                'url': 'https://api.example.com/mcp/',
+            },
+        )
+        server_id = server_resp.json()['id']
+
+        client.post(
+            '/api/mcp/routing-rules',
+            json={
+                'mcp_server_id': server_id,
+                'pattern': 'github|repo',
+                'priority': 100,
+                'is_enabled': True,
+            },
+        )
+
+        # Check match
+        response = client.post(
+            '/api/llm/check-mcp-match',
+            json={'prompt': 'list my github repos', 'entry_id': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['matched'] is True
+        assert data['server_name'] == 'match-test-remote'
+        assert data['server_type'] == 'remote'
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{server_id}')
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})

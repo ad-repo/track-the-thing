@@ -1,16 +1,17 @@
 """
-Docker Bridge Service
+MCP Bridge Service
 
-Manages MCP container lifecycle with security measures:
-- Binds only to 127.0.0.1 (localhost)
-- Injects API keys via environment variables at runtime
-- Health monitoring and auto-restart
+Manages MCP server connections for both Docker containers and remote HTTP servers:
+- Docker: Binds to 127.0.0.1 (localhost), injects API keys, health monitoring
+- Remote: HTTP endpoints with custom headers for authentication
 - Log redaction for sensitive data
+- MCP tool discovery and execution
 """
 
 import json
 import re
 from datetime import datetime
+from typing import Any
 
 import httpx
 from sqlalchemy.orm import Session
@@ -18,8 +19,28 @@ from sqlalchemy.orm import Session
 from app import models
 
 
+def parse_sse_response(response_text: str) -> dict | None:
+    """
+    Parse Server-Sent Events response from MCP server.
+
+    SSE format:
+    event: message
+    data: {"jsonrpc": "2.0", "result": {...}, "id": 1}
+
+    Returns the parsed JSON data or None if parsing fails.
+    """
+    lines = response_text.strip().split('\n')
+    for line in lines:
+        if line.startswith('data: '):
+            try:
+                return json.loads(line[6:])  # Skip 'data: ' prefix
+            except json.JSONDecodeError:
+                continue
+    return None
+
+
 class DockerBridge:
-    """Service for managing Docker containers for MCP servers."""
+    """Service for managing MCP servers (Docker containers and remote HTTP endpoints)."""
 
     # Container name prefix for all MCP containers
     CONTAINER_PREFIX = 'ttt-mcp-'
@@ -114,7 +135,7 @@ class DockerBridge:
 
     async def start_container(self, server: models.McpServer) -> tuple[bool, str | None]:
         """
-        Start an MCP container with injected environment variables.
+        Start an MCP server (Docker container or mark remote as running).
 
         Args:
             server: The MCP server configuration
@@ -122,6 +143,14 @@ class DockerBridge:
         Returns:
             Tuple of (success, error_message)
         """
+        # Remote servers don't need container management
+        if getattr(server, 'server_type', 'docker') == 'remote':
+            # Just mark as running - we'll verify with health check
+            server.status = 'running'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+            return True, None
+
         if not self._init_docker():
             return False, 'Docker is not available'
 
@@ -180,7 +209,7 @@ class DockerBridge:
 
     async def stop_container(self, server: models.McpServer) -> tuple[bool, str | None]:
         """
-        Stop an MCP container.
+        Stop an MCP server (Docker container or mark remote as stopped).
 
         Args:
             server: The MCP server configuration
@@ -188,6 +217,13 @@ class DockerBridge:
         Returns:
             Tuple of (success, error_message)
         """
+        # Remote servers don't need container management
+        if getattr(server, 'server_type', 'docker') == 'remote':
+            server.status = 'stopped'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+            return True, None
+
         if not self._init_docker():
             return False, 'Docker is not available'
 
@@ -229,7 +265,7 @@ class DockerBridge:
 
     async def get_logs(self, server: models.McpServer, tail: int = 100) -> tuple[str | None, str | None]:
         """
-        Get container logs with key redaction.
+        Get container logs with key redaction (Docker only).
 
         Args:
             server: The MCP server configuration
@@ -238,6 +274,12 @@ class DockerBridge:
         Returns:
             Tuple of (logs, error_message)
         """
+        server_type = getattr(server, 'server_type', 'docker')
+
+        # Remote servers don't have local logs
+        if server_type == 'remote':
+            return 'Logs not available for remote MCP servers.', None
+
         if not self._init_docker():
             return None, 'Docker is not available'
 
@@ -252,6 +294,14 @@ class DockerBridge:
         except Exception as e:
             return None, str(e)
 
+    def _get_remote_headers(self, server: models.McpServer) -> dict:
+        """Get HTTP headers for remote server authentication."""
+        try:
+            headers_str = getattr(server, 'headers', '{}') or '{}'
+            return json.loads(headers_str)
+        except json.JSONDecodeError:
+            return {}
+
     async def health_check(self, server: models.McpServer) -> tuple[bool, str | None]:
         """
         Check the health of an MCP server.
@@ -262,6 +312,51 @@ class DockerBridge:
         Returns:
             Tuple of (healthy, error_message)
         """
+        server_type = getattr(server, 'server_type', 'docker')
+
+        # Remote server health check
+        if server_type == 'remote':
+            try:
+                url = getattr(server, 'url', '') or ''
+                if not url:
+                    return False, 'Remote server URL not configured'
+
+                headers = self._get_remote_headers(server)
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    # Try a simple request to verify connectivity
+                    # MCP servers may not have a /health endpoint, so we accept various responses
+                    response = await client.get(url, headers=headers)
+
+                    # Accept 200, 404 (endpoint exists), or other non-5xx as "alive"
+                    if response.status_code < 500:
+                        server.status = 'running'
+                        server.last_health_check = datetime.utcnow()
+                        server.updated_at = datetime.utcnow()
+                        self.db.commit()
+                        return True, None
+                    else:
+                        server.status = 'error'
+                        server.updated_at = datetime.utcnow()
+                        self.db.commit()
+                        return False, f'Remote server returned {response.status_code}'
+
+            except httpx.TimeoutException:
+                server.status = 'error'
+                server.updated_at = datetime.utcnow()
+                self.db.commit()
+                return False, 'Remote server health check timed out'
+            except httpx.ConnectError:
+                server.status = 'error'
+                server.updated_at = datetime.utcnow()
+                self.db.commit()
+                return False, 'Could not connect to remote server'
+            except Exception as e:
+                server.status = 'error'
+                server.updated_at = datetime.utcnow()
+                self.db.commit()
+                return False, str(e)
+
+        # Docker container health check
         if not self._init_docker():
             return False, 'Docker is not available'
 
@@ -294,13 +389,21 @@ class DockerBridge:
             return False, str(e)
 
     async def sync_statuses(self) -> None:
-        """Sync all MCP server statuses with actual container states."""
-        if not self._init_docker():
-            return
-
+        """Sync all MCP server statuses with actual states."""
         servers = self.db.query(models.McpServer).all()
 
         for server in servers:
+            server_type = getattr(server, 'server_type', 'docker')
+
+            if server_type == 'remote':
+                # Remote servers: status is managed via health checks
+                # Don't change status here - let health_check handle it
+                continue
+
+            # Docker servers: sync with container state
+            if not self._init_docker():
+                continue
+
             container = self._get_container(server)
             if container:
                 if container.status == 'running':
@@ -353,20 +456,82 @@ class DockerBridge:
         if context is None:
             context = {}
 
+        server_type = getattr(server, 'server_type', 'docker')
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f'http://127.0.0.1:{server.port}/process',
-                    json={
+                # Determine URL and headers based on server type
+                if server_type == 'remote':
+                    url = getattr(server, 'url', '') or ''
+                    if not url:
+                        return None, 'Remote server URL not configured'
+                    headers = self._get_remote_headers(server)
+                    headers['Content-Type'] = 'application/json'
+                    print(f'[MCP Debug] Remote request to: {url}')
+                    print(f'[MCP Debug] Headers (keys only): {list(headers.keys())}')
+
+                    # Build messages array with optional system prompt
+                    messages = []
+                    if rules:
+                        messages.append({'role': 'system', 'content': rules})
+                    messages.append({'role': 'user', 'content': input_text})
+
+                    # Use JSON-RPC 2.0 format for MCP protocol
+                    payload = {
+                        'jsonrpc': '2.0',
+                        'method': 'sampling/createMessage',
+                        'params': {
+                            'messages': messages,
+                            'maxTokens': 2048,
+                        },
+                        'id': 1,
+                    }
+                else:
+                    # Docker container - use simple format
+                    url = f'http://127.0.0.1:{server.port}/process'
+                    headers = {'Content-Type': 'application/json'}
+                    payload = {
                         'input': input_text,
                         'rules': rules,
                         'context': context,
-                    },
+                    }
+
+                print(f'[MCP Debug] Sending POST to {url}')
+                print(f'[MCP Debug] Payload: {json.dumps(payload)[:300]}...')
+
+                response = await client.post(
+                    url,
+                    headers=headers,
+                    json=payload,
                 )
 
+                print(f'[MCP Debug] Response status: {response.status_code}')
                 if response.status_code == 200:
-                    return response.json(), None
+                    result = response.json()
+                    print(
+                        f'[MCP Debug] Response keys: {list(result.keys()) if isinstance(result, dict) else "not a dict"}'
+                    )
+
+                    # Handle JSON-RPC response format
+                    if isinstance(result, dict) and 'result' in result:
+                        mcp_result = result['result']
+                        # Extract content from MCP response
+                        if isinstance(mcp_result, dict):
+                            content = mcp_result.get('content', '')
+                            if isinstance(content, list) and len(content) > 0:
+                                # MCP returns content as array of {type, text} objects
+                                text_parts = [c.get('text', '') for c in content if c.get('type') == 'text']
+                                return {'output': ''.join(text_parts)}, None
+                            elif isinstance(content, str):
+                                return {'output': content}, None
+                        return {'output': str(mcp_result)}, None
+                    elif isinstance(result, dict) and 'error' in result:
+                        error = result['error']
+                        return None, f"MCP error: {error.get('message', str(error))}"
+
+                    return result, None
                 else:
+                    print(f'[MCP Debug] Response body: {response.text[:500]}')
                     return None, f'MCP server returned {response.status_code}: {response.text}'
 
         except httpx.TimeoutException:
@@ -375,3 +540,250 @@ class DockerBridge:
             return None, 'Could not connect to MCP server'
         except Exception as e:
             return None, str(e)
+
+    async def initialize_mcp(self, server: models.McpServer) -> tuple[dict | None, str | None]:
+        """
+        Initialize MCP protocol with a server.
+
+        Returns:
+            Tuple of (capabilities_dict, error_message)
+        """
+        server_type = getattr(server, 'server_type', 'docker')
+
+        try:
+            if server_type == 'remote':
+                url = getattr(server, 'url', '') or ''
+                if not url:
+                    return None, 'Remote server URL not configured'
+                headers = self._get_remote_headers(server)
+                headers['Content-Type'] = 'application/json'
+            else:
+                url = f'http://127.0.0.1:{server.port}/'
+                headers = {'Content-Type': 'application/json'}
+
+            payload = {
+                'jsonrpc': '2.0',
+                'method': 'initialize',
+                'params': {
+                    'protocolVersion': '2024-11-05',
+                    'capabilities': {},
+                    'clientInfo': {'name': 'track-the-thing', 'version': '1.0'},
+                },
+                'id': 1,
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+
+                if response.status_code == 200:
+                    # Parse SSE or JSON response
+                    result = parse_sse_response(response.text) or response.json()
+                    if 'result' in result:
+                        return result['result'], None
+                    elif 'error' in result:
+                        return None, f"MCP error: {result['error'].get('message', str(result['error']))}"
+                    return result, None
+                else:
+                    return None, f'MCP initialize returned {response.status_code}: {response.text[:200]}'
+
+        except Exception as e:
+            return None, str(e)
+
+    async def list_tools(self, server: models.McpServer) -> tuple[list[dict] | None, str | None]:
+        """
+        Get list of available tools from an MCP server.
+
+        Returns:
+            Tuple of (tools_list, error_message)
+            Each tool has: name, description, inputSchema
+        """
+        server_type = getattr(server, 'server_type', 'docker')
+
+        try:
+            if server_type == 'remote':
+                url = getattr(server, 'url', '') or ''
+                if not url:
+                    return None, 'Remote server URL not configured'
+                headers = self._get_remote_headers(server)
+                headers['Content-Type'] = 'application/json'
+            else:
+                url = f'http://127.0.0.1:{server.port}/'
+                headers = {'Content-Type': 'application/json'}
+
+            payload = {
+                'jsonrpc': '2.0',
+                'method': 'tools/list',
+                'id': 2,
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+
+                if response.status_code == 200:
+                    # Parse SSE or JSON response
+                    result = parse_sse_response(response.text) or response.json()
+                    if 'result' in result:
+                        tools = result['result'].get('tools', [])
+                        return tools, None
+                    elif 'error' in result:
+                        return None, f"MCP error: {result['error'].get('message', str(result['error']))}"
+                    return [], None
+                else:
+                    return None, f'MCP tools/list returned {response.status_code}: {response.text[:200]}'
+
+        except Exception as e:
+            return None, str(e)
+
+    async def call_tool(
+        self, server: models.McpServer, tool_name: str, arguments: dict[str, Any]
+    ) -> tuple[Any | None, str | None]:
+        """
+        Call a tool on an MCP server.
+
+        Args:
+            server: The MCP server configuration
+            tool_name: Name of the tool to call
+            arguments: Tool arguments as a dictionary
+
+        Returns:
+            Tuple of (result, error_message)
+        """
+        server_type = getattr(server, 'server_type', 'docker')
+
+        try:
+            if server_type == 'remote':
+                url = getattr(server, 'url', '') or ''
+                if not url:
+                    return None, 'Remote server URL not configured'
+                headers = self._get_remote_headers(server)
+                headers['Content-Type'] = 'application/json'
+            else:
+                url = f'http://127.0.0.1:{server.port}/'
+                headers = {'Content-Type': 'application/json'}
+
+            payload = {
+                'jsonrpc': '2.0',
+                'method': 'tools/call',
+                'params': {
+                    'name': tool_name,
+                    'arguments': arguments,
+                },
+                'id': 3,
+            }
+
+            print(f'[MCP Debug] Calling tool {tool_name} on {server.name}')
+            print(f'[MCP Debug] Arguments: {json.dumps(arguments)[:300]}')
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+
+                print(f'[MCP Debug] Tool response status: {response.status_code}')
+
+                if response.status_code == 200:
+                    # Parse SSE or JSON response
+                    result = parse_sse_response(response.text) or response.json()
+
+                    if 'result' in result:
+                        tool_result = result['result']
+                        # Extract content from MCP tool result
+                        if isinstance(tool_result, dict):
+                            content = tool_result.get('content', [])
+                            if isinstance(content, list):
+                                # Combine text content
+                                texts = []
+                                for item in content:
+                                    if isinstance(item, dict) and item.get('type') == 'text':
+                                        texts.append(item.get('text', ''))
+                                if texts:
+                                    return '\n'.join(texts), None
+                            return tool_result, None
+                        return tool_result, None
+                    elif 'error' in result:
+                        error = result['error']
+                        return None, f"Tool error: {error.get('message', str(error))}"
+                    return result, None
+                else:
+                    print(f'[MCP Debug] Tool error response: {response.text[:500]}')
+                    return None, f'MCP tools/call returned {response.status_code}: {response.text[:200]}'
+
+        except Exception as e:
+            return None, str(e)
+
+    def convert_tools_for_openai(self, mcp_tools: list[dict]) -> list[dict]:
+        """
+        Convert MCP tools to OpenAI function calling format.
+
+        MCP format:
+        {
+            "name": "tool_name",
+            "description": "Tool description",
+            "inputSchema": { JSON Schema }
+        }
+
+        OpenAI format:
+        {
+            "type": "function",
+            "function": {
+                "name": "tool_name",
+                "description": "Tool description",
+                "parameters": { JSON Schema }
+            }
+        }
+        """
+        openai_tools = []
+        for tool in mcp_tools:
+            openai_tools.append(
+                {
+                    'type': 'function',
+                    'function': {
+                        'name': tool.get('name', ''),
+                        'description': tool.get('description', ''),
+                        'parameters': tool.get('inputSchema', {'type': 'object', 'properties': {}}),
+                    },
+                }
+            )
+        return openai_tools
+
+    def convert_tools_for_anthropic(self, mcp_tools: list[dict]) -> list[dict]:
+        """
+        Convert MCP tools to Anthropic tool use format.
+
+        Anthropic format:
+        {
+            "name": "tool_name",
+            "description": "Tool description",
+            "input_schema": { JSON Schema }
+        }
+        """
+        anthropic_tools = []
+        for tool in mcp_tools:
+            anthropic_tools.append(
+                {
+                    'name': tool.get('name', ''),
+                    'description': tool.get('description', ''),
+                    'input_schema': tool.get('inputSchema', {'type': 'object', 'properties': {}}),
+                }
+            )
+        return anthropic_tools
+
+    def convert_tools_for_gemini(self, mcp_tools: list[dict]) -> list[dict]:
+        """
+        Convert MCP tools to Gemini function calling format.
+
+        Gemini format (inside functionDeclarations):
+        {
+            "name": "tool_name",
+            "description": "Tool description",
+            "parameters": { JSON Schema }
+        }
+        """
+        gemini_tools = []
+        for tool in mcp_tools:
+            gemini_tools.append(
+                {
+                    'name': tool.get('name', ''),
+                    'description': tool.get('description', ''),
+                    'parameters': tool.get('inputSchema', {'type': 'object', 'properties': {}}),
+                }
+            )
+        return gemini_tools

@@ -509,8 +509,14 @@ class McpRoutingRuleResponse(McpRoutingRuleBase):
 
 class McpServerBase(BaseModel):
     name: str
-    image: str
-    port: int
+    server_type: str = 'docker'  # 'docker' or 'remote'
+    # Docker-specific fields
+    image: str = ''
+    port: int = 0
+    # Remote-specific fields
+    url: str = ''
+    headers: dict[str, str] = {}  # HTTP headers for authentication
+    # Common fields
     description: str = ''
     env_vars: list[str] = []
     auto_start: bool = False
@@ -522,8 +528,11 @@ class McpServerCreate(McpServerBase):
 
 class McpServerUpdate(BaseModel):
     name: str | None = None
+    server_type: str | None = None
     image: str | None = None
     port: int | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
     description: str | None = None
     env_vars: list[str] | None = None
     auto_start: bool | None = None

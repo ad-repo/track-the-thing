@@ -327,6 +327,7 @@ export interface LlmConversation {
 // ===========================
 
 export type McpServerStatus = 'stopped' | 'starting' | 'running' | 'error';
+export type McpServerType = 'docker' | 'remote';
 
 export interface McpRoutingRule {
   id: number;
@@ -340,8 +341,14 @@ export interface McpRoutingRule {
 export interface McpServer {
   id: number;
   name: string;
+  server_type: McpServerType;
+  // Docker-specific
   image: string;
   port: number;
+  // Remote-specific
+  url: string;
+  headers: Record<string, string>;
+  // Common
   description: string;
   env_vars: string[];
   status: McpServerStatus;
@@ -356,8 +363,14 @@ export interface McpServer {
 
 export interface McpServerCreate {
   name: string;
-  image: string;
-  port: number;
+  server_type?: McpServerType;
+  // Docker-specific
+  image?: string;
+  port?: number;
+  // Remote-specific
+  url?: string;
+  headers?: Record<string, string>;
+  // Common
   description?: string;
   env_vars?: string[];
   auto_start?: boolean;
@@ -365,8 +378,11 @@ export interface McpServerCreate {
 
 export interface McpServerUpdate {
   name?: string;
+  server_type?: McpServerType;
   image?: string;
   port?: number;
+  url?: string;
+  headers?: Record<string, string>;
   description?: string;
   env_vars?: string[];
   auto_start?: boolean;

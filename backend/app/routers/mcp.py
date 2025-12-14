@@ -22,17 +22,29 @@ def get_docker_bridge(db: Session = Depends(get_db)) -> DockerBridge:
 
 
 def _serialize_server(server: models.McpServer) -> dict:
-    """Serialize McpServer to dict with proper env_vars handling."""
+    """Serialize McpServer to dict with proper env_vars and headers handling."""
     try:
         env_vars = json.loads(server.env_vars) if server.env_vars else []
     except json.JSONDecodeError:
         env_vars = []
 
+    try:
+        headers_str = getattr(server, 'headers', '{}') or '{}'
+        headers = json.loads(headers_str)
+    except json.JSONDecodeError:
+        headers = {}
+
+    server_type = getattr(server, 'server_type', 'docker') or 'docker'
+    url = getattr(server, 'url', '') or ''
+
     return {
         'id': server.id,
         'name': server.name,
-        'image': server.image,
-        'port': server.port,
+        'server_type': server_type,
+        'image': server.image or '',
+        'port': server.port or 0,
+        'url': url,
+        'headers': headers,
         'description': server.description or '',
         'env_vars': env_vars,
         'status': server.status or 'stopped',
@@ -151,16 +163,30 @@ def get_server(server_id: int, db: Session = Depends(get_db)):
 
 @router.post('/servers')
 def create_server(server_data: schemas.McpServerCreate, db: Session = Depends(get_db)):
-    """Create a new MCP server configuration."""
+    """Create a new MCP server configuration (Docker or remote)."""
     # Check if name already exists
     existing = db.query(models.McpServer).filter(models.McpServer.name == server_data.name).first()
     if existing:
         raise HTTPException(status_code=400, detail='Server name already exists')
 
+    # Validate based on server type
+    server_type = server_data.server_type or 'docker'
+    if server_type == 'docker':
+        if not server_data.image:
+            raise HTTPException(status_code=400, detail='Docker image is required for Docker servers')
+        if not server_data.port:
+            raise HTTPException(status_code=400, detail='Port is required for Docker servers')
+    elif server_type == 'remote':
+        if not server_data.url:
+            raise HTTPException(status_code=400, detail='URL is required for remote servers')
+
     server = models.McpServer(
         name=server_data.name,
-        image=server_data.image,
-        port=server_data.port,
+        server_type=server_type,
+        image=server_data.image or '',
+        port=server_data.port or 0,
+        url=server_data.url or '',
+        headers=json.dumps(server_data.headers or {}),
         description=server_data.description,
         env_vars=json.dumps(server_data.env_vars),
         auto_start=1 if server_data.auto_start else 0,
@@ -195,10 +221,16 @@ def update_server(server_id: int, update: schemas.McpServerUpdate, db: Session =
             raise HTTPException(status_code=400, detail='Server name already exists')
         server.name = update.name
 
+    if update.server_type is not None:
+        server.server_type = update.server_type
     if update.image is not None:
         server.image = update.image
     if update.port is not None:
         server.port = update.port
+    if update.url is not None:
+        server.url = update.url
+    if update.headers is not None:
+        server.headers = json.dumps(update.headers)
     if update.description is not None:
         server.description = update.description
     if update.env_vars is not None:

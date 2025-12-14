@@ -11,10 +11,18 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models import AppSettings, DailyNote, Label, NoteEntry, QuarterlyGoal, SearchHistory, SprintGoal
+from app.models import (
+    AppSettings,
+    DailyNote,
+    Label,
+    NoteEntry,
+    QuarterlyGoal,
+    SearchHistory,
+    SprintGoal,
+)
 
 # Keep in sync with export version in app.routers.backup.export_data.
-BACKUP_SCHEMA_VERSION = '9.0'
+BACKUP_SCHEMA_VERSION = '10.0'
 
 
 @pytest.mark.integration
@@ -60,7 +68,12 @@ class TestBackupExportAPI:
         db_session.add(note)
         db_session.commit()
 
-        entry = NoteEntry(daily_note_id=note.id, title='Test Entry', content='<p>Test content</p>', is_important=1)
+        entry = NoteEntry(
+            daily_note_id=note.id,
+            title='Test Entry',
+            content='<p>Test content</p>',
+            is_important=1,
+        )
         db_session.add(entry)
         db_session.commit()
 
@@ -338,7 +351,14 @@ class TestBackupImportAPI:
                     ],
                 }
             ],
-            'labels': [{'id': 1, 'name': 'work', 'color': '#3b82f6', 'created_at': '2025-11-01T00:00:00'}],
+            'labels': [
+                {
+                    'id': 1,
+                    'name': 'work',
+                    'color': '#3b82f6',
+                    'created_at': '2025-11-01T00:00:00',
+                }
+            ],
             'sprint_goals': [],
             'quarterly_goals': [],
             'search_history': [],

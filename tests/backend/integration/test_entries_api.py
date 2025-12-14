@@ -36,7 +36,10 @@ class TestEntriesAPI:
 
     def test_create_entry_minimal_data(self, client: TestClient, sample_daily_note: DailyNote):
         """Test creating entry with minimal required fields."""
-        response = client.post(f'/api/entries/note/{sample_daily_note.date}', json={'content': '<p>Minimal</p>'})
+        response = client.post(
+            f'/api/entries/note/{sample_daily_note.date}',
+            json={'content': '<p>Minimal</p>'},
+        )
 
         assert response.status_code == 201
         data = response.json()
@@ -61,7 +64,8 @@ class TestEntriesAPI:
     def test_update_entry_title_and_content(self, client: TestClient, sample_note_entry: NoteEntry):
         """Test PUT /api/entries/{id} updates title and content."""
         response = client.put(
-            f'/api/entries/{sample_note_entry.id}', json={'title': 'Updated Title', 'content': '<p>Updated Content</p>'}
+            f'/api/entries/{sample_note_entry.id}',
+            json={'title': 'Updated Title', 'content': '<p>Updated Content</p>'},
         )
 
         assert response.status_code == 200
@@ -129,7 +133,10 @@ class TestEntriesAPI:
         assert response.status_code == 404
 
     def test_delete_entry_cascade_removes_label_associations(
-        self, client: TestClient, db_session: Session, sample_note_entry_with_labels: NoteEntry
+        self,
+        client: TestClient,
+        db_session: Session,
+        sample_note_entry_with_labels: NoteEntry,
     ):
         """Test deleting entry removes label associations but not labels."""
         entry_id = sample_note_entry_with_labels.id
@@ -165,12 +172,17 @@ class TestEntriesAPI:
             assert entries[i]['order_index'] >= entries[i + 1]['order_index']
 
     def test_create_entry_with_labels(
-        self, client: TestClient, db_session: Session, sample_daily_note: DailyNote, sample_label: Label
+        self,
+        client: TestClient,
+        db_session: Session,
+        sample_daily_note: DailyNote,
+        sample_label: Label,
     ):
         """Test creating entry and attaching labels."""
         # Create entry
         response = client.post(
-            f'/api/entries/note/{sample_daily_note.date}', json={'content': '<p>Entry with labels</p>'}
+            f'/api/entries/note/{sample_daily_note.date}',
+            json={'content': '<p>Entry with labels</p>'},
         )
 
         assert response.status_code == 201
@@ -225,7 +237,10 @@ class TestEntriesAPI:
         db_session.refresh(new_note)
 
         # Move entry
-        response = client.put(f'/api/entries/{sample_note_entry.id}/move', json={'daily_note_id': new_note.id})
+        response = client.put(
+            f'/api/entries/{sample_note_entry.id}/move',
+            json={'daily_note_id': new_note.id},
+        )
 
         if response.status_code == 200:
             data = response.json()

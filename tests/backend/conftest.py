@@ -22,7 +22,8 @@ os.environ['TESTING'] = 'true'
 # In Docker: /app (backend code) is mounted, we're in /tests
 # Locally: ../../backend/ from tests/backend/
 backend_path = os.getenv(
-    'BACKEND_PATH', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
+    'BACKEND_PATH',
+    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')),
 )
 sys.path.insert(0, backend_path)
 
@@ -34,6 +35,8 @@ from app.models import (  # noqa: E402
     AppSettings,
     DailyNote,
     Label,
+    McpRoutingRule,  # noqa: F401 - Imported for table registration
+    McpServer,  # noqa: F401 - Imported for table registration
     NoteEntry,
     QuarterlyGoal,
     SprintGoal,

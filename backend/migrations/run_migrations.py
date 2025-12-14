@@ -76,7 +76,7 @@ def main():
         db_path = Path.cwd() / db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Database: {db_path}")
-    
+
     # Create initial database schema if it doesn't exist
     logger.info("Ensuring database schema exists...")
     try:

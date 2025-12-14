@@ -48,9 +48,9 @@ def migrate_up(db_path):
             print("note_entries table does not exist yet. Skipping migration.")
             conn.close()
             return True
-        
+
         print("Finding duplicate entries...")
-        
+
         # Find all duplicate entries (same daily_note_id, content, and title)
         cursor.execute("""
             SELECT daily_note_id, content, title, COUNT(*) as count
@@ -58,19 +58,19 @@ def migrate_up(db_path):
             GROUP BY daily_note_id, content, title
             HAVING COUNT(*) > 1
         """)
-        
+
         duplicates = cursor.fetchall()
         total_duplicates = len(duplicates)
-        
+
         if total_duplicates == 0:
             print("No duplicate entries found.")
             print("Migration 022 completed successfully.")
             conn.close()
             return True
-        
+
         print(f"Found {total_duplicates} sets of duplicate entries.")
         total_removed = 0
-        
+
         for daily_note_id, content, title, count in duplicates:
             # Get all entries for this combination, ordered by created_at DESC
             cursor.execute("""
@@ -79,30 +79,30 @@ def migrate_up(db_path):
                 WHERE daily_note_id = ? AND content = ? AND title = ?
                 ORDER BY created_at DESC
             """, (daily_note_id, content, title))
-            
+
             entries = cursor.fetchall()
-            
+
             # Keep the first one (most recent), delete the rest
             entries_to_delete = [entry[0] for entry in entries[1:]]
-            
+
             if entries_to_delete:
                 placeholders = ','.join('?' * len(entries_to_delete))
-                
+
                 # Delete from association tables first (due to foreign keys)
                 cursor.execute(f"DELETE FROM entry_labels WHERE entry_id IN ({placeholders})", entries_to_delete)
                 cursor.execute(f"DELETE FROM entry_lists WHERE entry_id IN ({placeholders})", entries_to_delete)
-                
+
                 # Delete the duplicate entries
                 cursor.execute(f"DELETE FROM note_entries WHERE id IN ({placeholders})", entries_to_delete)
-                
+
                 total_removed += len(entries_to_delete)
                 print(f"  Removed {len(entries_to_delete)} duplicate(s) for entry with title: '{title[:50]}...'")
-        
+
         conn.commit()
         print(f"\nSuccessfully removed {total_removed} duplicate entries.")
         print("Migration 022 completed successfully.")
         return True
-        
+
     except Exception as e:
         conn.rollback()
         print(f"Error during migration: {e}")
@@ -120,7 +120,7 @@ def migrate_down(db_path):
 if __name__ == '__main__':
     db_path = get_db_path()
     print(f"Using database: {db_path}")
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == 'down':
         migrate_down(db_path)
     else:

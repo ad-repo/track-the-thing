@@ -127,7 +127,11 @@ class TestCustomEmojisAPI:
 
         response = client.patch(
             f'/api/custom-emojis/{emoji_id}',
-            json={'name': 'updated_name', 'category': 'Updated', 'keywords': 'new,keywords'},
+            json={
+                'name': 'updated_name',
+                'category': 'Updated',
+                'keywords': 'new,keywords',
+            },
         )
 
         assert response.status_code == 200

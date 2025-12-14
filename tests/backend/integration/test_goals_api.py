@@ -263,7 +263,10 @@ class TestUnifiedGoalsAPI:
         goal_id = create_response.json()['id']
 
         # Update
-        response = client.put(f'/api/goals/{goal_id}', json={'name': 'Updated Name', 'text': 'Updated text'})
+        response = client.put(
+            f'/api/goals/{goal_id}',
+            json={'name': 'Updated Name', 'text': 'Updated text'},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -286,7 +289,10 @@ class TestUnifiedGoalsAPI:
         goal_id = create_response.json()['id']
 
         # Update dates
-        response = client.put(f'/api/goals/{goal_id}', json={'start_date': '2025-11-05', 'end_date': '2025-11-20'})
+        response = client.put(
+            f'/api/goals/{goal_id}',
+            json={'start_date': '2025-11-05', 'end_date': '2025-11-20'},
+        )
 
         assert response.status_code == 200
         data = response.json()

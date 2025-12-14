@@ -475,3 +475,130 @@ class LlmConversationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ===========================
+# MCP Server Schemas
+# ===========================
+
+
+class McpRoutingRuleBase(BaseModel):
+    pattern: str
+    priority: int = 0
+    is_enabled: bool = True
+
+
+class McpRoutingRuleCreate(McpRoutingRuleBase):
+    mcp_server_id: int
+
+
+class McpRoutingRuleUpdate(BaseModel):
+    pattern: str | None = None
+    priority: int | None = None
+    is_enabled: bool | None = None
+
+
+class McpRoutingRuleResponse(McpRoutingRuleBase):
+    id: int
+    mcp_server_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class McpServerBase(BaseModel):
+    name: str
+    server_type: str = 'docker'  # 'docker' or 'remote'
+    transport_type: str = 'http'  # 'http' or 'stdio'
+    # Docker-specific fields
+    image: str = ''
+    port: int = 0  # Not required for stdio transport
+    # Dockerfile build fields
+    build_source: str = 'image'  # 'image' or 'dockerfile'
+    build_context: str = ''  # Path to directory containing Dockerfile
+    dockerfile_path: str = ''  # Optional: relative path to Dockerfile
+    # Remote-specific fields
+    url: str = ''
+    headers: dict[str, str] = {}  # HTTP headers for authentication
+    # Common fields
+    description: str = ''
+    color: str = '#22c55e'  # Hex color for UI indicator
+    env_vars: list[str] = []
+    auto_start: bool = False
+
+
+class McpServerCreate(McpServerBase):
+    pass
+
+
+class McpServerUpdate(BaseModel):
+    name: str | None = None
+    server_type: str | None = None
+    transport_type: str | None = None  # 'http' or 'stdio'
+    image: str | None = None
+    port: int | None = None
+    build_source: str | None = None
+    build_context: str | None = None
+    dockerfile_path: str | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
+    description: str | None = None
+    color: str | None = None
+    env_vars: list[str] | None = None
+    auto_start: bool | None = None
+
+
+class McpServerResponse(McpServerBase):
+    id: int
+    status: str = 'stopped'
+    last_health_check: datetime | None = None
+    source: str = 'local'
+    manifest_url: str = ''
+    created_at: datetime
+    updated_at: datetime
+    routing_rules: list[McpRoutingRuleResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class McpServerLogsResponse(BaseModel):
+    server_id: int
+    server_name: str
+    logs: str
+    timestamp: datetime
+
+
+class McpDockerStatusResponse(BaseModel):
+    available: bool
+    version: str | None = None
+    error: str | None = None
+
+
+class McpSettingsResponse(BaseModel):
+    mcp_enabled: bool = False
+    mcp_idle_timeout: int = 300
+    mcp_fallback_to_llm: bool = True
+    docker_available: bool = False
+
+
+class McpSettingsUpdate(BaseModel):
+    mcp_enabled: bool | None = None
+    mcp_idle_timeout: int | None = None
+    mcp_fallback_to_llm: bool | None = None
+
+
+class McpManifestImport(BaseModel):
+    manifest_url: str
+
+
+class McpProcessRequest(BaseModel):
+    input: str
+    rules: str = ''
+    context: dict = {}
+
+
+class McpProcessResponse(BaseModel):
+    output: str
+    metadata: dict = {}

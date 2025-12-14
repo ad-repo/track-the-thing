@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from datetime import datetime
+
 
 def get_db_path():
     # This function should ideally get the path from a config or env var

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target, Sparkles } from 'lucide-react';
+import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target, Sparkles, Server } from 'lucide-react';
 import axios from 'axios';
 import { listsApi, entriesApi, goalsApi } from '../api';
 import { useTimezone } from '../contexts/TimezoneContext';
@@ -16,6 +16,7 @@ import CustomEmojiManager from './CustomEmojiManager';
 import TextureSettings from './TextureSettings';
 import GoalCard from './GoalCard';
 import GoalForm from './GoalForm';
+import McpServerManager from './McpServerManager';
 import { useTexture } from '../hooks/useTexture';
 import type { Goal, GoalCreate, GoalUpdate, LlmProvider, OpenaiApiType } from '../types';
 
@@ -1142,6 +1143,22 @@ const Settings = () => {
             >
               {savingLlmSettings ? 'Saving...' : 'Save AI Settings'}
             </button>
+          </div>
+        </section>
+
+        {/* MCP Servers Section */}
+        <section className="mb-6">
+          <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Server className="h-5 w-5" />
+            MCP Servers
+          </h2>
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+              Configure MCP (Model Context Protocol) servers for AI processing. Supports Docker containers
+              (HTTP or STDIO transport) and remote HTTP endpoints. Text selections matching routing patterns
+              will be processed by MCP servers instead of cloud LLMs.
+            </p>
+            <McpServerManager onMessage={showMessage} />
           </div>
         </section>
 

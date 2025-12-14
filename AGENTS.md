@@ -22,5 +22,14 @@
 - Migrations: `backend/migrations/`
 - Backup/restore: `backend/app/routers/backup.py`
 - Theme colors: Use `var(--color-*)`, never hardcode
+- MCP servers: `backend/app/routers/mcp.py`, `backend/app/services/docker_bridge.py`
+- LLM integration: `backend/app/routers/llm.py`
+
+## MCP (Model Context Protocol) Integration
+The app supports Docker-based MCP servers for local AI processing:
+- MCP servers are configured in Settings → MCP Servers
+- Text selections are routed to MCP servers based on regex patterns
+- Falls back to cloud LLM providers when MCP unavailable
+- Requires Docker to be running for container management
 
 **See `.cursorrules` for complete rules.**

@@ -472,9 +472,27 @@ class TestUnifiedGoalModel:
     def test_goal_ordering(self, db_session: Session):
         """Test goal ordering by order_index."""
         goals = [
-            Goal(name='Goal C', goal_type='Personal', start_date='2025-11-01', end_date='2025-11-30', order_index=2),
-            Goal(name='Goal A', goal_type='Personal', start_date='2025-11-01', end_date='2025-11-30', order_index=0),
-            Goal(name='Goal B', goal_type='Personal', start_date='2025-11-01', end_date='2025-11-30', order_index=1),
+            Goal(
+                name='Goal C',
+                goal_type='Personal',
+                start_date='2025-11-01',
+                end_date='2025-11-30',
+                order_index=2,
+            ),
+            Goal(
+                name='Goal A',
+                goal_type='Personal',
+                start_date='2025-11-01',
+                end_date='2025-11-30',
+                order_index=0,
+            ),
+            Goal(
+                name='Goal B',
+                goal_type='Personal',
+                start_date='2025-11-01',
+                end_date='2025-11-30',
+                order_index=1,
+            ),
         ]
         for goal in goals:
             db_session.add(goal)
@@ -488,7 +506,16 @@ class TestUnifiedGoalModel:
 
     def test_multiple_goal_types(self, db_session: Session):
         """Test creating goals with different types."""
-        types = ['Daily', 'Weekly', 'Sprint', 'Monthly', 'Quarterly', 'Yearly', 'Fitness', 'Personal']
+        types = [
+            'Daily',
+            'Weekly',
+            'Sprint',
+            'Monthly',
+            'Quarterly',
+            'Yearly',
+            'Fitness',
+            'Personal',
+        ]
         for i, goal_type in enumerate(types):
             goal = Goal(
                 name=f'{goal_type} Goal',

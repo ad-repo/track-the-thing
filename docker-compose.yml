@@ -14,6 +14,7 @@ services:
       - ./backend/data:/app/data
       - ./backend:/app
       - ./tests/backend:/tests/backend
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for MCP container management
     command: ./start.sh
     restart: unless-stopped
 

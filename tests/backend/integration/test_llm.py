@@ -115,3 +115,147 @@ def test_openai_api_type_setting(client, init_app_settings):
     response = client.get('/api/llm/settings')
     assert response.status_code == 200
     assert response.json()['openai_api_type'] == 'responses'
+
+
+class TestMcpToolRouting:
+    """Tests for MCP tool routing in LLM endpoint."""
+
+    def test_check_mcp_match_endpoint(self, client, init_app_settings):
+        """Test the MCP match check endpoint."""
+        response = client.post(
+            '/api/llm/check-mcp-match',
+            json={'prompt': 'test prompt', 'entry_id': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert 'matched' in data
+        assert 'mcp_enabled' in data
+
+    def test_send_with_mcp_disabled(self, client, sample_note_entry, init_app_settings):
+        """Test that MCP routing is skipped when disabled."""
+        # Disable MCP
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})
+
+        # This should fall through to LLM (will fail without key)
+        response = client.post(
+            '/api/llm/send',
+            json={
+                'entry_id': sample_note_entry.id,
+                'prompt': 'test prompt',
+            },
+        )
+        # Should fail with API key error, not MCP error
+        assert response.status_code == 400
+        assert 'API key not configured' in response.json()['detail']
+
+    def test_send_with_mcp_enabled_no_match(self, client, sample_note_entry, init_app_settings):
+        """Test that unmatched prompts fall back to LLM."""
+        # Enable MCP but no servers configured
+        client.patch('/api/mcp/settings', json={'mcp_enabled': True})
+
+        response = client.post(
+            '/api/llm/send',
+            json={
+                'entry_id': sample_note_entry.id,
+                'prompt': 'random text with no mcp pattern',
+            },
+        )
+        # Should fall back to LLM (will fail without key)
+        assert response.status_code == 400
+        assert 'API key not configured' in response.json()['detail']
+
+        # Cleanup
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})
+
+    def test_send_with_mcp_fallback_enabled(self, client, sample_note_entry, init_app_settings):
+        """Test that MCP fallback to LLM works when enabled."""
+        # Enable MCP with fallback
+        client.patch(
+            '/api/mcp/settings',
+            json={
+                'mcp_enabled': True,
+                'mcp_fallback_to_llm': True,
+            },
+        )
+
+        # Create a remote server that won't actually respond
+        server_resp = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'fallback-test',
+                'server_type': 'remote',
+                'url': 'https://invalid.example.com/mcp/',
+            },
+        )
+        server_id = server_resp.json()['id']
+
+        client.post(
+            '/api/mcp/routing-rules',
+            json={
+                'mcp_server_id': server_id,
+                'pattern': 'fallback-test-pattern',
+                'priority': 100,
+                'is_enabled': True,
+            },
+        )
+
+        # Send request matching the pattern
+        # MCP will fail, should fall back to LLM (which will fail without key)
+        response = client.post(
+            '/api/llm/send',
+            json={
+                'entry_id': sample_note_entry.id,
+                'prompt': 'test fallback-test-pattern',
+            },
+        )
+        # Should get API key error (fallback to LLM worked)
+        assert response.status_code == 400
+        assert 'API key not configured' in response.json()['detail']
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{server_id}')
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})
+
+    def test_mcp_match_returns_server_info(self, client, init_app_settings):
+        """Test that MCP match returns server information."""
+        # Enable MCP
+        client.patch('/api/mcp/settings', json={'mcp_enabled': True})
+
+        # Create a server with routing rule
+        server_resp = client.post(
+            '/api/mcp/servers',
+            json={
+                'name': 'info-test-server',
+                'server_type': 'remote',
+                'url': 'https://api.example.com/mcp/',
+                'description': 'Test description',
+            },
+        )
+        server_id = server_resp.json()['id']
+
+        client.post(
+            '/api/mcp/routing-rules',
+            json={
+                'mcp_server_id': server_id,
+                'pattern': 'unique-match-pattern-xyz',
+                'priority': 100,
+                'is_enabled': True,
+            },
+        )
+
+        # Check match
+        response = client.post(
+            '/api/llm/check-mcp-match',
+            json={'prompt': 'testing unique-match-pattern-xyz here', 'entry_id': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['matched'] is True
+        assert data['mcp_enabled'] is True
+        assert data['server_name'] == 'info-test-server'
+        assert data['server_type'] == 'remote'
+        assert data['description'] == 'Test description'
+
+        # Cleanup
+        client.delete(f'/api/mcp/servers/{server_id}')
+        client.patch('/api/mcp/settings', json={'mcp_enabled': False})

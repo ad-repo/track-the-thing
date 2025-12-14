@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from datetime import datetime
+
 
 def get_db_path():
     # This function should ideally get the path from a config or env var
@@ -42,13 +42,13 @@ def migrate_up(db_path: Path) -> bool:
                 updated_at TEXT NOT NULL
             )
         """)
-        
+
         # Create index on name for faster lookups
         cursor.execute("CREATE INDEX idx_custom_emojis_name ON custom_emojis(name)")
-        
+
         # Create index on is_deleted for filtering
         cursor.execute("CREATE INDEX idx_custom_emojis_is_deleted ON custom_emojis(is_deleted)")
-        
+
         print("Created 'custom_emojis' table with indexes.")
         conn.commit()
     return True

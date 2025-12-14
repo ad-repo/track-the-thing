@@ -27,7 +27,11 @@ def test_toggle_pin_entry(client: TestClient, db_session: Session):
     # Create an entry
     entry_response = client.post(
         f'/api/entries/note/{today}',
-        json={'content': 'Test pinned entry', 'content_type': 'rich_text', 'order_index': 0},
+        json={
+            'content': 'Test pinned entry',
+            'content_type': 'rich_text',
+            'order_index': 0,
+        },
     )
     assert entry_response.status_code == 201
     entry_id = entry_response.json()['id']
@@ -55,7 +59,8 @@ def test_pinned_entry_copies_to_future_day(client: TestClient, db_session: Sessi
 
     # Create and pin an entry
     entry_response = client.post(
-        f'/api/entries/note/{today}', json={'content': 'Pinned task', 'content_type': 'rich_text', 'order_index': 0}
+        f'/api/entries/note/{today}',
+        json={'content': 'Pinned task', 'content_type': 'rich_text', 'order_index': 0},
     )
     assert entry_response.status_code == 201
     entry_id = entry_response.json()['id']
@@ -110,7 +115,8 @@ def test_pinned_entry_with_labels(client: TestClient, db_session: Session):
     # Create and pin an entry with unique content
     unique_content = f'Pinned with label {int(time.time() * 1000)}'
     entry_response = client.post(
-        f'/api/entries/note/{today}', json={'content': unique_content, 'content_type': 'rich_text', 'order_index': 0}
+        f'/api/entries/note/{today}',
+        json={'content': unique_content, 'content_type': 'rich_text', 'order_index': 0},
     )
     entry_id = entry_response.json()['id']
 
@@ -152,7 +158,8 @@ def test_multiple_pinned_entries(client: TestClient, db_session: Session):
         content = f'Multi-pin test entry {i+1} {timestamp}'
         entry_contents.append(content)
         entry_response = client.post(
-            f'/api/entries/note/{today}', json={'content': content, 'content_type': 'rich_text', 'order_index': 0}
+            f'/api/entries/note/{today}',
+            json={'content': content, 'content_type': 'rich_text', 'order_index': 0},
         )
         assert entry_response.status_code == 201
         entry_id = entry_response.json()['id']
@@ -180,7 +187,8 @@ def test_pinned_entry_no_duplicate_on_multiple_access(client: TestClient, db_ses
     unique_content = f'No duplicate test {int(time.time() * 1000)}'
     client.post('/api/notes/', json={'date': today})
     entry_response = client.post(
-        f'/api/entries/note/{today}', json={'content': unique_content, 'content_type': 'rich_text', 'order_index': 0}
+        f'/api/entries/note/{today}',
+        json={'content': unique_content, 'content_type': 'rich_text', 'order_index': 0},
     )
     assert entry_response.status_code == 201
     entry_id = entry_response.json()['id']
@@ -210,7 +218,8 @@ def test_update_entry_pin_status_via_patch(client: TestClient, db_session: Sessi
     # Create a daily note and entry
     client.post('/api/notes/', json={'date': today})
     entry_response = client.post(
-        f'/api/entries/note/{today}', json={'content': 'Test entry', 'content_type': 'rich_text', 'order_index': 0}
+        f'/api/entries/note/{today}',
+        json={'content': 'Test entry', 'content_type': 'rich_text', 'order_index': 0},
     )
     entry_id = entry_response.json()['id']
 
@@ -232,7 +241,8 @@ def test_pinned_entry_in_backup(client: TestClient, db_session: Session):
     # Create a daily note and pinned entry
     client.post('/api/notes/', json={'date': today})
     entry_response = client.post(
-        f'/api/entries/note/{today}', json={'content': 'Backup test', 'content_type': 'rich_text', 'order_index': 0}
+        f'/api/entries/note/{today}',
+        json={'content': 'Backup test', 'content_type': 'rich_text', 'order_index': 0},
     )
     entry_id = entry_response.json()['id']
     client.post(f'/api/entries/{entry_id}/toggle-pin')

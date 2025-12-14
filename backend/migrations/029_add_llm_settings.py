@@ -5,7 +5,6 @@ Adds API key storage for OpenAI, Anthropic, and Gemini providers,
 along with conversation history per entry for context persistence.
 """
 import sqlite3
-from typing import Tuple
 
 
 def _column_exists(cursor, table_name: str, column_name: str) -> bool:
@@ -18,7 +17,7 @@ def _table_exists(cursor, table_name: str) -> bool:
     return cursor.fetchone() is not None
 
 
-def upgrade(db_path: str) -> Tuple[bool, str]:
+def upgrade(db_path: str) -> tuple[bool, str]:
     """Add LLM settings columns and create conversation history table."""
     try:
         conn = sqlite3.connect(db_path)
@@ -63,7 +62,7 @@ def upgrade(db_path: str) -> Tuple[bool, str]:
         return False, f'Migration failed: {str(e)}'
 
 
-def downgrade(db_path: str) -> Tuple[bool, str]:
+def downgrade(db_path: str) -> tuple[bool, str]:
     """Remove LLM settings (note: SQLite cannot drop columns easily)."""
     try:
         conn = sqlite3.connect(db_path)

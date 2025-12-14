@@ -510,14 +510,20 @@ class McpRoutingRuleResponse(McpRoutingRuleBase):
 class McpServerBase(BaseModel):
     name: str
     server_type: str = 'docker'  # 'docker' or 'remote'
+    transport_type: str = 'http'  # 'http' or 'stdio'
     # Docker-specific fields
     image: str = ''
-    port: int = 0
+    port: int = 0  # Not required for stdio transport
+    # Dockerfile build fields
+    build_source: str = 'image'  # 'image' or 'dockerfile'
+    build_context: str = ''  # Path to directory containing Dockerfile
+    dockerfile_path: str = ''  # Optional: relative path to Dockerfile
     # Remote-specific fields
     url: str = ''
     headers: dict[str, str] = {}  # HTTP headers for authentication
     # Common fields
     description: str = ''
+    color: str = '#22c55e'  # Hex color for UI indicator
     env_vars: list[str] = []
     auto_start: bool = False
 
@@ -529,11 +535,16 @@ class McpServerCreate(McpServerBase):
 class McpServerUpdate(BaseModel):
     name: str | None = None
     server_type: str | None = None
+    transport_type: str | None = None  # 'http' or 'stdio'
     image: str | None = None
     port: int | None = None
+    build_source: str | None = None
+    build_context: str | None = None
+    dockerfile_path: str | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
     description: str | None = None
+    color: str | None = None
     env_vars: list[str] | None = None
     auto_start: bool | None = None
 

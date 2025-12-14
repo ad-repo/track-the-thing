@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from datetime import datetime
+
 
 def get_db_path():
     # This function should ideally get the path from a config or env var
@@ -41,16 +41,16 @@ def migrate_up(db_path: Path) -> bool:
                 FOREIGN KEY (entry_id) REFERENCES note_entries(id) ON DELETE CASCADE
             )
         """)
-        
+
         # Create index on entry_id for faster lookups
         cursor.execute("CREATE INDEX idx_reminders_entry_id ON reminders(entry_id)")
-        
+
         # Create index on reminder_datetime for sorting and filtering due reminders
         cursor.execute("CREATE INDEX idx_reminders_datetime ON reminders(reminder_datetime)")
-        
+
         # Create index on is_dismissed for filtering active reminders
         cursor.execute("CREATE INDEX idx_reminders_is_dismissed ON reminders(is_dismissed)")
-        
+
         print("Created 'reminders' table with indexes.")
         conn.commit()
     return True

@@ -75,11 +75,11 @@ def migrate_down(db_path):
 
     try:
         print("Removing 'daily_goal_end_time' column from 'app_settings' table...")
-        
+
         # Get current data
         cursor.execute("SELECT id, sprint_goals, quarterly_goals, sprint_start_date, sprint_end_date, quarterly_start_date, quarterly_end_date, emoji_library, sprint_name, created_at, updated_at FROM app_settings")
         data = cursor.fetchall()
-        
+
         # Drop and recreate table without daily_goal_end_time
         cursor.execute("DROP TABLE app_settings")
         cursor.execute("""
@@ -97,7 +97,7 @@ def migrate_down(db_path):
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Restore data
         for row in data:
             cursor.execute("""
@@ -105,7 +105,7 @@ def migrate_down(db_path):
                 (id, sprint_goals, quarterly_goals, sprint_start_date, sprint_end_date, quarterly_start_date, quarterly_end_date, emoji_library, sprint_name, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, row)
-        
+
         conn.commit()
         print("Successfully removed 'daily_goal_end_time' column from 'app_settings' table.")
 
@@ -120,7 +120,7 @@ def migrate_down(db_path):
 if __name__ == '__main__':
     db_path = get_db_path()
     print(f"Using database: {db_path}")
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == 'down':
         migrate_down(db_path)
     else:

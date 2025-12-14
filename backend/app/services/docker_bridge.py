@@ -4,12 +4,19 @@ MCP Bridge Service
 Manages MCP server connections for both Docker containers and remote HTTP servers:
 - Docker: Binds to 127.0.0.1 (localhost), injects API keys, health monitoring
 - Remote: HTTP endpoints with custom headers for authentication
+- Stdio: Interactive Docker containers communicating via stdin/stdout
 - Log redaction for sensitive data
 - MCP tool discovery and execution
 """
 
+import asyncio
 import json
+import os
+import queue
 import re
+import subprocess
+import threading
+import traceback
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +24,85 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app import models
+
+
+def convert_github_url_to_docker_context(url: str) -> tuple[str, str | None]:
+    """
+    Convert a GitHub blob/tree URL to a Docker-compatible build context.
+
+    Supports URLs like:
+    - https://github.com/user/repo/blob/commit/Dockerfile
+    - https://github.com/user/repo/tree/branch/path
+    - https://github.com/user/repo (already valid)
+    - https://github.com/user/repo.git#branch (already valid)
+
+    Returns:
+        Tuple of (docker_context_url, dockerfile_path or None)
+    """
+    if not url:
+        return url, None
+
+    # Already a .git URL with optional ref - pass through
+    if '.git' in url and '#' in url:
+        return url, None
+    if url.endswith('.git'):
+        return url, None
+
+    # Parse GitHub blob/tree URLs
+    # Format: https://github.com/user/repo/blob/ref/path/to/Dockerfile
+    # Format: https://github.com/user/repo/tree/ref/path
+    import re
+
+    # Match: github.com/user/repo/(blob|tree)/ref/optional/path
+    match = re.match(
+        r'https?://github\.com/([^/]+)/([^/]+)/(blob|tree)/([^/]+)(?:/(.*))?',
+        url,
+    )
+
+    if match:
+        user = match.group(1)
+        repo = match.group(2)
+        url_type = match.group(3)  # 'blob' or 'tree'
+        ref = match.group(4)  # branch, tag, or commit hash
+        path = match.group(5) or ''  # optional path
+
+        # Build Docker-compatible git URL
+        # Format: https://github.com/user/repo.git#ref:context_path
+        git_url = f'https://github.com/{user}/{repo}.git#{ref}'
+
+        dockerfile_path = None
+
+        if url_type == 'blob':
+            # URL points to a specific file (likely Dockerfile)
+            if path:
+                # Extract directory from file path
+                if '/' in path:
+                    context_dir = '/'.join(path.split('/')[:-1])
+                    dockerfile_name = path.split('/')[-1]
+                    if context_dir:
+                        git_url = f'https://github.com/{user}/{repo}.git#{ref}:{context_dir}'
+                    if dockerfile_name != 'Dockerfile':
+                        dockerfile_path = dockerfile_name
+                else:
+                    # File is in root directory
+                    if path != 'Dockerfile':
+                        dockerfile_path = path
+        elif url_type == 'tree' and path:
+            # URL points to a directory
+            git_url = f'https://github.com/{user}/{repo}.git#{ref}:{path}'
+
+        print(f'[GitHub URL] Converted {url} -> {git_url}')
+        return git_url, dockerfile_path
+
+    # Try simple repo URL: https://github.com/user/repo
+    simple_match = re.match(r'https?://github\.com/([^/]+)/([^/]+)/?$', url)
+    if simple_match:
+        user = simple_match.group(1)
+        repo = simple_match.group(2)
+        return f'https://github.com/{user}/{repo}.git', None
+
+    # Not a recognized GitHub URL format - return as-is
+    return url, None
 
 
 def parse_sse_response(response_text: str) -> dict | None:
@@ -39,6 +125,376 @@ def parse_sse_response(response_text: str) -> dict | None:
     return None
 
 
+class StdioMcpConnection:
+    """
+    Manages a stdio-based MCP server connection using Docker SDK.
+
+    Runs a Docker container in interactive mode and communicates
+    via stdin/stdout using JSON-RPC 2.0 protocol.
+
+    This class handles:
+    - Container lifecycle (start/stop) via Docker SDK
+    - Message serialization/deserialization
+    - Request/response correlation via JSON-RPC IDs
+    - Thread-safe communication
+    """
+
+    def __init__(self, server_name: str, image: str, env_vars: dict[str, str], docker_client: Any = None):
+        """
+        Initialize stdio connection.
+
+        Args:
+            server_name: Unique name for the container
+            image: Docker image to run
+            env_vars: Environment variables to pass to container
+            docker_client: Docker client instance (from DockerBridge)
+        """
+        self.server_name = server_name
+        self.image = image
+        self.env_vars = env_vars
+        # Container name must be lowercase
+        safe_name = server_name.lower().replace(' ', '-')
+        self.container_name = f'ttt-mcp-stdio-{safe_name}'
+        self._docker_client = docker_client
+
+        self._container = None
+        self._socket = None
+        self._response_queue: queue.Queue = queue.Queue()
+        self._reader_thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._request_id = 0
+        self._pending_requests: dict[int, asyncio.Future] = {}
+        self._running = False
+        self._initialized = False
+
+    def _get_next_id(self) -> int:
+        """Get next request ID (thread-safe)."""
+        with self._lock:
+            self._request_id += 1
+            return self._request_id
+
+    def _reader_loop(self):
+        """Background thread that reads stdout and dispatches responses."""
+        if not self._socket:
+            return
+
+        buffer = b''
+        while self._running:
+            try:
+                # Read from socket
+                data = self._socket.recv(4096)
+                if not data:
+                    print(f'[StdioMcp] Socket closed for {self.server_name}')
+                    break
+
+                buffer += data
+
+                # Try to parse complete JSON objects (newline-delimited)
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    if line.strip():
+                        try:
+                            # Docker attach protocol may have stream type prefix byte
+                            # Skip first 8 bytes if they look like Docker stream header
+                            line_str = line.decode('utf-8', errors='ignore')
+                            # Try to find JSON start
+                            json_start = line_str.find('{')
+                            if json_start >= 0:
+                                response = json.loads(line_str[json_start:])
+                                self._handle_response(response)
+                        except json.JSONDecodeError as e:
+                            print(f'[StdioMcp] JSON parse error: {e}, line: {line[:100]}')
+                        except Exception as e:
+                            print(f'[StdioMcp] Parse error: {e}')
+
+            except Exception as e:
+                if self._running:
+                    print(f'[StdioMcp] Reader error: {e}')
+                break
+
+        print(f'[StdioMcp] Reader loop exited for {self.server_name}')
+
+    def _handle_response(self, response: dict):
+        """Handle a JSON-RPC response from the server."""
+        request_id = response.get('id')
+        print(f'[StdioMcp] Received response for id={request_id}')
+
+        if request_id is not None:
+            # Put response in queue for async handling
+            self._response_queue.put((request_id, response))
+
+    async def start(self) -> tuple[bool, str | None]:
+        """
+        Start the Docker container in interactive mode using Docker SDK.
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        if self._running:
+            return True, None
+
+        if not self._docker_client:
+            return False, 'Docker client not available'
+
+        try:
+            # Log what we're starting (redact secrets)
+            redacted_env = {}
+            for key, value in self.env_vars.items():
+                if any(s in key.upper() for s in ['KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'AUTH']):
+                    redacted_env[key] = '[REDACTED]'
+                else:
+                    redacted_env[key] = value
+            print(f'[StdioMcp] Starting container {self.container_name} with image {self.image}')
+            print(f'[StdioMcp] Environment: {redacted_env}')
+
+            # Remove existing container if any
+            try:
+                old_container = self._docker_client.containers.get(self.container_name)
+                old_container.remove(force=True)
+                print(f'[StdioMcp] Removed existing container {self.container_name}')
+            except Exception:
+                pass
+
+            # Create container with stdin open
+            self._container = self._docker_client.containers.create(
+                self.image,
+                name=self.container_name,
+                stdin_open=True,
+                tty=False,
+                environment=self.env_vars,
+                detach=True,
+            )
+
+            # Attach to container stdin/stdout
+            self._socket = self._container.attach_socket(params={'stdin': 1, 'stdout': 1, 'stderr': 1, 'stream': 1})
+            # Get the underlying socket
+            if hasattr(self._socket, '_sock'):
+                self._socket = self._socket._sock
+
+            # Start the container
+            self._container.start()
+            print(f'[StdioMcp] Container {self.container_name} started')
+
+            self._running = True
+
+            # Start reader thread
+            self._reader_thread = threading.Thread(
+                target=self._reader_loop, daemon=True, name=f'stdio-reader-{self.server_name}'
+            )
+            self._reader_thread.start()
+
+            # Give container time to start
+            await asyncio.sleep(1.0)
+
+            # Check if container is still running
+            self._container.reload()
+            if self._container.status != 'running':
+                logs = self._container.logs().decode('utf-8', errors='ignore')
+                return False, f'Container exited immediately. Logs: {logs[:500]}'
+
+            return True, None
+
+        except Exception as e:
+            self._running = False
+            print(f'[StdioMcp] Start error: {traceback.format_exc()}')
+            return False, str(e)
+
+    async def stop(self) -> tuple[bool, str | None]:
+        """
+        Stop the Docker container.
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        self._running = False
+        self._initialized = False
+
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception as e:
+                print(f'[StdioMcp] Error closing socket: {e}')
+            self._socket = None
+
+        if self._container:
+            try:
+                self._container.stop(timeout=5)
+                self._container.remove(force=True)
+                print(f'[StdioMcp] Container {self.container_name} stopped and removed')
+            except Exception as e:
+                print(f'[StdioMcp] Error stopping container: {e}')
+            self._container = None
+
+        return True, None
+
+    async def send_request(
+        self, method: str, params: dict | None = None, timeout: float = 60.0
+    ) -> tuple[dict | None, str | None]:
+        """
+        Send a JSON-RPC request and wait for response.
+
+        Args:
+            method: JSON-RPC method name
+            params: Optional parameters
+            timeout: Timeout in seconds
+
+        Returns:
+            Tuple of (result_dict, error_message)
+        """
+        if not self._running or not self._socket:
+            return None, 'Connection not active'
+
+        request_id = self._get_next_id()
+
+        request = {
+            'jsonrpc': '2.0',
+            'method': method,
+            'id': request_id,
+        }
+        if params:
+            request['params'] = params
+
+        try:
+            # Send request
+            request_json = json.dumps(request) + '\n'
+            print(f'[StdioMcp] Sending: {request_json[:200]}...')
+            self._socket.sendall(request_json.encode('utf-8'))
+
+            # Wait for response with polling
+            start_time = asyncio.get_event_loop().time()
+            while True:
+                try:
+                    # Check response queue
+                    try:
+                        resp_id, response = self._response_queue.get_nowait()
+                        if resp_id == request_id:
+                            if 'error' in response:
+                                error = response['error']
+                                return None, f"{error.get('message', 'Unknown error')}"
+                            return response.get('result'), None
+                        else:
+                            # Put back if not our response
+                            self._response_queue.put((resp_id, response))
+                    except queue.Empty:
+                        pass
+
+                    # Check timeout
+                    elapsed = asyncio.get_event_loop().time() - start_time
+                    if elapsed > timeout:
+                        return None, f'Request timed out after {timeout}s'
+
+                    # Check if container died
+                    if self._container:
+                        self._container.reload()
+                        if self._container.status != 'running':
+                            return None, 'Container terminated'
+
+                    await asyncio.sleep(0.1)
+
+                except asyncio.CancelledError:
+                    raise
+
+        except Exception as e:
+            return None, str(e)
+        finally:
+            # Clean up pending request
+            self._pending_requests.pop(request_id, None)
+
+    async def initialize(self) -> tuple[dict | None, str | None]:
+        """
+        Send MCP initialize request.
+
+        Returns:
+            Tuple of (capabilities_dict, error_message)
+        """
+        if self._initialized:
+            return {'already_initialized': True}, None
+
+        result, error = await self.send_request(
+            'initialize',
+            {
+                'protocolVersion': '2024-11-05',
+                'capabilities': {},
+                'clientInfo': {'name': 'track-the-thing', 'version': '1.0'},
+            },
+        )
+
+        if error:
+            return None, error
+
+        # Send initialized notification (no response expected)
+        if self._socket:
+            try:
+                notification = json.dumps({'jsonrpc': '2.0', 'method': 'notifications/initialized'}) + '\n'
+                self._socket.sendall(notification.encode('utf-8'))
+            except Exception as e:
+                print(f'[StdioMcp] Error sending initialized notification: {e}')
+
+        self._initialized = True
+        return result, None
+
+    async def list_tools(self) -> tuple[list[dict] | None, str | None]:
+        """
+        Get list of available tools from the MCP server.
+
+        Returns:
+            Tuple of (tools_list, error_message)
+        """
+        # Ensure initialized first
+        if not self._initialized:
+            _, err = await self.initialize()
+            if err:
+                return None, f'Failed to initialize: {err}'
+
+        result, error = await self.send_request('tools/list')
+        if error:
+            return None, error
+
+        tools = result.get('tools', []) if result else []
+        return tools, None
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> tuple[Any | None, str | None]:
+        """
+        Call a tool on the MCP server.
+
+        Returns:
+            Tuple of (result, error_message)
+        """
+        result, error = await self.send_request(
+            'tools/call',
+            {'name': tool_name, 'arguments': arguments},
+            timeout=120.0,  # Longer timeout for tool calls
+        )
+
+        if error:
+            return None, error
+
+        # Extract content from result
+        if isinstance(result, dict):
+            content = result.get('content', [])
+            if isinstance(content, list):
+                texts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get('type') == 'text':
+                        texts.append(item.get('text', ''))
+                if texts:
+                    return '\n'.join(texts), None
+            return result, None
+
+        return result, None
+
+    @property
+    def is_running(self) -> bool:
+        """Check if the connection is active."""
+        if not self._running or not self._container:
+            return False
+        try:
+            self._container.reload()
+            return self._container.status == 'running'
+        except Exception:
+            return False
+
+
 class DockerBridge:
     """Service for managing MCP servers (Docker containers and remote HTTP endpoints)."""
 
@@ -59,6 +515,7 @@ class DockerBridge:
         self._docker_client = None
         self._docker_available = None
         self._docker_version = None
+        self._stdio_connections: dict[int, StdioMcpConnection] = {}  # server_id -> connection
 
     def _init_docker(self) -> bool:
         """Initialize Docker client if available."""
@@ -133,9 +590,113 @@ class DockerBridge:
 
         return keys
 
+    def _get_image_name(self, server: models.McpServer) -> str:
+        """Get the Docker image name for an MCP server."""
+        build_source = getattr(server, 'build_source', 'image') or 'image'
+        if build_source == 'dockerfile':
+            # Use server name as image tag for built images
+            # Docker requires lowercase repository names
+            safe_name = server.name.lower().replace(' ', '-')
+            return f'ttt-mcp-{safe_name}:latest'
+        return server.image
+
+    async def build_image(self, server: models.McpServer) -> tuple[bool, str | None]:
+        """
+        Build a Docker image from a Dockerfile.
+
+        Supports:
+        - Local paths: /path/to/context
+        - GitHub URLs: https://github.com/user/repo/blob/branch/Dockerfile
+        - Git URLs: https://github.com/user/repo.git#branch
+
+        Args:
+            server: The MCP server configuration with build_context set
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        if not self._init_docker():
+            return False, 'Docker is not available'
+
+        build_context = getattr(server, 'build_context', '') or ''
+        if not build_context:
+            return False, 'Build context path is required'
+
+        dockerfile_path = getattr(server, 'dockerfile_path', '') or ''
+
+        # Convert GitHub blob/tree URLs to Docker-compatible format
+        if build_context.startswith('http'):
+            # Validate URL - must be a clean URL without extra text
+            if ' ' in build_context or '\n' in build_context:
+                return False, 'Build context URL is invalid - contains extra text. Please paste only the URL.'
+
+            # Only GitHub URLs are supported for remote builds
+            if 'github.com' not in build_context:
+                return False, f'Only GitHub URLs are supported for remote builds. Got: {build_context[:100]}'
+
+            converted_context, auto_dockerfile = convert_github_url_to_docker_context(build_context)
+            build_context = converted_context
+            # Use auto-detected dockerfile path if not explicitly set
+            if auto_dockerfile and not dockerfile_path:
+                dockerfile_path = auto_dockerfile
+
+        try:
+            # Update status to building
+            server.status = 'building'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+
+            image_name = self._get_image_name(server)
+            print(f'[MCP Build] Building image {image_name} from {build_context}')
+
+            # Build the image using Docker SDK
+            # The SDK supports git URLs directly in the path parameter
+            build_args = {
+                'path': build_context,
+                'tag': image_name,
+                'rm': True,  # Remove intermediate containers
+                'forcerm': True,  # Always remove intermediate containers
+            }
+
+            if dockerfile_path:
+                build_args['dockerfile'] = dockerfile_path
+
+            print(f'[MCP Build] Build args: {build_args}')
+            image, build_logs = self._docker_client.images.build(**build_args)
+
+            # Log build output
+            for log in build_logs:
+                if 'stream' in log:
+                    stream_text = log['stream'].strip()
+                    if stream_text:
+                        print(f'[MCP Build] {stream_text}')
+                elif 'error' in log:
+                    print(f"[MCP Build Error] {log['error']}")
+                    server.status = 'error'
+                    server.updated_at = datetime.utcnow()
+                    self.db.commit()
+                    return False, log['error']
+
+            # Update the server's image field with the built image name
+            server.image = image_name
+            server.status = 'stopped'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+
+            print(f'[MCP Build] Successfully built {image_name}')
+            return True, None
+
+        except Exception as e:
+            print(f'[MCP Build] Exception: {str(e)}')
+            print(f'[MCP Build] Traceback: {traceback.format_exc()}')
+            server.status = 'error'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+            return False, f'Build failed: {str(e)}'
+
     async def start_container(self, server: models.McpServer) -> tuple[bool, str | None]:
         """
-        Start an MCP server (Docker container or mark remote as running).
+        Start an MCP server (Docker container, remote, or stdio).
 
         Args:
             server: The MCP server configuration
@@ -143,18 +704,40 @@ class DockerBridge:
         Returns:
             Tuple of (success, error_message)
         """
+        server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
+
         # Remote servers don't need container management
-        if getattr(server, 'server_type', 'docker') == 'remote':
+        if server_type == 'remote':
             # Just mark as running - we'll verify with health check
             server.status = 'running'
             server.updated_at = datetime.utcnow()
             self.db.commit()
             return True, None
 
+        # STDIO transport - new code path
+        if transport_type == 'stdio':
+            return await self._start_stdio_container(server)
+
         if not self._init_docker():
             return False, 'Docker is not available'
 
         try:
+            # Check if we need to build from Dockerfile
+            build_source = getattr(server, 'build_source', 'image') or 'image'
+            if build_source == 'dockerfile':
+                # Check if image exists, if not build it
+                image_name = self._get_image_name(server)
+                try:
+                    self._docker_client.images.get(image_name)
+                    print(f'[MCP] Image {image_name} exists, using it')
+                except Exception:
+                    # Image doesn't exist, build it
+                    print(f'[MCP] Image {image_name} not found, building...')
+                    success, error = await self.build_image(server)
+                    if not success:
+                        return False, f'Failed to build image: {error}'
+
             # Check if container already exists
             container = self._get_container(server)
             if container:
@@ -180,9 +763,10 @@ class DockerBridge:
 
             # Docker run configuration with security settings
             container_name = self._get_container_name(server)
+            image_to_use = self._get_image_name(server)
 
             container = self._docker_client.containers.run(
-                server.image,
+                image_to_use,
                 name=container_name,
                 detach=True,
                 remove=False,  # Keep for logs, cleanup manually
@@ -207,9 +791,9 @@ class DockerBridge:
             self.db.commit()
             return False, str(e)
 
-    async def stop_container(self, server: models.McpServer) -> tuple[bool, str | None]:
+    async def _start_stdio_container(self, server: models.McpServer) -> tuple[bool, str | None]:
         """
-        Stop an MCP server (Docker container or mark remote as stopped).
+        Start an MCP server using stdio transport.
 
         Args:
             server: The MCP server configuration
@@ -217,8 +801,129 @@ class DockerBridge:
         Returns:
             Tuple of (success, error_message)
         """
+        try:
+            # Check if already running
+            if server.id in self._stdio_connections:
+                conn = self._stdio_connections[server.id]
+                if conn.is_running:
+                    server.status = 'running'
+                    server.updated_at = datetime.utcnow()
+                    self.db.commit()
+                    return True, None
+
+            # Check if we need to build from Dockerfile
+            build_source = getattr(server, 'build_source', 'image') or 'image'
+            if build_source == 'dockerfile':
+                # Need to build from Dockerfile first
+                if not self._init_docker():
+                    return False, 'Docker is not available for building image'
+
+                image_name = self._get_image_name(server)
+                try:
+                    self._docker_client.images.get(image_name)
+                    print(f'[MCP-STDIO] Image {image_name} exists, using it')
+                except Exception:
+                    # Image doesn't exist, build it
+                    print(f'[MCP-STDIO] Image {image_name} not found, building...')
+                    success, error = await self.build_image(server)
+                    if not success:
+                        return False, f'Failed to build image: {error}'
+                image = image_name
+            else:
+                # Validate pre-built image name
+                image = server.image or ''
+                if not image:
+                    return False, 'Docker image is required for stdio servers'
+                if image.startswith('http://') or image.startswith('https://'):
+                    return False, 'Image must be a Docker image name (e.g., mcp/brave-search), not a URL'
+
+            # Build environment variables
+            env_vars = self._get_api_keys()
+
+            # Add any custom env vars specified for this server
+            try:
+                server_env_names = json.loads(server.env_vars) if server.env_vars else []
+                for var_name in server_env_names:
+                    if var_name not in env_vars:
+                        # Look up from environment
+                        if var_name in os.environ:
+                            env_vars[var_name] = os.environ[var_name]
+            except json.JSONDecodeError:
+                pass
+
+            # Initialize Docker client if needed
+            if not self._init_docker():
+                return False, 'Docker is not available'
+
+            # Create connection with Docker client
+            conn = StdioMcpConnection(
+                server_name=server.name,
+                image=image,
+                env_vars=env_vars,
+                docker_client=self._docker_client,
+            )
+
+            # Update status
+            server.status = 'starting'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+
+            # Start container
+            success, error = await conn.start()
+
+            if not success:
+                server.status = 'error'
+                server.updated_at = datetime.utcnow()
+                self.db.commit()
+                return False, error
+
+            # Store connection
+            self._stdio_connections[server.id] = conn
+
+            # Initialize MCP protocol
+            _, init_error = await conn.initialize()
+            if init_error:
+                print(f'[MCP] Warning: Initialization returned error: {init_error}')
+                # Don't fail - some servers might not require explicit init
+
+            server.status = 'running'
+            server.last_health_check = datetime.utcnow()
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+
+            return True, None
+
+        except Exception as e:
+            server.status = 'error'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+            return False, f'Failed to start stdio container: {str(e)}'
+
+    async def stop_container(self, server: models.McpServer) -> tuple[bool, str | None]:
+        """
+        Stop an MCP server (Docker container, remote, or stdio).
+
+        Args:
+            server: The MCP server configuration
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
+
         # Remote servers don't need container management
-        if getattr(server, 'server_type', 'docker') == 'remote':
+        if server_type == 'remote':
+            server.status = 'stopped'
+            server.updated_at = datetime.utcnow()
+            self.db.commit()
+            return True, None
+
+        # STDIO transport
+        if transport_type == 'stdio':
+            if server.id in self._stdio_connections:
+                conn = self._stdio_connections.pop(server.id)
+                await conn.stop()
             server.status = 'stopped'
             server.updated_at = datetime.utcnow()
             self.db.commit()
@@ -275,10 +980,27 @@ class DockerBridge:
             Tuple of (logs, error_message)
         """
         server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
 
         # Remote servers don't have local logs
         if server_type == 'remote':
             return 'Logs not available for remote MCP servers.', None
+
+        # STDIO containers - try docker logs command
+        if transport_type == 'stdio':
+            try:
+                result = subprocess.run(
+                    ['docker', 'logs', '--tail', str(tail), f'ttt-mcp-stdio-{server.name}'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                logs = result.stdout + result.stderr
+                return self._redact_logs(logs) if logs else 'No logs available', None
+            except subprocess.TimeoutExpired:
+                return None, 'Log retrieval timed out'
+            except Exception as e:
+                return None, str(e)
 
         if not self._init_docker():
             return None, 'Docker is not available'
@@ -313,6 +1035,28 @@ class DockerBridge:
             Tuple of (healthy, error_message)
         """
         server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
+
+        # STDIO health check - check if connection is alive
+        if transport_type == 'stdio':
+            if server.id in self._stdio_connections:
+                conn = self._stdio_connections[server.id]
+                if conn.is_running:
+                    server.status = 'running'
+                    server.last_health_check = datetime.utcnow()
+                    server.updated_at = datetime.utcnow()
+                    self.db.commit()
+                    return True, None
+                else:
+                    server.status = 'stopped'
+                    server.updated_at = datetime.utcnow()
+                    self.db.commit()
+                    return False, 'Stdio container not running'
+            else:
+                server.status = 'stopped'
+                server.updated_at = datetime.utcnow()
+                self.db.commit()
+                return False, 'No stdio connection found'
 
         # Remote server health check
         if server_type == 'remote':
@@ -394,10 +1138,21 @@ class DockerBridge:
 
         for server in servers:
             server_type = getattr(server, 'server_type', 'docker')
+            transport_type = getattr(server, 'transport_type', 'http')
 
             if server_type == 'remote':
                 # Remote servers: status is managed via health checks
                 # Don't change status here - let health_check handle it
+                continue
+
+            # STDIO servers: check connection state
+            if transport_type == 'stdio':
+                if server.id in self._stdio_connections:
+                    conn = self._stdio_connections[server.id]
+                    server.status = 'running' if conn.is_running else 'stopped'
+                else:
+                    server.status = 'stopped'
+                server.updated_at = datetime.utcnow()
                 continue
 
             # Docker servers: sync with container state
@@ -598,6 +1353,21 @@ class DockerBridge:
             Each tool has: name, description, inputSchema
         """
         server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
+
+        # STDIO transport - use dedicated connection
+        if transport_type == 'stdio':
+            if server.id not in self._stdio_connections:
+                # Try to start it
+                success, error = await self._start_stdio_container(server)
+                if not success:
+                    return None, f'Failed to start stdio server: {error}'
+
+            conn = self._stdio_connections.get(server.id)
+            if not conn or not conn.is_running:
+                return None, 'Stdio connection not available'
+
+            return await conn.list_tools()
 
         try:
             if server_type == 'remote':
@@ -649,6 +1419,15 @@ class DockerBridge:
             Tuple of (result, error_message)
         """
         server_type = getattr(server, 'server_type', 'docker')
+        transport_type = getattr(server, 'transport_type', 'http')
+
+        # STDIO transport - use dedicated connection
+        if transport_type == 'stdio':
+            conn = self._stdio_connections.get(server.id)
+            if not conn or not conn.is_running:
+                return None, 'Stdio connection not available'
+
+            return await conn.call_tool(tool_name, arguments)
 
         try:
             if server_type == 'remote':

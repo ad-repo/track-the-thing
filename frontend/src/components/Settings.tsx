@@ -1150,12 +1150,13 @@ const Settings = () => {
         <section className="mb-6">
           <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
             <Server className="h-5 w-5" />
-            MCP Servers (Local AI Processing)
+            MCP Servers
           </h2>
           <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
             <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-              Configure Docker-based MCP (Model Context Protocol) servers for local AI processing.
-              Text selections matching routing patterns will be processed by MCP servers instead of cloud LLMs.
+              Configure MCP (Model Context Protocol) servers for AI processing. Supports Docker containers
+              (HTTP or STDIO transport) and remote HTTP endpoints. Text selections matching routing patterns
+              will be processed by MCP servers instead of cloud LLMs.
             </p>
             <McpServerManager onMessage={showMessage} />
           </div>

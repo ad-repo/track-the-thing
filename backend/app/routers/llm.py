@@ -935,6 +935,7 @@ def check_mcp_match(request: schemas.LlmSendRequest, db: Session = Depends(get_d
             'server_name': matched_server.name,
             'server_status': effective_status,
             'server_type': server_type,
+            'server_color': getattr(matched_server, 'color', '#22c55e') or '#22c55e',
             'description': matched_server.description,
         }
 

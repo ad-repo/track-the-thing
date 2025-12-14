@@ -15,6 +15,29 @@ from app.services.docker_bridge import DockerBridge
 
 router = APIRouter(prefix='/api/mcp', tags=['mcp'])
 
+# Predefined color palette for MCP servers
+MCP_COLORS = [
+    '#22c55e',  # Green
+    '#3b82f6',  # Blue
+    '#f59e0b',  # Amber
+    '#ef4444',  # Red
+    '#8b5cf6',  # Purple
+    '#06b6d4',  # Cyan
+    '#ec4899',  # Pink
+    '#f97316',  # Orange
+]
+
+
+def _get_next_color(db: Session) -> str:
+    """Get the next color for a new MCP server from the palette."""
+    existing_colors = [getattr(s, 'color', None) or '#22c55e' for s in db.query(models.McpServer).all()]
+    # Find first unused color
+    for color in MCP_COLORS:
+        if color not in existing_colors:
+            return color
+    # If all used, cycle based on count
+    return MCP_COLORS[len(existing_colors) % len(MCP_COLORS)]
+
 
 def get_docker_bridge(db: Session = Depends(get_db)) -> DockerBridge:
     """Dependency to get DockerBridge instance."""
@@ -35,17 +58,26 @@ def _serialize_server(server: models.McpServer) -> dict:
         headers = {}
 
     server_type = getattr(server, 'server_type', 'docker') or 'docker'
+    transport_type = getattr(server, 'transport_type', 'http') or 'http'
     url = getattr(server, 'url', '') or ''
+    build_source = getattr(server, 'build_source', 'image') or 'image'
+    build_context = getattr(server, 'build_context', '') or ''
+    dockerfile_path = getattr(server, 'dockerfile_path', '') or ''
 
     return {
         'id': server.id,
         'name': server.name,
         'server_type': server_type,
+        'transport_type': transport_type,
         'image': server.image or '',
         'port': server.port or 0,
+        'build_source': build_source,
+        'build_context': build_context,
+        'dockerfile_path': dockerfile_path,
         'url': url,
         'headers': headers,
         'description': server.description or '',
+        'color': getattr(server, 'color', '#22c55e') or '#22c55e',
         'env_vars': env_vars,
         'status': server.status or 'stopped',
         'last_health_check': server.last_health_check,
@@ -163,19 +195,50 @@ def get_server(server_id: int, db: Session = Depends(get_db)):
 
 @router.post('/servers')
 def create_server(server_data: schemas.McpServerCreate, db: Session = Depends(get_db)):
-    """Create a new MCP server configuration (Docker or remote)."""
+    """Create a new MCP server configuration (Docker, remote, or stdio)."""
     # Check if name already exists
     existing = db.query(models.McpServer).filter(models.McpServer.name == server_data.name).first()
     if existing:
         raise HTTPException(status_code=400, detail='Server name already exists')
 
-    # Validate based on server type
+    # Validate based on server type and transport type
     server_type = server_data.server_type or 'docker'
-    if server_type == 'docker':
-        if not server_data.image:
-            raise HTTPException(status_code=400, detail='Docker image is required for Docker servers')
+    transport_type = server_data.transport_type or 'http'
+    build_source = server_data.build_source or 'image'
+
+    # Validation based on server and transport type
+    if transport_type == 'stdio':
+        # STDIO servers need either an image or a build context
+        if build_source == 'dockerfile':
+            if not server_data.build_context:
+                raise HTTPException(status_code=400, detail='Build context path is required for Dockerfile builds')
+            # Validate URL format if it's a URL
+            build_ctx = server_data.build_context
+            if build_ctx.startswith('http'):
+                if ' ' in build_ctx or '\n' in build_ctx:
+                    raise HTTPException(status_code=400, detail='Build context URL is invalid - contains extra text')
+                if 'github.com' not in build_ctx:
+                    raise HTTPException(status_code=400, detail='Only GitHub URLs are supported for remote builds')
+        else:
+            if not server_data.image:
+                raise HTTPException(status_code=400, detail='Docker image is required for stdio servers')
+        # Port is not required for stdio
+    elif server_type == 'docker':
+        if build_source == 'image':
+            if not server_data.image:
+                raise HTTPException(status_code=400, detail='Docker image is required for pre-built Docker servers')
+        elif build_source == 'dockerfile':
+            if not server_data.build_context:
+                raise HTTPException(status_code=400, detail='Build context path is required for Dockerfile builds')
+            # Validate URL format if it's a URL
+            build_ctx = server_data.build_context
+            if build_ctx.startswith('http'):
+                if ' ' in build_ctx or '\n' in build_ctx:
+                    raise HTTPException(status_code=400, detail='Build context URL is invalid - contains extra text')
+                if 'github.com' not in build_ctx:
+                    raise HTTPException(status_code=400, detail='Only GitHub URLs are supported for remote builds')
         if not server_data.port:
-            raise HTTPException(status_code=400, detail='Port is required for Docker servers')
+            raise HTTPException(status_code=400, detail='Port is required for HTTP Docker servers')
     elif server_type == 'remote':
         if not server_data.url:
             raise HTTPException(status_code=400, detail='URL is required for remote servers')
@@ -183,11 +246,16 @@ def create_server(server_data: schemas.McpServerCreate, db: Session = Depends(ge
     server = models.McpServer(
         name=server_data.name,
         server_type=server_type,
+        transport_type=transport_type,
         image=server_data.image or '',
         port=server_data.port or 0,
+        build_source=build_source,
+        build_context=server_data.build_context or '',
+        dockerfile_path=server_data.dockerfile_path or '',
         url=server_data.url or '',
         headers=json.dumps(server_data.headers or {}),
         description=server_data.description,
+        color=server_data.color if server_data.color else _get_next_color(db),
         env_vars=json.dumps(server_data.env_vars),
         auto_start=1 if server_data.auto_start else 0,
         source='local',
@@ -223,10 +291,18 @@ def update_server(server_id: int, update: schemas.McpServerUpdate, db: Session =
 
     if update.server_type is not None:
         server.server_type = update.server_type
+    if update.transport_type is not None:
+        server.transport_type = update.transport_type
     if update.image is not None:
         server.image = update.image
     if update.port is not None:
         server.port = update.port
+    if update.build_source is not None:
+        server.build_source = update.build_source
+    if update.build_context is not None:
+        server.build_context = update.build_context
+    if update.dockerfile_path is not None:
+        server.dockerfile_path = update.dockerfile_path
     if update.url is not None:
         server.url = update.url
     if update.headers is not None:
@@ -328,6 +404,29 @@ async def restart_server(
     return _serialize_server(server)
 
 
+@router.post('/servers/{server_id}/build')
+async def build_server_image(
+    server_id: int,
+    db: Session = Depends(get_db),
+    bridge: DockerBridge = Depends(get_docker_bridge),
+):
+    """Build or rebuild a Docker image from Dockerfile for an MCP server."""
+    server = db.query(models.McpServer).filter(models.McpServer.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail='MCP server not found')
+
+    build_source = getattr(server, 'build_source', 'image') or 'image'
+    if build_source != 'dockerfile':
+        raise HTTPException(status_code=400, detail='Server is not configured for Dockerfile builds')
+
+    success, error = await bridge.build_image(server)
+    if not success:
+        raise HTTPException(status_code=500, detail=error or 'Failed to build image')
+
+    db.refresh(server)
+    return _serialize_server(server)
+
+
 @router.get('/servers/{server_id}/logs')
 async def get_server_logs(
     server_id: int,
@@ -423,6 +522,7 @@ async def import_from_manifest(data: schemas.McpManifestImport, db: Session = De
         image=manifest['image'],
         port=port,
         description=manifest.get('description', ''),
+        color=_get_next_color(db),
         env_vars=json.dumps(manifest.get('env_vars', [])),
         auto_start=0,
         source='github',

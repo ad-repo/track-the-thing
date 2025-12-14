@@ -19,7 +19,6 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Optional
 
 import uvicorn
 
@@ -30,7 +29,7 @@ def _expand(path_value: str) -> Path:
     return Path(expanded).resolve()
 
 
-def _configure_logging(log_path: Optional[str]) -> None:
+def _configure_logging(log_path: str | None) -> None:
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 
     if log_path:
@@ -116,7 +115,7 @@ def main() -> None:
     migration_rc = run_migrations.main()
     if migration_rc != 0:
         logging.warning("One or more migrations reported issues (code=%s)", migration_rc)
-    
+
     logging.info("Migrations complete, creating uvicorn server config")
 
     try:
@@ -128,7 +127,7 @@ def main() -> None:
             log_level="info",
         )
         logging.info("Created uvicorn config successfully")
-        
+
         server = uvicorn.Server(server_config)
         logging.info("Created uvicorn server successfully")
 

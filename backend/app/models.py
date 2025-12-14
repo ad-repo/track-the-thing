@@ -278,16 +278,22 @@ class McpServer(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
     server_type = Column(String, default='docker')  # 'docker' or 'remote'
+    transport_type = Column(String, default='http')  # 'http' or 'stdio'
     # Docker-specific fields
-    image = Column(String, default='')  # Docker image (required for docker type)
+    image = Column(String, default='')  # Docker image (required for docker type with build_source='image')
     port = Column(Integer, default=0)  # Container port (required for docker type)
+    # Dockerfile build fields
+    build_source = Column(String, default='image')  # 'image' or 'dockerfile'
+    build_context = Column(String, default='')  # Path to directory containing Dockerfile
+    dockerfile_path = Column(String, default='')  # Optional: path to Dockerfile relative to build_context
     # Remote-specific fields
     url = Column(String, default='')  # Remote endpoint URL (required for remote type)
     headers = Column(Text, default='{}')  # JSON object of HTTP headers for auth
     # Common fields
     description = Column(Text, default='')
+    color = Column(String, default='#22c55e')  # Hex color for UI indicator (default: green)
     env_vars = Column(Text, default='[]')  # JSON array of env var names (docker) or config values (remote)
-    status = Column(String, default='stopped')  # stopped, starting, running, error
+    status = Column(String, default='stopped')  # stopped, starting, running, building, error
     last_health_check = Column(DateTime, nullable=True)
     auto_start = Column(Integer, default=0)  # 0/1 boolean
     source = Column(String, default='local')  # 'local' or 'github'

@@ -82,7 +82,7 @@ def migrate_down(db_path):
 
     try:
         print("Removing texture settings columns from 'app_settings' table...")
-        
+
         # Get current data (excluding texture fields)
         cursor.execute("""
             SELECT id, sprint_goals, quarterly_goals, sprint_start_date, sprint_end_date, 
@@ -91,7 +91,7 @@ def migrate_down(db_path):
             FROM app_settings
         """)
         data = cursor.fetchall()
-        
+
         # Drop and recreate table without texture fields
         cursor.execute("DROP TABLE app_settings")
         cursor.execute("""
@@ -110,7 +110,7 @@ def migrate_down(db_path):
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Restore data
         for row in data:
             cursor.execute("""
@@ -120,7 +120,7 @@ def migrate_down(db_path):
                  daily_goal_end_time, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, row)
-        
+
         conn.commit()
         print("Successfully removed texture settings columns from 'app_settings' table.")
 
@@ -135,7 +135,7 @@ def migrate_down(db_path):
 if __name__ == '__main__':
     db_path = get_db_path()
     print(f"Using database: {db_path}")
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == 'down':
         migrate_down(db_path)
     else:

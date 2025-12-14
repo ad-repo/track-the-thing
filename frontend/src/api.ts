@@ -478,6 +478,11 @@ export const mcpApi = {
     return response.data;
   },
 
+  buildImage: async (id: number): Promise<McpServer> => {
+    const response = await api.post<McpServer>(`/api/mcp/servers/${id}/build`);
+    return response.data;
+  },
+
   getLogs: async (id: number, tail?: number): Promise<McpServerLogs> => {
     const response = await api.get<McpServerLogs>(`/api/mcp/servers/${id}/logs`, {
       params: { tail: tail || 100 },

@@ -75,20 +75,20 @@ def migrate_down(db_path):
 
     try:
         print("Removing is_archived column from 'note_entries' table...")
-        
+
         # Get column info to reconstruct table without is_archived
         cursor.execute("PRAGMA table_info(note_entries)")
         columns = cursor.fetchall()
         columns_to_keep = [col for col in columns if col[1] != 'is_archived']
         column_names = [col[1] for col in columns_to_keep]
-        
+
         # Get current data
         cursor.execute(f"SELECT {', '.join(column_names)} FROM note_entries")
         data = cursor.fetchall()
-        
+
         # Drop and recreate table without is_archived
         cursor.execute("DROP TABLE note_entries")
-        
+
         # Recreate the table structure
         cursor.execute("""
             CREATE TABLE note_entries (
@@ -108,7 +108,7 @@ def migrate_down(db_path):
                 FOREIGN KEY (daily_note_id) REFERENCES daily_notes(id)
             )
         """)
-        
+
         # Restore data
         placeholders = ', '.join(['?' for _ in column_names])
         for row in data:
@@ -116,7 +116,7 @@ def migrate_down(db_path):
                 INSERT INTO note_entries ({', '.join(column_names)})
                 VALUES ({placeholders})
             """, row)
-        
+
         conn.commit()
         print("Successfully removed is_archived column from 'note_entries' table.")
 
@@ -131,7 +131,7 @@ def migrate_down(db_path):
 if __name__ == '__main__':
     db_path = get_db_path()
     print(f"Using database: {db_path}")
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == 'down':
         migrate_down(db_path)
     else:

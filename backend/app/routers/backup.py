@@ -91,10 +91,19 @@ async def export_data(db: Session = Depends(get_db)):
             'quarterly_start_date': app_settings.quarterly_start_date if app_settings else '',
             'quarterly_end_date': app_settings.quarterly_end_date if app_settings else '',
             'emoji_library': app_settings.emoji_library if app_settings else 'emoji-picker-react',
+            'sprint_name': getattr(app_settings, 'sprint_name', 'Sprint') if app_settings else 'Sprint',
+            'daily_goal_end_time': getattr(app_settings, 'daily_goal_end_time', '17:00') if app_settings else '17:00',
             'texture_enabled': bool(app_settings.texture_enabled) if app_settings else False,
             'texture_settings': app_settings.texture_settings if app_settings else '{}',
-            'llm_provider': getattr(app_settings, 'llm_provider', None) if app_settings else 'openai',
-            'llm_global_prompt': getattr(app_settings, 'llm_global_prompt', None) if app_settings else '',
+            'llm_provider': getattr(app_settings, 'llm_provider', 'openai') if app_settings else 'openai',
+            'openai_api_type': getattr(app_settings, 'openai_api_type', 'chat_completions')
+            if app_settings
+            else 'chat_completions',
+            'llm_global_prompt': getattr(app_settings, 'llm_global_prompt', '') if app_settings else '',
+            # MCP settings
+            'mcp_enabled': bool(getattr(app_settings, 'mcp_enabled', 0)) if app_settings else False,
+            'mcp_idle_timeout': getattr(app_settings, 'mcp_idle_timeout', 300) if app_settings else 300,
+            'mcp_fallback_to_llm': bool(getattr(app_settings, 'mcp_fallback_to_llm', 1)) if app_settings else True,
             # Note: API keys are NOT exported for security
             'created_at': app_settings.created_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
             'updated_at': app_settings.updated_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
@@ -114,11 +123,16 @@ async def export_data(db: Session = Depends(get_db)):
                 'id': server.id,
                 'name': server.name,
                 'server_type': getattr(server, 'server_type', 'docker') or 'docker',
+                'transport_type': getattr(server, 'transport_type', 'http') or 'http',
                 'image': server.image or '',
                 'port': server.port or 0,
+                'build_source': getattr(server, 'build_source', 'image') or 'image',
+                'build_context': getattr(server, 'build_context', '') or '',
+                'dockerfile_path': getattr(server, 'dockerfile_path', '') or '',
                 'url': getattr(server, 'url', '') or '',
                 'headers': getattr(server, 'headers', '{}') or '{}',
                 'description': server.description or '',
+                'color': getattr(server, 'color', '#22c55e') or '#22c55e',
                 'env_vars': server.env_vars or '[]',
                 'auto_start': bool(server.auto_start),
                 'source': server.source or 'local',
@@ -555,8 +569,16 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                     existing_settings.quarterly_start_date = settings_data.get('quarterly_start_date', '')
                     existing_settings.quarterly_end_date = settings_data.get('quarterly_end_date', '')
                     existing_settings.emoji_library = settings_data.get('emoji_library', 'emoji-picker-react')
+                    existing_settings.sprint_name = settings_data.get('sprint_name', 'Sprint')
+                    existing_settings.daily_goal_end_time = settings_data.get('daily_goal_end_time', '17:00')
                     existing_settings.texture_enabled = 1 if settings_data.get('texture_enabled', False) else 0
                     existing_settings.texture_settings = settings_data.get('texture_settings', '{}')
+                    existing_settings.llm_provider = settings_data.get('llm_provider', 'openai')
+                    existing_settings.openai_api_type = settings_data.get('openai_api_type', 'chat_completions')
+                    existing_settings.llm_global_prompt = settings_data.get('llm_global_prompt', '')
+                    existing_settings.mcp_enabled = 1 if settings_data.get('mcp_enabled', False) else 0
+                    existing_settings.mcp_idle_timeout = settings_data.get('mcp_idle_timeout', 300)
+                    existing_settings.mcp_fallback_to_llm = 1 if settings_data.get('mcp_fallback_to_llm', True) else 0
                 else:
                     new_settings = models.AppSettings(
                         id=1,
@@ -567,8 +589,16 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         quarterly_start_date=settings_data.get('quarterly_start_date', ''),
                         quarterly_end_date=settings_data.get('quarterly_end_date', ''),
                         emoji_library=settings_data.get('emoji_library', 'emoji-picker-react'),
+                        sprint_name=settings_data.get('sprint_name', 'Sprint'),
+                        daily_goal_end_time=settings_data.get('daily_goal_end_time', '17:00'),
                         texture_enabled=1 if settings_data.get('texture_enabled', False) else 0,
                         texture_settings=settings_data.get('texture_settings', '{}'),
+                        llm_provider=settings_data.get('llm_provider', 'openai'),
+                        openai_api_type=settings_data.get('openai_api_type', 'chat_completions'),
+                        llm_global_prompt=settings_data.get('llm_global_prompt', ''),
+                        mcp_enabled=1 if settings_data.get('mcp_enabled', False) else 0,
+                        mcp_idle_timeout=settings_data.get('mcp_idle_timeout', 300),
+                        mcp_fallback_to_llm=1 if settings_data.get('mcp_fallback_to_llm', True) else 0,
                         created_at=datetime.fromisoformat(settings_data['created_at'])
                         if 'created_at' in settings_data
                         else datetime.utcnow(),
@@ -715,11 +745,16 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         new_server = models.McpServer(
                             name=server_data['name'],
                             server_type=server_data.get('server_type', 'docker'),
+                            transport_type=server_data.get('transport_type', 'http'),
                             image=server_data.get('image', ''),
                             port=server_data.get('port', 0),
+                            build_source=server_data.get('build_source', 'image'),
+                            build_context=server_data.get('build_context', ''),
+                            dockerfile_path=server_data.get('dockerfile_path', ''),
                             url=server_data.get('url', ''),
                             headers=server_data.get('headers', '{}'),
                             description=server_data.get('description', ''),
+                            color=server_data.get('color', '#22c55e'),
                             env_vars=server_data.get('env_vars', '[]'),
                             auto_start=1 if server_data.get('auto_start', False) else 0,
                             source=server_data.get('source', 'local'),
@@ -1001,6 +1036,17 @@ async def full_restore(
                 existing_settings.sprint_end_date = settings_data.get('sprint_end_date', '')
                 existing_settings.quarterly_start_date = settings_data.get('quarterly_start_date', '')
                 existing_settings.quarterly_end_date = settings_data.get('quarterly_end_date', '')
+                existing_settings.emoji_library = settings_data.get('emoji_library', 'emoji-picker-react')
+                existing_settings.sprint_name = settings_data.get('sprint_name', 'Sprint')
+                existing_settings.daily_goal_end_time = settings_data.get('daily_goal_end_time', '17:00')
+                existing_settings.texture_enabled = 1 if settings_data.get('texture_enabled', False) else 0
+                existing_settings.texture_settings = settings_data.get('texture_settings', '{}')
+                existing_settings.llm_provider = settings_data.get('llm_provider', 'openai')
+                existing_settings.openai_api_type = settings_data.get('openai_api_type', 'chat_completions')
+                existing_settings.llm_global_prompt = settings_data.get('llm_global_prompt', '')
+                existing_settings.mcp_enabled = 1 if settings_data.get('mcp_enabled', False) else 0
+                existing_settings.mcp_idle_timeout = settings_data.get('mcp_idle_timeout', 300)
+                existing_settings.mcp_fallback_to_llm = 1 if settings_data.get('mcp_fallback_to_llm', True) else 0
             else:
                 new_settings = models.AppSettings(
                     id=1,
@@ -1010,6 +1056,17 @@ async def full_restore(
                     sprint_end_date=settings_data.get('sprint_end_date', ''),
                     quarterly_start_date=settings_data.get('quarterly_start_date', ''),
                     quarterly_end_date=settings_data.get('quarterly_end_date', ''),
+                    emoji_library=settings_data.get('emoji_library', 'emoji-picker-react'),
+                    sprint_name=settings_data.get('sprint_name', 'Sprint'),
+                    daily_goal_end_time=settings_data.get('daily_goal_end_time', '17:00'),
+                    texture_enabled=1 if settings_data.get('texture_enabled', False) else 0,
+                    texture_settings=settings_data.get('texture_settings', '{}'),
+                    llm_provider=settings_data.get('llm_provider', 'openai'),
+                    openai_api_type=settings_data.get('openai_api_type', 'chat_completions'),
+                    llm_global_prompt=settings_data.get('llm_global_prompt', ''),
+                    mcp_enabled=1 if settings_data.get('mcp_enabled', False) else 0,
+                    mcp_idle_timeout=settings_data.get('mcp_idle_timeout', 300),
+                    mcp_fallback_to_llm=1 if settings_data.get('mcp_fallback_to_llm', True) else 0,
                     created_at=datetime.fromisoformat(settings_data['created_at'])
                     if 'created_at' in settings_data
                     else datetime.utcnow(),

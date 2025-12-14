@@ -6,7 +6,6 @@ including time-based (Daily, Weekly, Sprint, Monthly, Quarterly, Yearly) and
 lifestyle goals (Fitness, Health, Learning, etc.).
 """
 import sqlite3
-from typing import Tuple
 
 
 def _table_exists(cursor, table_name: str) -> bool:
@@ -184,7 +183,7 @@ def _migrate_legacy_goals(cursor) -> tuple[int, int]:
     return migrated_sprint, migrated_quarterly
 
 
-def upgrade(db_path: str) -> Tuple[bool, str]:
+def upgrade(db_path: str) -> tuple[bool, str]:
     """Create goals table and migrate sprint/quarterly goals."""
     try:
         conn = sqlite3.connect(db_path)
@@ -247,7 +246,7 @@ def upgrade(db_path: str) -> Tuple[bool, str]:
         return False, f'Migration failed: {str(e)}'
 
 
-def downgrade(db_path: str) -> Tuple[bool, str]:
+def downgrade(db_path: str) -> tuple[bool, str]:
     """Remove goals table (data loss warning)."""
     try:
         conn = sqlite3.connect(db_path)

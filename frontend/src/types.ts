@@ -326,8 +326,9 @@ export interface LlmConversation {
 // MCP Server Types
 // ===========================
 
-export type McpServerStatus = 'stopped' | 'starting' | 'running' | 'error';
+export type McpServerStatus = 'stopped' | 'starting' | 'running' | 'building' | 'error';
 export type McpServerType = 'docker' | 'remote';
+export type McpTransportType = 'http' | 'stdio';
 
 export interface McpRoutingRule {
   id: number;
@@ -338,18 +339,26 @@ export interface McpRoutingRule {
   created_at: string;
 }
 
+export type McpBuildSource = 'image' | 'dockerfile';
+
 export interface McpServer {
   id: number;
   name: string;
   server_type: McpServerType;
+  transport_type: McpTransportType;
   // Docker-specific
   image: string;
   port: number;
+  // Dockerfile build fields
+  build_source: McpBuildSource;
+  build_context: string;
+  dockerfile_path: string;
   // Remote-specific
   url: string;
   headers: Record<string, string>;
   // Common
   description: string;
+  color: string;
   env_vars: string[];
   status: McpServerStatus;
   last_health_check: string | null;
@@ -364,14 +373,20 @@ export interface McpServer {
 export interface McpServerCreate {
   name: string;
   server_type?: McpServerType;
+  transport_type?: McpTransportType;
   // Docker-specific
   image?: string;
   port?: number;
+  // Dockerfile build fields
+  build_source?: McpBuildSource;
+  build_context?: string;
+  dockerfile_path?: string;
   // Remote-specific
   url?: string;
   headers?: Record<string, string>;
   // Common
   description?: string;
+  color?: string;
   env_vars?: string[];
   auto_start?: boolean;
 }
@@ -379,11 +394,16 @@ export interface McpServerCreate {
 export interface McpServerUpdate {
   name?: string;
   server_type?: McpServerType;
+  transport_type?: McpTransportType;
   image?: string;
   port?: number;
+  build_source?: McpBuildSource;
+  build_context?: string;
+  dockerfile_path?: string;
   url?: string;
   headers?: Record<string, string>;
   description?: string;
+  color?: string;
   env_vars?: string[];
   auto_start?: boolean;
 }
@@ -432,6 +452,7 @@ export interface McpMatchResult {
   mcp_enabled: boolean;
   server_name?: string;
   server_status?: McpServerStatus;
+  server_color?: string;
   description?: string;
 }
 

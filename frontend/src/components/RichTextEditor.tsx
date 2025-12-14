@@ -147,6 +147,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
   const [isSendingToLlm, setIsSendingToLlm] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
   const [mcpMatch, setMcpMatch] = useState<McpMatchResult | null>(null);
+  const [hasTextSelection, setHasTextSelection] = useState(false);
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -318,17 +319,24 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     },
     onSelectionUpdate: ({ editor }) => {
       // Check for MCP match when selection changes
-      if (!entryId) return;
       const { from, to } = editor.state.selection;
       if (from === to) {
         setMcpMatch(null);
+        setHasTextSelection(false);
         return;
       }
       const selectedText = editor.state.doc.textBetween(from, to, ' ');
       if (!selectedText.trim()) {
         setMcpMatch(null);
+        setHasTextSelection(false);
         return;
       }
+      
+      // Text is selected
+      setHasTextSelection(true);
+      
+      if (!entryId) return;
+      
       // Debounce the API call
       const timeoutId = setTimeout(async () => {
         try {
@@ -994,31 +1002,37 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     setLlmError(null);
 
     try {
+      // Store the selection position before the async call
+      const insertPosition = to;
+      
       const response = await llmApi.send({
         entry_id: entryId,
         prompt: selectedText,
         continue_conversation: true,
       });
 
-      // Insert AI response as a styled block after the selection
-      editor
-        .chain()
-        .focus()
-        .setTextSelection(to)
-        .insertContent([
-          { type: 'paragraph' },
-          {
-            type: 'aiResponse',
-            attrs: {
-              content: response.response,
-              provider: response.provider,
-              inputTokens: response.input_tokens,
-              outputTokens: response.output_tokens,
+      // Use requestAnimationFrame to ensure smooth UI update
+      requestAnimationFrame(() => {
+        // Insert AI response as a styled block after the selection
+        editor
+          .chain()
+          .setTextSelection(insertPosition)
+          .insertContent([
+            { type: 'paragraph' },
+            {
+              type: 'aiResponse',
+              attrs: {
+                content: response.response,
+                provider: response.provider,
+                inputTokens: response.input_tokens,
+                outputTokens: response.output_tokens,
+              },
             },
-          },
-          { type: 'paragraph' },
-        ])
-        .run();
+            { type: 'paragraph' },
+          ])
+          .focus('end')
+          .run();
+      });
     } catch (error: any) {
       console.error('Failed to send to LLM:', error);
       const errorMessage =
@@ -1853,36 +1867,88 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           </ToolbarButton>
         )}
 
-        {/* Send to LLM/MCP Button */}
-        <div className="relative">
-          <ToolbarButton
-            onClick={sendToLlm}
-            disabled={isSendingToLlm || !entryId}
-            title={
-              !entryId
-                ? 'Save entry first to use AI'
-                : isSendingToLlm
-                ? 'Sending to AI...'
-                : mcpMatch?.matched && mcpMatch.server_status === 'running'
-                ? `Send to MCP: ${mcpMatch.server_name}`
-                : 'Send selected text to AI'
+        {/* Send to LLM/MCP Button - Custom to avoid disabled cursor during processing */}
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (isSendingToLlm || !entryId) return;
+            sendToLlm();
+          }}
+          className="p-2 rounded transition-colors relative"
+          style={{
+            backgroundColor: 'transparent',
+            color: !entryId ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+            opacity: !entryId ? 0.5 : 1,
+            cursor: !entryId ? 'not-allowed' : 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            if (entryId && !isSendingToLlm) {
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
             }
-          >
-            {isSendingToLlm ? (
-              <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-          </ToolbarButton>
-          {/* MCP indicator dot */}
-          {mcpMatch?.matched && mcpMatch.server_status === 'running' && (
-            <div
-              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-              style={{ backgroundColor: 'var(--color-success)' }}
-              title={`Will route to MCP: ${mcpMatch.server_name}`}
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          title={
+            !entryId
+              ? 'Save entry first to use AI'
+              : isSendingToLlm
+              ? 'Processing with AI...'
+              : mcpMatch?.matched && mcpMatch.server_status === 'running'
+              ? `Send to MCP: ${mcpMatch.server_name}`
+              : 'Send selected text to AI'
+          }
+          type="button"
+        >
+          <div className="relative">
+            <Sparkles 
+              className="h-4 w-4" 
+              style={isSendingToLlm ? {
+                animation: 'pulse-slow 1.5s ease-in-out infinite',
+                color: mcpMatch?.matched ? (mcpMatch.server_color || '#22c55e') : '#f59e0b',
+              } : undefined}
             />
-          )}
-        </div>
+            {/* AI processing indicator - large slow-pulsing high-contrast dot */}
+            {isSendingToLlm && (
+              <>
+                <style>{`
+                  @keyframes pulse-slow {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(0.9); }
+                  }
+                  @keyframes pulse-glow {
+                    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 12px currentColor, 0 0 24px currentColor; }
+                    50% { opacity: 0.7; transform: scale(1.2); box-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+                  }
+                `}</style>
+                <div
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full"
+                  style={{
+                    backgroundColor: mcpMatch?.matched ? (mcpMatch.server_color || '#22c55e') : '#f59e0b',
+                    color: mcpMatch?.matched ? (mcpMatch.server_color || '#22c55e') : '#f59e0b',
+                    animation: 'pulse-glow 1.5s ease-in-out infinite',
+                    border: '2px solid white',
+                  }}
+                />
+              </>
+            )}
+            {/* Text selected indicator - pulsing dot with MCP server color or default green */}
+            {!isSendingToLlm && hasTextSelection && entryId && (
+              <div
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+                style={{
+                  backgroundColor: mcpMatch?.matched ? (mcpMatch.server_color || '#22c55e') : '#22c55e',
+                  boxShadow: mcpMatch?.matched 
+                    ? `0 0 6px ${mcpMatch.server_color || '#22c55e'}, 0 0 12px ${mcpMatch.server_color || '#22c55e'}`
+                    : '0 0 6px #22c55e, 0 0 12px #22c55e',
+                }}
+                title={mcpMatch?.matched && mcpMatch.server_status === 'running' 
+                  ? `Will route to MCP: ${mcpMatch.server_name}` 
+                  : 'Click to send selected text to AI'}
+              />
+            )}
+          </div>
+        </button>
 
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />

@@ -16,6 +16,8 @@ import {
   X,
   Globe,
   Container,
+  Hammer,
+  Terminal,
 } from 'lucide-react';
 import { mcpApi } from '../api';
 import type {
@@ -48,13 +50,30 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
   const [logsLoading, setLogsLoading] = useState(false);
 
   // Form state
+  // Predefined color palette for MCP servers
+  const MCP_COLORS = [
+    '#22c55e',  // Green
+    '#3b82f6',  // Blue
+    '#f59e0b',  // Amber
+    '#ef4444',  // Red
+    '#8b5cf6',  // Purple
+    '#06b6d4',  // Cyan
+    '#ec4899',  // Pink
+    '#f97316',  // Orange
+  ];
+
   const [newServer, setNewServer] = useState<McpServerCreate>({
     name: '',
     server_type: 'docker',
+    transport_type: 'http',
     image: '',
     port: 8011,
+    build_source: 'image',
+    build_context: '',
+    dockerfile_path: '',
     url: '',
     headers: {},
+    color: '#22c55e',
     description: '',
     env_vars: [],
     auto_start: false,
@@ -151,6 +170,18 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     }
   };
 
+  const handleBuildImage = async (serverId: number) => {
+    try {
+      onMessageRef.current?.('success', 'Building Docker image... This may take a while.');
+      const updated = await mcpApi.buildImage(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      onMessageRef.current?.('success', 'Docker image built successfully!');
+    } catch (error: any) {
+      console.error('Failed to build image:', error);
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to build image');
+    }
+  };
+
   const handleDeleteServer = async (serverId: number) => {
     if (!confirm('Are you sure you want to delete this MCP server?')) return;
     try {
@@ -181,9 +212,37 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       onMessageRef.current?.('error', 'Name is required');
       return;
     }
-    if (newServer.server_type === 'docker' && !newServer.image) {
-      onMessageRef.current?.('error', 'Docker image is required for Docker servers');
-      return;
+
+    // STDIO servers - support both pre-built images and Dockerfile builds
+    if (newServer.transport_type === 'stdio') {
+      if (newServer.build_source === 'dockerfile') {
+        if (!newServer.build_context) {
+          onMessageRef.current?.('error', 'Build context path is required for Dockerfile builds');
+          return;
+        }
+      } else {
+        if (!newServer.image) {
+          onMessageRef.current?.('error', 'Docker image is required for STDIO servers');
+          return;
+        }
+      }
+      // Port is not required for stdio - will be set to 0
+    } else if (newServer.server_type === 'docker') {
+      if (newServer.build_source === 'dockerfile') {
+        if (!newServer.build_context) {
+          onMessageRef.current?.('error', 'Build context path is required for Dockerfile builds');
+          return;
+        }
+      } else {
+        if (!newServer.image) {
+          onMessageRef.current?.('error', 'Docker image is required for pre-built Docker servers');
+          return;
+        }
+      }
+      if (!newServer.port) {
+        onMessageRef.current?.('error', 'Port is required for HTTP Docker servers');
+        return;
+      }
     }
     if (newServer.server_type === 'remote' && !newServer.url) {
       onMessageRef.current?.('error', 'URL is required for remote servers');
@@ -197,10 +256,15 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setNewServer({
         name: '',
         server_type: 'docker',
+        transport_type: 'http',
         image: '',
         port: 8011,
+        build_source: 'image',
+        build_context: '',
+        dockerfile_path: '',
         url: '',
         headers: {},
+        color: MCP_COLORS[servers.length % MCP_COLORS.length],
         description: '',
         env_vars: [],
         auto_start: false,
@@ -295,6 +359,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       case 'running':
         return 'var(--color-success)';
       case 'starting':
+      case 'building':
         return 'var(--color-warning)';
       case 'error':
         return 'var(--color-error)';
@@ -341,7 +406,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               Docker is not available
             </p>
             <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              Docker-based MCP servers require Docker. Remote HTTP servers still work.
+              Docker-based MCP servers require Docker. Remote servers still work.
             </p>
           </div>
         </div>
@@ -360,7 +425,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
             Enable MCP Servers
           </h3>
           <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Route text selections to local Docker or remote HTTP MCP servers
+            Route text selections to Docker (HTTP/STDIO) or remote MCP servers
           </p>
         </div>
         <button
@@ -503,8 +568,19 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
+                        {/* Server color indicator */}
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: server.color || '#22c55e',
+                            boxShadow: `0 0 4px ${server.color || '#22c55e'}`,
+                          }}
+                          title={`Indicator color: ${server.color || '#22c55e'}`}
+                        />
                         {server.server_type === 'remote' ? (
                           <Globe className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                        ) : server.transport_type === 'stdio' ? (
+                          <Terminal className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
                         ) : (
                           <Container className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
                         )}
@@ -522,7 +598,15 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                         </span>
                       </div>
                       <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-                        {server.server_type === 'remote' ? server.url : `${server.image} • Port ${server.port}`}
+                        {server.server_type === 'remote'
+                          ? server.url
+                          : server.transport_type === 'stdio'
+                            ? server.build_source === 'dockerfile'
+                              ? `🔌 📁 ${server.build_context} (STDIO)`
+                              : `🔌 ${server.image} (STDIO)`
+                            : server.build_source === 'dockerfile'
+                              ? `📁 ${server.build_context} • Port ${server.port}`
+                              : `${server.image} • Port ${server.port}`}
                       </p>
                     </div>
 
@@ -555,6 +639,17 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                           title="Start"
                         >
                           <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                      {/* Build button for Dockerfile servers */}
+                      {server.build_source === 'dockerfile' && server.status !== 'building' && (
+                        <button
+                          onClick={() => handleBuildImage(server.id)}
+                          className="p-1.5 rounded-lg transition-colors"
+                          style={{ color: 'var(--color-warning)' }}
+                          title="Build/Rebuild Image"
+                        >
+                          <Hammer className="w-4 h-4" />
                         </button>
                       )}
                       <button
@@ -745,19 +840,31 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'docker' }))}
+                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'docker', transport_type: 'http' }))}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
-                    backgroundColor: newServer.server_type === 'docker' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                    color: newServer.server_type === 'docker' ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                    backgroundColor: newServer.server_type === 'docker' && newServer.transport_type === 'http' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: newServer.server_type === 'docker' && newServer.transport_type === 'http' ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
                     border: '1px solid var(--color-border-primary)',
                   }}
                 >
                   <Container className="w-4 h-4" />
-                  Docker
+                  Docker (HTTP)
                 </button>
                 <button
-                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'remote' }))}
+                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'docker', transport_type: 'stdio' }))}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={{
+                    backgroundColor: newServer.transport_type === 'stdio' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: newServer.transport_type === 'stdio' ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                    border: '1px solid var(--color-border-primary)',
+                  }}
+                >
+                  <Terminal className="w-4 h-4" />
+                  Docker (STDIO)
+                </button>
+                <button
+                  onClick={() => setNewServer((prev) => ({ ...prev, server_type: 'remote', transport_type: 'http' }))}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
                     backgroundColor: newServer.server_type === 'remote' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
@@ -769,6 +876,11 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                   Remote
                 </button>
               </div>
+              {newServer.transport_type === 'stdio' && (
+                <p className="text-xs mt-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  STDIO mode is for MCP servers like Brave Search that communicate via stdin/stdout instead of HTTP.
+                </p>
+              )}
             </div>
 
             <div>
@@ -789,43 +901,163 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
               />
             </div>
 
-            {/* Docker-specific fields */}
-            {newServer.server_type === 'docker' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Docker Image
-                  </label>
-                  <input
-                    type="text"
-                    value={newServer.image}
-                    onChange={(e) => setNewServer((prev) => ({ ...prev, image: e.target.value }))}
-                    placeholder="e.g. ghcr.io/user/mcp-summarizer:latest"
-                    className="w-full px-3 py-2 rounded-lg text-sm"
+            {/* Color Picker */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                Indicator Color
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {MCP_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setNewServer((prev) => ({ ...prev, color }))}
+                    className="w-8 h-8 rounded-full transition-all"
                     style={{
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border-primary)',
-                      color: 'var(--color-text-primary)',
+                      backgroundColor: color,
+                      border: newServer.color === color ? '3px solid var(--color-text-primary)' : '2px solid transparent',
+                      boxShadow: newServer.color === color ? `0 0 8px ${color}` : 'none',
+                      transform: newServer.color === color ? 'scale(1.1)' : 'scale(1)',
                     }}
+                    title={color}
                   />
+                ))}
+              </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                This color shows on the AI button when this server matches selected text
+              </p>
+            </div>
+
+            {/* Docker-specific fields (for both HTTP and STDIO) */}
+            {(newServer.server_type === 'docker' || newServer.transport_type === 'stdio') && (
+              <>
+                {/* Build source toggle for Docker servers (HTTP and STDIO) */}
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    Image Source
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewServer((prev) => ({ ...prev, build_source: 'image' }))}
+                      className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: newServer.build_source === 'image' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
+                        color: newServer.build_source === 'image' ? 'white' : 'var(--color-text-primary)',
+                        border: '1px solid var(--color-border-primary)',
+                      }}
+                    >
+                      Pre-built Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewServer((prev) => ({ ...prev, build_source: 'dockerfile' }))}
+                      className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: newServer.build_source === 'dockerfile' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
+                        color: newServer.build_source === 'dockerfile' ? 'white' : 'var(--color-text-primary)',
+                        border: '1px solid var(--color-border-primary)',
+                      }}
+                    >
+                      Build from Dockerfile
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Port
-                  </label>
-                  <input
-                    type="number"
-                    value={newServer.port}
-                    onChange={(e) => setNewServer((prev) => ({ ...prev, port: parseInt(e.target.value) || 8011 }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm"
-                    style={{
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border-primary)',
-                      color: 'var(--color-text-primary)',
-                    }}
-                  />
-                </div>
+                {/* Image field - for pre-built images */}
+                {newServer.build_source === 'image' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                      Docker Image
+                    </label>
+                    <input
+                      type="text"
+                      value={newServer.image}
+                      onChange={(e) => setNewServer((prev) => ({ ...prev, image: e.target.value }))}
+                      placeholder={newServer.transport_type === 'stdio'
+                        ? "e.g. mcp/brave-search"
+                        : "e.g. ghcr.io/user/mcp-summarizer:latest"}
+                      className="w-full px-3 py-2 rounded-lg text-sm"
+                      style={{
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border-primary)',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    />
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                      {newServer.transport_type === 'stdio'
+                        ? 'Example: mcp/brave-search, mcp/filesystem, etc.'
+                        : 'Example: ghcr.io/user/mcp-server:latest'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dockerfile build fields - for both HTTP and STDIO when build_source is dockerfile */}
+                {newServer.build_source === 'dockerfile' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                        Build Context Path
+                      </label>
+                      <input
+                        type="text"
+                        value={newServer.build_context}
+                        onChange={(e) => setNewServer((prev) => ({ ...prev, build_context: e.target.value }))}
+                        placeholder="https://github.com/user/repo/blob/main/Dockerfile"
+                        className="w-full px-3 py-2 rounded-lg text-sm"
+                        style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          border: '1px solid var(--color-border-primary)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                        GitHub URL to Dockerfile, or local path (e.g., /path/to/repo)
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                        Dockerfile Path (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={newServer.dockerfile_path}
+                        onChange={(e) => setNewServer((prev) => ({ ...prev, dockerfile_path: e.target.value }))}
+                        placeholder="Dockerfile (default)"
+                        className="w-full px-3 py-2 rounded-lg text-sm"
+                        style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          border: '1px solid var(--color-border-primary)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                        Relative to build context, e.g. "docker/Dockerfile.mcp"
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Port - only for HTTP transport */}
+                {newServer.transport_type === 'http' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                      Port
+                    </label>
+                    <input
+                      type="number"
+                      value={newServer.port}
+                      onChange={(e) => setNewServer((prev) => ({ ...prev, port: parseInt(e.target.value) || 8011 }))}
+                      className="w-full px-3 py-2 rounded-lg text-sm"
+                      style={{
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border-primary)',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    />
+                  </div>
+                )}
               </>
             )}
 

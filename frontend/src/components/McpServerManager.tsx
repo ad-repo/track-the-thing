@@ -943,8 +943,9 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                       className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                       style={{
                         backgroundColor: newServer.build_source === 'image' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
-                        color: newServer.build_source === 'image' ? 'white' : 'var(--color-text-primary)',
+                        color: newServer.build_source === 'image' ? 'var(--color-bg-primary)' : 'var(--color-text-primary)',
                         border: '1px solid var(--color-border-primary)',
+                        fontWeight: newServer.build_source === 'image' ? 600 : 500,
                       }}
                     >
                       Pre-built Image
@@ -955,8 +956,9 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
                       className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                       style={{
                         backgroundColor: newServer.build_source === 'dockerfile' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
-                        color: newServer.build_source === 'dockerfile' ? 'white' : 'var(--color-text-primary)',
+                        color: newServer.build_source === 'dockerfile' ? 'var(--color-bg-primary)' : 'var(--color-text-primary)',
                         border: '1px solid var(--color-border-primary)',
+                        fontWeight: newServer.build_source === 'dockerfile' ? 600 : 500,
                       }}
                     >
                       Build from Dockerfile

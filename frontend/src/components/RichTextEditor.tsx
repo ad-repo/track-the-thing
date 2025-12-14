@@ -1011,27 +1011,36 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         continue_conversation: true,
       });
 
-      // Use requestAnimationFrame to ensure smooth UI update
+      // Use double requestAnimationFrame to ensure browser has painted before we modify DOM
+      // This prevents the "jerkiness" by allowing React to complete its render cycle first
       requestAnimationFrame(() => {
-        // Insert AI response as a styled block after the selection
-        editor
-          .chain()
-          .setTextSelection(insertPosition)
-          .insertContent([
-            { type: 'paragraph' },
-            {
-              type: 'aiResponse',
-              attrs: {
-                content: response.response,
-                provider: response.provider,
-                inputTokens: response.input_tokens,
-                outputTokens: response.output_tokens,
+        requestAnimationFrame(() => {
+          // Insert AI response as a styled block after the selection
+          editor
+            .chain()
+            .setTextSelection(insertPosition)
+            .insertContent([
+              { type: 'paragraph' },
+              {
+                type: 'aiResponse',
+                attrs: {
+                  content: response.response,
+                  provider: response.provider,
+                  inputTokens: response.input_tokens,
+                  outputTokens: response.output_tokens,
+                },
               },
-            },
-            { type: 'paragraph' },
-          ])
-          .focus('end')
-          .run();
+              { type: 'paragraph' },
+            ])
+            .run();
+          
+          // Set focus and scroll smoothly after a brief delay
+          setTimeout(() => {
+            // Focus at end of inserted content without aggressive scrolling
+            editor.commands.focus();
+            setIsSendingToLlm(false);
+          }, 50);
+        });
       });
     } catch (error: any) {
       console.error('Failed to send to LLM:', error);
@@ -1039,7 +1048,6 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         error.response?.data?.detail || 'Failed to get AI response. Check your API key in Settings.';
       setLlmError(errorMessage);
       setTimeout(() => setLlmError(null), 8000);
-    } finally {
       setIsSendingToLlm(false);
     }
   };

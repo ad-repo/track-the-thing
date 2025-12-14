@@ -91,8 +91,16 @@ class TestReportsAPI:
         # Add entries to each
         entries = [
             NoteEntry(daily_note_id=tue_note.id, content='<p>Tuesday</p>', include_in_report=1),
-            NoteEntry(daily_note_id=wed_note.id, content='<p>Wednesday</p>', include_in_report=1),
-            NoteEntry(daily_note_id=thu_note.id, content='<p>Thursday</p>', include_in_report=1),
+            NoteEntry(
+                daily_note_id=wed_note.id,
+                content='<p>Wednesday</p>',
+                include_in_report=1,
+            ),
+            NoteEntry(
+                daily_note_id=thu_note.id,
+                content='<p>Thursday</p>',
+                include_in_report=1,
+            ),
         ]
         db_session.add_all(entries)
         db_session.commit()
@@ -116,7 +124,11 @@ class TestReportsAPI:
         db_session.commit()
 
         # Create entry with labels
-        entry = NoteEntry(daily_note_id=note.id, content='<p>Entry with labels</p>', include_in_report=1)
+        entry = NoteEntry(
+            daily_note_id=note.id,
+            content='<p>Entry with labels</p>',
+            include_in_report=1,
+        )
         entry.labels.extend([label1, label2])
         db_session.add(entry)
         db_session.commit()
@@ -192,7 +204,11 @@ class TestReportsAPI:
             NoteEntry(daily_note_id=note1.id, content='<p>Report 1</p>', include_in_report=1),
             NoteEntry(daily_note_id=note1.id, content='<p>Not report</p>', include_in_report=0),
             NoteEntry(daily_note_id=note2.id, content='<p>Report 2</p>', include_in_report=1),
-            NoteEntry(daily_note_id=note2.id, content='<p>Not report 2</p>', include_in_report=0),
+            NoteEntry(
+                daily_note_id=note2.id,
+                content='<p>Not report 2</p>',
+                include_in_report=0,
+            ),
             NoteEntry(daily_note_id=note3.id, content='<p>Report 3</p>', include_in_report=1),
         ]
         db_session.add_all(entries)
@@ -246,7 +262,12 @@ class TestReportsAPI:
         db_session.add(note)
         db_session.commit()
 
-        entry = NoteEntry(daily_note_id=note.id, content='<p>Important entry</p>', include_in_report=1, is_important=1)
+        entry = NoteEntry(
+            daily_note_id=note.id,
+            content='<p>Important entry</p>',
+            include_in_report=1,
+            is_important=1,
+        )
         db_session.add(entry)
         db_session.commit()
 
@@ -416,7 +437,12 @@ class TestReportsAPI:
         db_session.add(note)
         db_session.commit()
 
-        entry = NoteEntry(daily_note_id=note.id, content='<p>Test</p>', include_in_report=1, is_important=1)
+        entry = NoteEntry(
+            daily_note_id=note.id,
+            content='<p>Test</p>',
+            include_in_report=1,
+            is_important=1,
+        )
         db_session.add(entry)
         db_session.commit()
 

@@ -98,7 +98,10 @@ class TestLabelsAPI:
         assert response.status_code == 404
 
     def test_delete_label_cascades_to_entries(
-        self, client: TestClient, db_session: Session, sample_note_entry_with_labels: NoteEntry
+        self,
+        client: TestClient,
+        db_session: Session,
+        sample_note_entry_with_labels: NoteEntry,
     ):
         """Test deleting label removes it from entries."""
         entry_id = sample_note_entry_with_labels.id
@@ -128,7 +131,11 @@ class TestLabelsAPI:
         assert sample_label.id in label_ids
 
     def test_attach_multiple_labels_to_entry(
-        self, client: TestClient, sample_note_entry: NoteEntry, sample_label: Label, sample_emoji_label: Label
+        self,
+        client: TestClient,
+        sample_note_entry: NoteEntry,
+        sample_label: Label,
+        sample_emoji_label: Label,
     ):
         """Test attaching multiple labels to an entry."""
         # Attach first label
@@ -145,7 +152,10 @@ class TestLabelsAPI:
         assert len(data['labels']) >= 2
 
     def test_detach_label_from_entry(
-        self, client: TestClient, db_session: Session, sample_note_entry_with_labels: NoteEntry
+        self,
+        client: TestClient,
+        db_session: Session,
+        sample_note_entry_with_labels: NoteEntry,
     ):
         """Test DELETE /api/labels/entry/{id}/label/{label_id} detaches label."""
         entry_id = sample_note_entry_with_labels.id

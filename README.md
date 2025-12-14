@@ -151,6 +151,13 @@ track-the-thing/
 - UI textures (20+ patterns with blend modes)
 - Custom emoji upload and management
 
+### AI Integration
+- **Send to AI**: Select text and send to OpenAI, Anthropic, or Google Gemini
+- **MCP Servers**: Docker-based local AI processing with pattern-based routing
+- **Conversation Context**: Maintains conversation history per entry
+- **Global Prompt Rules**: Configure system prompts applied to all AI requests
+- **Graceful Fallback**: MCP failures automatically fall back to cloud LLMs
+
 ---
 
 ## Testing
@@ -228,6 +235,8 @@ Key endpoint groups:
 - `/api/search/` – Global search
 - `/api/backup/` – Export/import operations
 - `/api/uploads/` – File uploads
+- `/api/llm/` – LLM integration and AI chat
+- `/api/mcp/` – MCP server management and routing
 
 ---
 

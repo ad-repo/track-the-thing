@@ -1,0 +1,891 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Server,
+  Play,
+  Square,
+  RotateCcw,
+  Trash2,
+  Plus,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  FileText,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  X,
+} from 'lucide-react';
+import { mcpApi } from '../api';
+import type {
+  McpServer,
+  McpServerCreate,
+  McpSettings,
+  McpDockerStatus,
+  McpRoutingRule,
+  McpRoutingRuleCreate,
+} from '../types';
+
+interface McpServerManagerProps {
+  onMessage?: (type: 'success' | 'error', text: string) => void;
+}
+
+const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
+  const [servers, setServers] = useState<McpServer[]>([]);
+  const [settings, setSettings] = useState<McpSettings | null>(null);
+  const [dockerStatus, setDockerStatus] = useState<McpDockerStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedServer, setExpandedServer] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showImportForm, setShowImportForm] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState<number | null>(null);
+  const [logs, setLogs] = useState<string>('');
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  // Form state
+  const [newServer, setNewServer] = useState<McpServerCreate>({
+    name: '',
+    image: '',
+    port: 8011,
+    description: '',
+    env_vars: [],
+    auto_start: false,
+  });
+  const [manifestUrl, setManifestUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Routing rule form
+  const [showRuleForm, setShowRuleForm] = useState<number | null>(null);
+  const [newRule, setNewRule] = useState<{ pattern: string; priority: number }>({
+    pattern: '',
+    priority: 0,
+  });
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [serversData, settingsData, dockerData] = await Promise.all([
+        mcpApi.getServers(),
+        mcpApi.getSettings(),
+        mcpApi.getDockerStatus(),
+      ]);
+      setServers(serversData);
+      setSettings(settingsData);
+      setDockerStatus(dockerData);
+    } catch (error) {
+      console.error('Failed to load MCP data:', error);
+      onMessage?.('error', 'Failed to load MCP server data');
+    } finally {
+      setLoading(false);
+    }
+  }, [onMessage]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleToggleEnabled = async () => {
+    if (!settings) return;
+    try {
+      const updated = await mcpApi.updateSettings({
+        mcp_enabled: !settings.mcp_enabled,
+      });
+      setSettings(updated);
+      onMessage?.('success', `MCP servers ${updated.mcp_enabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to toggle MCP:', error);
+      onMessage?.('error', 'Failed to update MCP settings');
+    }
+  };
+
+  const handleUpdateSettings = async (updates: Partial<McpSettings>) => {
+    try {
+      const updated = await mcpApi.updateSettings(updates);
+      setSettings(updated);
+    } catch (error) {
+      console.error('Failed to update settings:', error);
+      onMessage?.('error', 'Failed to update MCP settings');
+    }
+  };
+
+  const handleStartServer = async (serverId: number) => {
+    try {
+      const updated = await mcpApi.startServer(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      onMessage?.('success', 'Server starting...');
+    } catch (error: any) {
+      console.error('Failed to start server:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to start server');
+    }
+  };
+
+  const handleStopServer = async (serverId: number) => {
+    try {
+      const updated = await mcpApi.stopServer(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      onMessage?.('success', 'Server stopped');
+    } catch (error: any) {
+      console.error('Failed to stop server:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to stop server');
+    }
+  };
+
+  const handleRestartServer = async (serverId: number) => {
+    try {
+      const updated = await mcpApi.restartServer(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      onMessage?.('success', 'Server restarting...');
+    } catch (error: any) {
+      console.error('Failed to restart server:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to restart server');
+    }
+  };
+
+  const handleDeleteServer = async (serverId: number) => {
+    if (!confirm('Are you sure you want to delete this MCP server?')) return;
+    try {
+      await mcpApi.deleteServer(serverId);
+      setServers((prev) => prev.filter((s) => s.id !== serverId));
+      onMessage?.('success', 'Server deleted');
+    } catch (error: any) {
+      console.error('Failed to delete server:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to delete server');
+    }
+  };
+
+  const handleViewLogs = async (serverId: number) => {
+    setShowLogsModal(serverId);
+    setLogsLoading(true);
+    try {
+      const logsData = await mcpApi.getLogs(serverId, 200);
+      setLogs(logsData.logs);
+    } catch (error) {
+      setLogs('Error loading logs');
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const handleCreateServer = async () => {
+    if (!newServer.name || !newServer.image) {
+      onMessage?.('error', 'Name and image are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await mcpApi.createServer(newServer);
+      setServers((prev) => [...prev, created]);
+      setShowAddForm(false);
+      setNewServer({
+        name: '',
+        image: '',
+        port: 8011,
+        description: '',
+        env_vars: [],
+        auto_start: false,
+      });
+      onMessage?.('success', 'MCP server created');
+    } catch (error: any) {
+      console.error('Failed to create server:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to create server');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImportManifest = async () => {
+    if (!manifestUrl) {
+      onMessage?.('error', 'Manifest URL is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const imported = await mcpApi.importFromManifest(manifestUrl);
+      setServers((prev) => [...prev, imported]);
+      setShowImportForm(false);
+      setManifestUrl('');
+      onMessage?.('success', `Imported MCP server: ${imported.name}`);
+    } catch (error: any) {
+      console.error('Failed to import manifest:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to import manifest');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateRule = async (serverId: number) => {
+    if (!newRule.pattern) {
+      onMessage?.('error', 'Pattern is required');
+      return;
+    }
+    try {
+      const rule = await mcpApi.createRoutingRule({
+        mcp_server_id: serverId,
+        pattern: newRule.pattern,
+        priority: newRule.priority,
+        is_enabled: true,
+      });
+      // Refresh server data to get updated rules
+      const updated = await mcpApi.getServer(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      setShowRuleForm(null);
+      setNewRule({ pattern: '', priority: 0 });
+      onMessage?.('success', 'Routing rule added');
+    } catch (error: any) {
+      console.error('Failed to create rule:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to create routing rule');
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: number, serverId: number) => {
+    try {
+      await mcpApi.deleteRoutingRule(ruleId);
+      const updated = await mcpApi.getServer(serverId);
+      setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
+      onMessage?.('success', 'Routing rule deleted');
+    } catch (error: any) {
+      console.error('Failed to delete rule:', error);
+      onMessage?.('error', error.response?.data?.detail || 'Failed to delete routing rule');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'running':
+        return 'var(--color-success)';
+      case 'starting':
+        return 'var(--color-warning)';
+      case 'error':
+        return 'var(--color-error)';
+      default:
+        return 'var(--color-text-tertiary)';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'running':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'starting':
+        return <Clock className="w-4 h-4 animate-pulse" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4" />;
+      default:
+        return <Square className="w-4 h-4" />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
+        Loading MCP servers...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Docker Status Banner */}
+      {!dockerStatus?.available && (
+        <div
+          className="p-3 rounded-lg flex items-center gap-2"
+          style={{
+            backgroundColor: `${getComputedStyle(document.documentElement).getPropertyValue('--color-warning')}15`,
+            border: '1px solid var(--color-warning)',
+          }}
+        >
+          <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-warning)' }} />
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-warning)' }}>
+              Docker is not available
+            </p>
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              MCP servers require Docker to run. Please install and start Docker.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Enable Toggle */}
+      <div
+        className="p-3 rounded-lg flex items-center justify-between"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: '1px solid var(--color-border-primary)',
+        }}
+      >
+        <div>
+          <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            Enable MCP Servers
+          </h3>
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            Route text selections to local AI containers based on patterns
+          </p>
+        </div>
+        <button
+          onClick={handleToggleEnabled}
+          disabled={!dockerStatus?.available}
+          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+          style={{
+            backgroundColor: settings?.mcp_enabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          <span
+            className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"
+            style={{
+              transform: settings?.mcp_enabled ? 'translateX(1.25rem)' : 'translateX(0.25rem)',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Settings */}
+      {settings?.mcp_enabled && (
+        <div
+          className="p-3 rounded-lg space-y-3"
+          style={{
+            backgroundColor: 'var(--color-bg-secondary)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                Fallback to LLM
+              </label>
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Use configured LLM when MCP server fails
+              </p>
+            </div>
+            <button
+              onClick={() => handleUpdateSettings({ mcp_fallback_to_llm: !settings.mcp_fallback_to_llm })}
+              className="relative inline-flex h-5 w-10 items-center rounded-full transition-colors"
+              style={{
+                backgroundColor: settings.mcp_fallback_to_llm ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                border: '1px solid var(--color-border-primary)',
+              }}
+            >
+              <span
+                className="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm"
+                style={{
+                  transform: settings.mcp_fallback_to_llm ? 'translateX(1.1rem)' : 'translateX(0.2rem)',
+                }}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+              Idle Timeout:
+            </label>
+            <input
+              type="number"
+              value={settings.mcp_idle_timeout}
+              onChange={(e) => handleUpdateSettings({ mcp_idle_timeout: parseInt(e.target.value) || 300 })}
+              className="w-20 px-2 py-1 rounded text-sm"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                border: '1px solid var(--color-border-primary)',
+                color: 'var(--color-text-primary)',
+              }}
+            />
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              seconds
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Server List */}
+      {settings?.mcp_enabled && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
+              Configured Servers ({servers.length})
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowImportForm(true)}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-primary)',
+                }}
+              >
+                <ExternalLink className="w-3 h-3" />
+                Import
+              </button>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-text)',
+                }}
+              >
+                <Plus className="w-3 h-3" />
+                Add Server
+              </button>
+            </div>
+          </div>
+
+          {servers.length === 0 ? (
+            <div
+              className="text-center py-8 border-2 border-dashed rounded-lg"
+              style={{ borderColor: 'var(--color-border-primary)' }}
+            >
+              <Server className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--color-text-tertiary)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                No MCP servers configured
+              </p>
+              <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                Add a server or import from a GitHub manifest
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {servers.map((server) => (
+                <div
+                  key={server.id}
+                  className="rounded-lg overflow-hidden"
+                  style={{
+                    backgroundColor: 'var(--color-bg-primary)',
+                    border: '1px solid var(--color-border-primary)',
+                  }}
+                >
+                  {/* Server Header */}
+                  <div className="p-3 flex items-center gap-3">
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: getStatusColor(server.status) }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
+                          {server.name}
+                        </span>
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: `${getStatusColor(server.status)}20`,
+                            color: getStatusColor(server.status),
+                          }}
+                        >
+                          {server.status}
+                        </span>
+                      </div>
+                      <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                        {server.image} • Port {server.port}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1">
+                      {server.status === 'running' || server.status === 'starting' ? (
+                        <>
+                          <button
+                            onClick={() => handleStopServer(server.id)}
+                            className="p-1.5 rounded-lg transition-colors"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                            title="Stop"
+                          >
+                            <Square className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRestartServer(server.id)}
+                            className="p-1.5 rounded-lg transition-colors"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                            title="Restart"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleStartServer(server.id)}
+                          className="p-1.5 rounded-lg transition-colors"
+                          style={{ color: 'var(--color-success)' }}
+                          title="Start"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleViewLogs(server.id)}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        title="View Logs"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteServer(server.id)}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--color-error)' }}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setExpandedServer(expandedServer === server.id ? null : server.id)}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        {expandedServer === server.id ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Details */}
+                  {expandedServer === server.id && (
+                    <div
+                      className="px-3 pb-3 pt-0 border-t space-y-3"
+                      style={{ borderColor: 'var(--color-border-primary)' }}
+                    >
+                      {server.description && (
+                        <p className="text-xs pt-2" style={{ color: 'var(--color-text-secondary)' }}>
+                          {server.description}
+                        </p>
+                      )}
+
+                      {/* Routing Rules */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                            Routing Rules
+                          </h4>
+                          <button
+                            onClick={() => setShowRuleForm(server.id)}
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ color: 'var(--color-accent)' }}
+                          >
+                            + Add Rule
+                          </button>
+                        </div>
+
+                        {showRuleForm === server.id && (
+                          <div
+                            className="mb-2 p-2 rounded-lg space-y-2"
+                            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Regex pattern (e.g. summarize|summary)"
+                              value={newRule.pattern}
+                              onChange={(e) => setNewRule((prev) => ({ ...prev, pattern: e.target.value }))}
+                              className="w-full px-2 py-1 text-xs rounded"
+                              style={{
+                                backgroundColor: 'var(--color-bg-primary)',
+                                border: '1px solid var(--color-border-primary)',
+                                color: 'var(--color-text-primary)',
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                placeholder="Priority"
+                                value={newRule.priority}
+                                onChange={(e) =>
+                                  setNewRule((prev) => ({ ...prev, priority: parseInt(e.target.value) || 0 }))
+                                }
+                                className="w-20 px-2 py-1 text-xs rounded"
+                                style={{
+                                  backgroundColor: 'var(--color-bg-primary)',
+                                  border: '1px solid var(--color-border-primary)',
+                                  color: 'var(--color-text-primary)',
+                                }}
+                              />
+                              <button
+                                onClick={() => handleCreateRule(server.id)}
+                                className="px-2 py-1 text-xs rounded"
+                                style={{
+                                  backgroundColor: 'var(--color-accent)',
+                                  color: 'var(--color-accent-text)',
+                                }}
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => setShowRuleForm(null)}
+                                className="px-2 py-1 text-xs rounded"
+                                style={{ color: 'var(--color-text-secondary)' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {server.routing_rules && server.routing_rules.length > 0 ? (
+                          <div className="space-y-1">
+                            {server.routing_rules.map((rule) => (
+                              <div
+                                key={rule.id}
+                                className="flex items-center justify-between px-2 py-1 rounded text-xs"
+                                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                              >
+                                <code style={{ color: 'var(--color-text-primary)' }}>{rule.pattern}</code>
+                                <div className="flex items-center gap-2">
+                                  <span style={{ color: 'var(--color-text-tertiary)' }}>p:{rule.priority}</span>
+                                  <button
+                                    onClick={() => handleDeleteRule(rule.id, server.id)}
+                                    style={{ color: 'var(--color-error)' }}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                            No routing rules. Add patterns to route text to this server.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Server Modal */}
+      {showAddForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl shadow-2xl p-6"
+            style={{
+              backgroundColor: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+              Add MCP Server
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={newServer.name}
+                  onChange={(e) => setNewServer((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. summarizer"
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  Docker Image
+                </label>
+                <input
+                  type="text"
+                  value={newServer.image}
+                  onChange={(e) => setNewServer((prev) => ({ ...prev, image: e.target.value }))}
+                  placeholder="e.g. ghcr.io/user/mcp-summarizer:latest"
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  Port
+                </label>
+                <input
+                  type="number"
+                  value={newServer.port}
+                  onChange={(e) => setNewServer((prev) => ({ ...prev, port: parseInt(e.target.value) || 8011 }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  Description (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newServer.description}
+                  onChange={(e) => setNewServer((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-primary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateServer}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-text)',
+                  opacity: saving ? 0.5 : 1,
+                }}
+              >
+                {saving ? 'Creating...' : 'Create Server'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl shadow-2xl p-6"
+            style={{
+              backgroundColor: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
+              Import from GitHub Manifest
+            </h3>
+
+            <div>
+              <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                Manifest URL
+              </label>
+              <input
+                type="url"
+                value={manifestUrl}
+                onChange={(e) => setManifestUrl(e.target.value)}
+                placeholder="https://raw.githubusercontent.com/.../mcp-manifest.json"
+                className="w-full px-3 py-2 rounded-lg text-sm"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-primary)',
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                Enter the raw URL to an MCP manifest JSON file
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowImportForm(false)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-primary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportManifest}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{
+                  backgroundColor: 'var(--color-accent)',
+                  color: 'var(--color-accent-text)',
+                  opacity: saving ? 0.5 : 1,
+                }}
+              >
+                {saving ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logs Modal */}
+      {showLogsModal !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[80vh] rounded-2xl shadow-2xl flex flex-col"
+            style={{
+              backgroundColor: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--color-border-primary)' }}>
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                Server Logs
+              </h3>
+              <button onClick={() => setShowLogsModal(null)} style={{ color: 'var(--color-text-secondary)' }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {logsLoading ? (
+                <p style={{ color: 'var(--color-text-secondary)' }}>Loading logs...</p>
+              ) : (
+                <pre
+                  className="text-xs whitespace-pre-wrap font-mono"
+                  style={{
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    padding: '1rem',
+                    borderRadius: '0.5rem',
+                  }}
+                >
+                  {logs || 'No logs available'}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default McpServerManager;
+

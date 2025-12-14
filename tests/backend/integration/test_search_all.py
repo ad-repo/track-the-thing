@@ -20,7 +20,11 @@ def test_search_all_returns_both_entries_and_lists(client: TestClient, db_sessio
     assert entry_response.status_code == 201
 
     # Create a list
-    list_data = {'name': f'Searchable List {timestamp}', 'description': 'A searchable list', 'color': '#FF5733'}
+    list_data = {
+        'name': f'Searchable List {timestamp}',
+        'description': 'A searchable list',
+        'color': '#FF5733',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
 
@@ -57,7 +61,11 @@ def test_search_all_by_label_returns_matching_entries_and_lists(client: TestClie
     assert add_label_response.status_code == 204
 
     # Create a list with the same label
-    list_data = {'name': f'List with label {timestamp}', 'description': 'A list with label', 'color': '#3366FF'}
+    list_data = {
+        'name': f'List with label {timestamp}',
+        'description': 'A list with label',
+        'color': '#3366FF',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -88,7 +96,11 @@ def test_search_all_by_text_in_list_name(client: TestClient, db_session: Session
     timestamp = datetime.now().isoformat()
     unique_name = f'UniqueListName{timestamp}'
 
-    list_data = {'name': unique_name, 'description': 'A unique list', 'color': '#FFAA00'}
+    list_data = {
+        'name': unique_name,
+        'description': 'A unique list',
+        'color': '#FFAA00',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -108,7 +120,11 @@ def test_search_all_by_text_in_list_description(client: TestClient, db_session: 
     timestamp = datetime.now().isoformat()
     unique_desc = f'UniqueDescription{timestamp}'
 
-    list_data = {'name': f'Regular Name {timestamp}', 'description': unique_desc, 'color': '#AA00FF'}
+    list_data = {
+        'name': f'Regular Name {timestamp}',
+        'description': unique_desc,
+        'color': '#AA00FF',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -142,7 +158,11 @@ def test_search_all_includes_list_entry_count(client: TestClient, db_session: Se
     timestamp = datetime.now().isoformat()
 
     # Create a list
-    list_data = {'name': f'List with entries {timestamp}', 'description': 'Has entries', 'color': '#FF00FF'}
+    list_data = {
+        'name': f'List with entries {timestamp}',
+        'description': 'Has entries',
+        'color': '#FF00FF',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -173,7 +193,11 @@ def test_search_all_includes_list_labels(client: TestClient, db_session: Session
     timestamp = datetime.now().isoformat()
 
     # Create a list
-    list_data = {'name': f'List with labels {timestamp}', 'description': 'Has labels', 'color': '#00FFFF'}
+    list_data = {
+        'name': f'List with labels {timestamp}',
+        'description': 'Has labels',
+        'color': '#00FFFF',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']

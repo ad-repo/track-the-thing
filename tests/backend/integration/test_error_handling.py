@@ -87,7 +87,9 @@ class TestValidationErrors:
 
         # Send invalid JSON
         response = client.post(
-            f'/api/entries/note/{note.date}', data='invalid json{{{', headers={'Content-Type': 'application/json'}
+            f'/api/entries/note/{note.date}',
+            data='invalid json{{{',
+            headers={'Content-Type': 'application/json'},
         )
 
         assert response.status_code == 422
@@ -95,7 +97,12 @@ class TestValidationErrors:
     def test_create_goal_with_invalid_dates(self, client: TestClient):
         """Test POST /api/goals/sprint with invalid date format."""
         response = client.post(
-            '/api/goals/sprint', json={'text': 'Test', 'start_date': 'not-a-date', 'end_date': 'also-not-a-date'}
+            '/api/goals/sprint',
+            json={
+                'text': 'Test',
+                'start_date': 'not-a-date',
+                'end_date': 'also-not-a-date',
+            },
         )
 
         # Should validate date format

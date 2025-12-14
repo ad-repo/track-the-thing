@@ -29,6 +29,17 @@ import type {
   LlmSendResponse,
   LlmConversation,
   LlmSettings,
+  McpServer,
+  McpServerCreate,
+  McpServerUpdate,
+  McpRoutingRule,
+  McpRoutingRuleCreate,
+  McpRoutingRuleUpdate,
+  McpSettings,
+  McpSettingsUpdate,
+  McpDockerStatus,
+  McpServerLogs,
+  McpMatchResult,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -412,6 +423,115 @@ export const llmApi = {
 
   getSettings: async (): Promise<LlmSettings> => {
     const response = await api.get<LlmSettings>('/api/llm/settings');
+    return response.data;
+  },
+
+  checkMcpMatch: async (prompt: string, entryId: number): Promise<McpMatchResult> => {
+    const response = await api.post<McpMatchResult>('/api/llm/check-mcp-match', {
+      entry_id: entryId,
+      prompt,
+    });
+    return response.data;
+  },
+};
+
+// MCP API
+export const mcpApi = {
+  // Server management
+  getServers: async (): Promise<McpServer[]> => {
+    const response = await api.get<McpServer[]>('/api/mcp/servers');
+    return response.data;
+  },
+
+  getServer: async (id: number): Promise<McpServer> => {
+    const response = await api.get<McpServer>(`/api/mcp/servers/${id}`);
+    return response.data;
+  },
+
+  createServer: async (server: McpServerCreate): Promise<McpServer> => {
+    const response = await api.post<McpServer>('/api/mcp/servers', server);
+    return response.data;
+  },
+
+  updateServer: async (id: number, update: McpServerUpdate): Promise<McpServer> => {
+    const response = await api.put<McpServer>(`/api/mcp/servers/${id}`, update);
+    return response.data;
+  },
+
+  deleteServer: async (id: number): Promise<void> => {
+    await api.delete(`/api/mcp/servers/${id}`);
+  },
+
+  // Container operations
+  startServer: async (id: number): Promise<McpServer> => {
+    const response = await api.post<McpServer>(`/api/mcp/servers/${id}/start`);
+    return response.data;
+  },
+
+  stopServer: async (id: number): Promise<McpServer> => {
+    const response = await api.post<McpServer>(`/api/mcp/servers/${id}/stop`);
+    return response.data;
+  },
+
+  restartServer: async (id: number): Promise<McpServer> => {
+    const response = await api.post<McpServer>(`/api/mcp/servers/${id}/restart`);
+    return response.data;
+  },
+
+  getLogs: async (id: number, tail?: number): Promise<McpServerLogs> => {
+    const response = await api.get<McpServerLogs>(`/api/mcp/servers/${id}/logs`, {
+      params: { tail: tail || 100 },
+    });
+    return response.data;
+  },
+
+  checkHealth: async (id: number): Promise<{ healthy: boolean; error?: string; server: McpServer }> => {
+    const response = await api.get<{ healthy: boolean; error?: string; server: McpServer }>(
+      `/api/mcp/servers/${id}/health`
+    );
+    return response.data;
+  },
+
+  // Docker status
+  getDockerStatus: async (): Promise<McpDockerStatus> => {
+    const response = await api.get<McpDockerStatus>('/api/mcp/docker/status');
+    return response.data;
+  },
+
+  // GitHub import
+  importFromManifest: async (manifestUrl: string): Promise<McpServer> => {
+    const response = await api.post<McpServer>('/api/mcp/import', { manifest_url: manifestUrl });
+    return response.data;
+  },
+
+  // Routing rules
+  getRoutingRules: async (): Promise<McpRoutingRule[]> => {
+    const response = await api.get<McpRoutingRule[]>('/api/mcp/routing-rules');
+    return response.data;
+  },
+
+  createRoutingRule: async (rule: McpRoutingRuleCreate): Promise<McpRoutingRule> => {
+    const response = await api.post<McpRoutingRule>('/api/mcp/routing-rules', rule);
+    return response.data;
+  },
+
+  updateRoutingRule: async (id: number, update: McpRoutingRuleUpdate): Promise<McpRoutingRule> => {
+    const response = await api.put<McpRoutingRule>(`/api/mcp/routing-rules/${id}`, update);
+    return response.data;
+  },
+
+  deleteRoutingRule: async (id: number): Promise<void> => {
+    await api.delete(`/api/mcp/routing-rules/${id}`);
+  },
+
+  // Settings
+  getSettings: async (): Promise<McpSettings> => {
+    const response = await api.get<McpSettings>('/api/mcp/settings');
+    return response.data;
+  },
+
+  updateSettings: async (settings: McpSettingsUpdate): Promise<McpSettings> => {
+    const response = await api.patch<McpSettings>('/api/mcp/settings', settings);
     return response.data;
   },
 };

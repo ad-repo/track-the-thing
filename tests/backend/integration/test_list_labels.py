@@ -14,7 +14,11 @@ def test_add_label_to_list(client: TestClient, db_session: Session):
     """Test adding a label to a list."""
     timestamp = datetime.now().isoformat()
     # Create a list
-    list_data = {'name': f'Test List {timestamp}', 'description': 'A test list', 'color': '#FF5733'}
+    list_data = {
+        'name': f'Test List {timestamp}',
+        'description': 'A test list',
+        'color': '#FF5733',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -42,7 +46,11 @@ def test_remove_label_from_list(client: TestClient, db_session: Session):
     """Test removing a label from a list."""
     timestamp = datetime.now().isoformat()
     # Create a list
-    list_data = {'name': f'Test List 2 {timestamp}', 'description': 'Another test list', 'color': '#3366FF'}
+    list_data = {
+        'name': f'Test List 2 {timestamp}',
+        'description': 'Another test list',
+        'color': '#3366FF',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -141,7 +149,11 @@ def test_add_nonexistent_label_to_list(client: TestClient, db_session: Session):
     """Test adding a non-existent label to a list returns 404."""
     timestamp = datetime.now().isoformat()
     # Create a list
-    list_data = {'name': f'Test List {timestamp}', 'description': 'A test list', 'color': '#FF5733'}
+    list_data = {
+        'name': f'Test List {timestamp}',
+        'description': 'A test list',
+        'color': '#FF5733',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']
@@ -169,7 +181,11 @@ def test_cascade_delete_list_removes_label_associations(client: TestClient, db_s
     """Test that deleting a list removes its label associations."""
     timestamp = datetime.now().isoformat()
     # Create a list
-    list_data = {'name': f'Deletable List {timestamp}', 'description': 'Will be deleted', 'color': '#FF0000'}
+    list_data = {
+        'name': f'Deletable List {timestamp}',
+        'description': 'Will be deleted',
+        'color': '#FF0000',
+    }
     list_response = client.post('/api/lists', json=list_data)
     assert list_response.status_code == 200
     list_id = list_response.json()['id']

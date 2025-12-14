@@ -86,7 +86,11 @@ class TestNoteEntryModel:
         assert entry.labels[0].name == sample_label.name
 
     def test_entry_with_multiple_labels(
-        self, db_session: Session, sample_daily_note: DailyNote, sample_label: Label, sample_emoji_label: Label
+        self,
+        db_session: Session,
+        sample_daily_note: DailyNote,
+        sample_label: Label,
+        sample_emoji_label: Label,
     ):
         """Test attaching multiple labels to an entry."""
         entry = NoteEntry(daily_note_id=sample_daily_note.id, content='<p>Multiple labels</p>')
@@ -103,15 +107,27 @@ class TestNoteEntryModel:
     def test_entry_state_flags(self, db_session: Session, sample_daily_note: DailyNote):
         """Test all entry state flags."""
         # Test is_important
-        entry1 = NoteEntry(daily_note_id=sample_daily_note.id, content='<p>Important entry</p>', is_important=1)
+        entry1 = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='<p>Important entry</p>',
+            is_important=1,
+        )
         db_session.add(entry1)
 
         # Test is_completed
-        entry2 = NoteEntry(daily_note_id=sample_daily_note.id, content='<p>Completed entry</p>', is_completed=1)
+        entry2 = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='<p>Completed entry</p>',
+            is_completed=1,
+        )
         db_session.add(entry2)
 
         # Test include_in_report
-        entry4 = NoteEntry(daily_note_id=sample_daily_note.id, content='<p>Report entry</p>', include_in_report=1)
+        entry4 = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='<p>Report entry</p>',
+            include_in_report=1,
+        )
         db_session.add(entry4)
 
         db_session.commit()
@@ -154,9 +170,21 @@ class TestNoteEntryModel:
 
     def test_rich_text_content_types(self, db_session: Session, sample_daily_note: DailyNote):
         """Test different content types."""
-        entry_rich = NoteEntry(daily_note_id=sample_daily_note.id, content='<p>Rich text</p>', content_type='rich_text')
-        entry_code = NoteEntry(daily_note_id=sample_daily_note.id, content='def hello(): pass', content_type='code')
-        entry_markdown = NoteEntry(daily_note_id=sample_daily_note.id, content='# Markdown', content_type='markdown')
+        entry_rich = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='<p>Rich text</p>',
+            content_type='rich_text',
+        )
+        entry_code = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='def hello(): pass',
+            content_type='code',
+        )
+        entry_markdown = NoteEntry(
+            daily_note_id=sample_daily_note.id,
+            content='# Markdown',
+            content_type='markdown',
+        )
 
         db_session.add_all([entry_rich, entry_code, entry_markdown])
         db_session.commit()

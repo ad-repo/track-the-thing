@@ -48,6 +48,7 @@ import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
 import { normalizeColorForInput } from '../utils/color';
 import { llmApi } from '../api';
+import type { McpMatchResult } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -145,6 +146,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
   // LLM state
   const [isSendingToLlm, setIsSendingToLlm] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
+  const [mcpMatch, setMcpMatch] = useState<McpMatchResult | null>(null);
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -313,6 +315,30 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     content,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+    },
+    onSelectionUpdate: ({ editor }) => {
+      // Check for MCP match when selection changes
+      if (!entryId) return;
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setMcpMatch(null);
+        return;
+      }
+      const selectedText = editor.state.doc.textBetween(from, to, ' ');
+      if (!selectedText.trim()) {
+        setMcpMatch(null);
+        return;
+      }
+      // Debounce the API call
+      const timeoutId = setTimeout(async () => {
+        try {
+          const result = await llmApi.checkMcpMatch(selectedText, entryId);
+          setMcpMatch(result);
+        } catch {
+          setMcpMatch(null);
+        }
+      }, 300);
+      return () => clearTimeout(timeoutId);
     },
     editorProps: {
       attributes: {
@@ -1827,24 +1853,36 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           </ToolbarButton>
         )}
 
-        {/* Send to LLM Button */}
-        <ToolbarButton
-          onClick={sendToLlm}
-          disabled={isSendingToLlm || !entryId}
-          title={
-            !entryId
-              ? 'Save entry first to use AI'
-              : isSendingToLlm
-              ? 'Sending to AI...'
-              : 'Send selected text to AI'
-          }
-        >
-          {isSendingToLlm ? (
-            <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
+        {/* Send to LLM/MCP Button */}
+        <div className="relative">
+          <ToolbarButton
+            onClick={sendToLlm}
+            disabled={isSendingToLlm || !entryId}
+            title={
+              !entryId
+                ? 'Save entry first to use AI'
+                : isSendingToLlm
+                ? 'Sending to AI...'
+                : mcpMatch?.matched && mcpMatch.server_status === 'running'
+                ? `Send to MCP: ${mcpMatch.server_name}`
+                : 'Send selected text to AI'
+            }
+          >
+            {isSendingToLlm ? (
+              <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+          </ToolbarButton>
+          {/* MCP indicator dot */}
+          {mcpMatch?.matched && mcpMatch.server_status === 'running' && (
+            <div
+              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+              style={{ backgroundColor: 'var(--color-success)' }}
+              title={`Will route to MCP: ${mcpMatch.server_name}`}
+            />
           )}
-        </ToolbarButton>
+        </div>
 
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />

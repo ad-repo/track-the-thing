@@ -475,3 +475,110 @@ class LlmConversationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ===========================
+# MCP Server Schemas
+# ===========================
+
+
+class McpRoutingRuleBase(BaseModel):
+    pattern: str
+    priority: int = 0
+    is_enabled: bool = True
+
+
+class McpRoutingRuleCreate(McpRoutingRuleBase):
+    mcp_server_id: int
+
+
+class McpRoutingRuleUpdate(BaseModel):
+    pattern: str | None = None
+    priority: int | None = None
+    is_enabled: bool | None = None
+
+
+class McpRoutingRuleResponse(McpRoutingRuleBase):
+    id: int
+    mcp_server_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class McpServerBase(BaseModel):
+    name: str
+    image: str
+    port: int
+    description: str = ''
+    env_vars: list[str] = []
+    auto_start: bool = False
+
+
+class McpServerCreate(McpServerBase):
+    pass
+
+
+class McpServerUpdate(BaseModel):
+    name: str | None = None
+    image: str | None = None
+    port: int | None = None
+    description: str | None = None
+    env_vars: list[str] | None = None
+    auto_start: bool | None = None
+
+
+class McpServerResponse(McpServerBase):
+    id: int
+    status: str = 'stopped'
+    last_health_check: datetime | None = None
+    source: str = 'local'
+    manifest_url: str = ''
+    created_at: datetime
+    updated_at: datetime
+    routing_rules: list[McpRoutingRuleResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class McpServerLogsResponse(BaseModel):
+    server_id: int
+    server_name: str
+    logs: str
+    timestamp: datetime
+
+
+class McpDockerStatusResponse(BaseModel):
+    available: bool
+    version: str | None = None
+    error: str | None = None
+
+
+class McpSettingsResponse(BaseModel):
+    mcp_enabled: bool = False
+    mcp_idle_timeout: int = 300
+    mcp_fallback_to_llm: bool = True
+    docker_available: bool = False
+
+
+class McpSettingsUpdate(BaseModel):
+    mcp_enabled: bool | None = None
+    mcp_idle_timeout: int | None = None
+    mcp_fallback_to_llm: bool | None = None
+
+
+class McpManifestImport(BaseModel):
+    manifest_url: str
+
+
+class McpProcessRequest(BaseModel):
+    input: str
+    rules: str = ''
+    context: dict = {}
+
+
+class McpProcessResponse(BaseModel):
+    output: str
+    metadata: dict = {}

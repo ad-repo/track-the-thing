@@ -214,7 +214,11 @@ def test_entry_in_multiple_lists(client: TestClient, db_session: Session):
 
     entry_response = client.post(
         f'/api/entries/note/{note_id}',
-        json={'content': 'Multi-list entry', 'content_type': 'rich_text', 'order_index': 0},
+        json={
+            'content': 'Multi-list entry',
+            'content_type': 'rich_text',
+            'order_index': 0,
+        },
     )
     assert entry_response.status_code == 201, f'Failed: {entry_response.text}'
     entry_id = entry_response.json()['id']

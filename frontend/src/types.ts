@@ -322,3 +322,100 @@ export interface LlmConversation {
   updated_at: string;
 }
 
+// ===========================
+// MCP Server Types
+// ===========================
+
+export type McpServerStatus = 'stopped' | 'starting' | 'running' | 'error';
+
+export interface McpRoutingRule {
+  id: number;
+  mcp_server_id: number;
+  pattern: string;
+  priority: number;
+  is_enabled: boolean;
+  created_at: string;
+}
+
+export interface McpServer {
+  id: number;
+  name: string;
+  image: string;
+  port: number;
+  description: string;
+  env_vars: string[];
+  status: McpServerStatus;
+  last_health_check: string | null;
+  auto_start: boolean;
+  source: 'local' | 'github';
+  manifest_url: string;
+  created_at: string;
+  updated_at: string;
+  routing_rules?: McpRoutingRule[];
+}
+
+export interface McpServerCreate {
+  name: string;
+  image: string;
+  port: number;
+  description?: string;
+  env_vars?: string[];
+  auto_start?: boolean;
+}
+
+export interface McpServerUpdate {
+  name?: string;
+  image?: string;
+  port?: number;
+  description?: string;
+  env_vars?: string[];
+  auto_start?: boolean;
+}
+
+export interface McpRoutingRuleCreate {
+  mcp_server_id: number;
+  pattern: string;
+  priority?: number;
+  is_enabled?: boolean;
+}
+
+export interface McpRoutingRuleUpdate {
+  pattern?: string;
+  priority?: number;
+  is_enabled?: boolean;
+}
+
+export interface McpSettings {
+  mcp_enabled: boolean;
+  mcp_idle_timeout: number;
+  mcp_fallback_to_llm: boolean;
+  docker_available: boolean;
+}
+
+export interface McpSettingsUpdate {
+  mcp_enabled?: boolean;
+  mcp_idle_timeout?: number;
+  mcp_fallback_to_llm?: boolean;
+}
+
+export interface McpDockerStatus {
+  available: boolean;
+  version?: string;
+  error?: string;
+}
+
+export interface McpServerLogs {
+  server_id: number;
+  server_name: string;
+  logs: string;
+  timestamp: string;
+}
+
+export interface McpMatchResult {
+  matched: boolean;
+  mcp_enabled: boolean;
+  server_name?: string;
+  server_status?: McpServerStatus;
+  description?: string;
+}
+

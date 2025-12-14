@@ -1,8 +1,12 @@
 """
 API routes for LLM integration - Send to LLM feature
+
+Supports both traditional LLM providers (OpenAI, Anthropic, Gemini) and
+MCP (Model Context Protocol) servers for local AI processing.
 """
 
 import json
+import re
 from datetime import datetime
 
 import httpx
@@ -11,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.database import get_db
+from app.services.docker_bridge import DockerBridge
 
 router = APIRouter(prefix='/api/llm', tags=['llm'])
 
@@ -40,6 +45,41 @@ def _get_api_key(settings: models.AppSettings, provider: str) -> str:
     if not key_field:
         raise HTTPException(status_code=400, detail=f'Unknown provider: {provider}')
     return getattr(settings, key_field, '') or ''
+
+
+def _find_matching_mcp(text: str, db: Session) -> models.McpServer | None:
+    """
+    Find MCP server matching the input text.
+    Rules are checked in priority order (highest first).
+    """
+    rules = (
+        db.query(models.McpRoutingRule)
+        .filter(models.McpRoutingRule.is_enabled == 1)
+        .order_by(models.McpRoutingRule.priority.desc())
+        .all()
+    )
+
+    for rule in rules:
+        try:
+            if re.search(rule.pattern, text, re.IGNORECASE):
+                server = db.query(models.McpServer).filter(models.McpServer.id == rule.mcp_server_id).first()
+                if server and server.status == 'running':
+                    return server
+        except re.error:
+            # Invalid regex pattern, skip this rule
+            continue
+
+    return None
+
+
+def _is_mcp_enabled(settings: models.AppSettings) -> bool:
+    """Check if MCP is enabled in settings."""
+    return bool(getattr(settings, 'mcp_enabled', 0))
+
+
+def _should_fallback_to_llm(settings: models.AppSettings) -> bool:
+    """Check if should fallback to LLM when MCP fails."""
+    return bool(getattr(settings, 'mcp_fallback_to_llm', 1))
 
 
 async def _call_openai_chat(api_key: str, messages: list[dict], model: str) -> dict:
@@ -189,13 +229,87 @@ async def _call_gemini(api_key: str, messages: list[dict], model: str) -> dict:
 
 @router.post('/send', response_model=schemas.LlmSendResponse)
 async def send_to_llm(request: schemas.LlmSendRequest, db: Session = Depends(get_db)):
-    """Send a prompt to the configured LLM and store the conversation."""
+    """
+    Send a prompt to the configured LLM and store the conversation.
+
+    Enhanced with MCP routing:
+    1. Check if MCP is enabled
+    2. Match text against routing rules (by priority)
+    3. If match found and container running -> route to MCP
+    4. Else -> use LLM provider (existing logic)
+    """
 
     # Get settings
     settings = db.query(models.AppSettings).filter(models.AppSettings.id == 1).first()
     if not settings:
         raise HTTPException(status_code=400, detail='App settings not configured')
 
+    # Check for MCP routing first
+    mcp_server_name = None
+    mcp_error = None
+
+    if _is_mcp_enabled(settings):
+        matched_server = _find_matching_mcp(request.prompt, db)
+        if matched_server:
+            # Try to route to MCP server
+            bridge = DockerBridge(db)
+            try:
+                response_dict, mcp_error = await bridge.process_request(
+                    matched_server,
+                    request.prompt,
+                    rules=settings.llm_global_prompt or '',
+                    context={'entry_id': request.entry_id},
+                )
+
+                if response_dict and not mcp_error:
+                    mcp_server_name = matched_server.name
+
+                    # Get or create conversation for this entry
+                    conversation = (
+                        db.query(models.LlmConversation)
+                        .filter(models.LlmConversation.entry_id == request.entry_id)
+                        .first()
+                    )
+
+                    if not conversation:
+                        conversation = models.LlmConversation(
+                            entry_id=request.entry_id,
+                            messages='[]',
+                        )
+                        db.add(conversation)
+                        db.flush()
+
+                    # Parse existing messages
+                    try:
+                        messages = json.loads(conversation.messages) if conversation.messages else []
+                    except json.JSONDecodeError:
+                        messages = []
+
+                    # Update conversation history
+                    response_text = response_dict.get('output', '')
+                    messages.append({'role': 'user', 'content': request.prompt})
+                    messages.append({'role': 'assistant', 'content': response_text})
+                    conversation.messages = json.dumps(messages)
+                    conversation.updated_at = datetime.utcnow()
+
+                    db.commit()
+
+                    return schemas.LlmSendResponse(
+                        response=response_text,
+                        conversation_id=conversation.id,
+                        provider=f'mcp:{mcp_server_name}',
+                        input_tokens=0,  # MCP doesn't track tokens the same way
+                        output_tokens=0,
+                    )
+
+            except Exception as e:
+                mcp_error = str(e)
+
+            # If MCP failed and fallback is disabled, raise error
+            if mcp_error and not _should_fallback_to_llm(settings):
+                raise HTTPException(status_code=500, detail=f'MCP server error: {mcp_error}')
+
+    # Fallback to traditional LLM provider
     provider = settings.llm_provider or 'openai'
     api_key = _get_api_key(settings, provider)
 
@@ -323,3 +437,28 @@ def get_llm_settings(db: Session = Depends(get_db)):
         gemini_api_key_set=bool(settings.gemini_api_key),
         llm_global_prompt=settings.llm_global_prompt or '',
     )
+
+
+@router.post('/check-mcp-match')
+def check_mcp_match(request: schemas.LlmSendRequest, db: Session = Depends(get_db)):
+    """
+    Check if a text would be routed to an MCP server.
+    Used by frontend to show MCP routing indicator.
+    """
+    settings = db.query(models.AppSettings).filter(models.AppSettings.id == 1).first()
+
+    if not settings or not _is_mcp_enabled(settings):
+        return {'matched': False, 'mcp_enabled': False}
+
+    matched_server = _find_matching_mcp(request.prompt, db)
+
+    if matched_server:
+        return {
+            'matched': True,
+            'mcp_enabled': True,
+            'server_name': matched_server.name,
+            'server_status': matched_server.status,
+            'description': matched_server.description,
+        }
+
+    return {'matched': False, 'mcp_enabled': True}

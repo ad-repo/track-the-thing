@@ -525,15 +525,53 @@ class DockerBridge:
         try:
             import docker
 
-            self._docker_client = docker.from_env()
-            # Test connection
-            version_info = self._docker_client.version()
-            self._docker_version = version_info.get('Version', 'unknown')
-            self._docker_available = True
-        except ImportError:
+            # Try docker.from_env() first (uses DOCKER_HOST env var or default socket)
+            try:
+                self._docker_client = docker.from_env()
+                version_info = self._docker_client.version()
+                self._docker_version = version_info.get('Version', 'unknown')
+                self._docker_available = True
+                print(f'[DockerBridge] Connected to Docker {self._docker_version} via default')
+                return True
+            except Exception as e:
+                print(f'[DockerBridge] docker.from_env() failed: {e}')
+
+            # On macOS, Docker Desktop socket may be at different locations
+            # Try common socket paths for desktop environments
+            import platform
+
+            if platform.system() == 'Darwin':
+                socket_paths = [
+                    os.path.expanduser('~/.docker/run/docker.sock'),  # Docker Desktop 4.x+
+                    '/var/run/docker.sock',  # Traditional location
+                    os.path.expanduser('~/Library/Containers/com.docker.docker/Data/docker.sock'),
+                ]
+
+                for socket_path in socket_paths:
+                    if os.path.exists(socket_path):
+                        try:
+                            print(f'[DockerBridge] Trying socket: {socket_path}')
+                            self._docker_client = docker.DockerClient(base_url=f'unix://{socket_path}')
+                            version_info = self._docker_client.version()
+                            self._docker_version = version_info.get('Version', 'unknown')
+                            self._docker_available = True
+                            print(f'[DockerBridge] Connected to Docker {self._docker_version} via {socket_path}')
+                            return True
+                        except Exception as socket_err:
+                            print(f'[DockerBridge] Socket {socket_path} failed: {socket_err}')
+                            continue
+
+            # All attempts failed
+            print('[DockerBridge] No working Docker connection found')
             self._docker_available = False
             self._docker_client = None
-        except Exception:
+
+        except ImportError:
+            print('[DockerBridge] Docker SDK not installed')
+            self._docker_available = False
+            self._docker_client = None
+        except Exception as e:
+            print(f'[DockerBridge] Docker init error: {e}')
             self._docker_available = False
             self._docker_client = None
 
@@ -550,6 +588,15 @@ class DockerBridge:
         if available:
             return True, self._docker_version, None
         else:
+            import platform
+
+            if platform.system() == 'Darwin':
+                return (
+                    False,
+                    None,
+                    'Docker is not available. Ensure Docker Desktop is running and check that '
+                    '~/.docker/run/docker.sock or /var/run/docker.sock exists.',
+                )
             return False, None, 'Docker is not available or not running'
 
     def _get_container_name(self, server: models.McpServer) -> str:

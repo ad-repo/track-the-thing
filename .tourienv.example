@@ -42,4 +42,12 @@ PYINSTALLER_ENTRYPOINT=python3 backend/desktop_launcher.py
 # Location of the backend log file when launched from the desktop shell.
 TAURI_BACKEND_LOG="${TAURI_DESKTOP_DATA_DIR}/logs/backend.log"
 
+# Docker configuration --------------------------------------------------------
+# Docker socket path. The app will auto-detect common macOS Docker Desktop
+# socket locations, but you can override this if needed.
+# Common paths:
+#   macOS Docker Desktop 4.x+: unix://~/.docker/run/docker.sock
+#   Traditional: unix:///var/run/docker.sock
+# DOCKER_HOST=unix://${HOME}/.docker/run/docker.sock
+
 

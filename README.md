@@ -153,10 +153,40 @@ track-the-thing/
 
 ### AI Integration
 - **Send to AI**: Select text and send to OpenAI, Anthropic, or Google Gemini
-- **MCP Servers**: Docker-based local AI processing with pattern-based routing
+- **MCP Servers**: Docker-based or remote AI processing with pattern-based routing
 - **Conversation Context**: Maintains conversation history per entry
 - **Global Prompt Rules**: Configure system prompts applied to all AI requests
 - **Graceful Fallback**: MCP failures automatically fall back to cloud LLMs
+
+### MCP Server Configuration
+
+MCP (Model Context Protocol) servers provide specialized AI processing. Configure in **Settings → MCP Servers**.
+
+**Server Types:**
+
+| Type | Transport | Use Case |
+|------|-----------|----------|
+| Docker (HTTP) | HTTP | Servers exposing HTTP endpoints (requires port) |
+| Docker (STDIO) | stdin/stdout | Servers using stdio protocol (e.g., Brave Search) |
+| Remote | HTTP | External MCP servers (no Docker required) |
+
+**Image Sources:**
+
+- **Pre-built Image**: Docker Hub image (e.g., `mcp/brave-search`)
+- **Build from Dockerfile**: GitHub URL or local path
+  - Example: `https://github.com/nickclyde/duckduckgo-mcp-server/blob/main/Dockerfile`
+
+**Routing Rules:**
+
+Each server can have regex patterns that route matching text selections:
+- Pattern: `(?i)search|find|look up` → Routes search queries to a search MCP
+- Priority: Higher priority rules match first
+- Colors: Each server has a unique color shown on the AI button when matched
+
+**Requirements:**
+- Docker Desktop must be running for Docker-based servers
+- STDIO servers don't require exposed ports
+- Remote servers only need a URL and optional auth headers
 
 ---
 
@@ -210,6 +240,15 @@ Configurable in Settings → General:
 - **Emoji Library**: Choose picker component
 - **Goal Visibility**: Toggle Daily/Sprint/Quarterly goals
 - **Timezone**: Default Eastern US (America/New_York)
+
+### AI Settings (Settings → AI)
+
+- **LLM Provider**: OpenAI, Anthropic, or Google Gemini
+- **API Keys**: Store your provider API keys
+- **Global Prompt**: System prompt applied to all AI requests
+- **MCP Enabled**: Toggle local MCP server processing
+- **MCP Idle Timeout**: Auto-stop idle Docker containers
+- **Fallback to LLM**: Use cloud LLM when MCP fails
 
 ---
 

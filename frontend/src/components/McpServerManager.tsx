@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Server,
   Play,
@@ -30,6 +30,9 @@ interface McpServerManagerProps {
 }
 
 const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
+  // Use ref to avoid re-renders when onMessage changes
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
   const [servers, setServers] = useState<McpServer[]>([]);
   const [settings, setSettings] = useState<McpSettings | null>(null);
   const [dockerStatus, setDockerStatus] = useState<McpDockerStatus | null>(null);
@@ -73,11 +76,11 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setDockerStatus(dockerData);
     } catch (error) {
       console.error('Failed to load MCP data:', error);
-      onMessage?.('error', 'Failed to load MCP server data');
+      onMessageRef.current?.('error', 'Failed to load MCP server data');
     } finally {
       setLoading(false);
     }
-  }, [onMessage]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -90,10 +93,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
         mcp_enabled: !settings.mcp_enabled,
       });
       setSettings(updated);
-      onMessage?.('success', `MCP servers ${updated.mcp_enabled ? 'enabled' : 'disabled'}`);
+      onMessageRef.current?.('success', `MCP servers ${updated.mcp_enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Failed to toggle MCP:', error);
-      onMessage?.('error', 'Failed to update MCP settings');
+      onMessageRef.current?.('error', 'Failed to update MCP settings');
     }
   };
 
@@ -103,7 +106,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setSettings(updated);
     } catch (error) {
       console.error('Failed to update settings:', error);
-      onMessage?.('error', 'Failed to update MCP settings');
+      onMessageRef.current?.('error', 'Failed to update MCP settings');
     }
   };
 
@@ -111,10 +114,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     try {
       const updated = await mcpApi.startServer(serverId);
       setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
-      onMessage?.('success', 'Server starting...');
+      onMessageRef.current?.('success', 'Server starting...');
     } catch (error: any) {
       console.error('Failed to start server:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to start server');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to start server');
     }
   };
 
@@ -122,10 +125,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     try {
       const updated = await mcpApi.stopServer(serverId);
       setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
-      onMessage?.('success', 'Server stopped');
+      onMessageRef.current?.('success', 'Server stopped');
     } catch (error: any) {
       console.error('Failed to stop server:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to stop server');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to stop server');
     }
   };
 
@@ -133,10 +136,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     try {
       const updated = await mcpApi.restartServer(serverId);
       setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
-      onMessage?.('success', 'Server restarting...');
+      onMessageRef.current?.('success', 'Server restarting...');
     } catch (error: any) {
       console.error('Failed to restart server:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to restart server');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to restart server');
     }
   };
 
@@ -145,10 +148,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
     try {
       await mcpApi.deleteServer(serverId);
       setServers((prev) => prev.filter((s) => s.id !== serverId));
-      onMessage?.('success', 'Server deleted');
+      onMessageRef.current?.('success', 'Server deleted');
     } catch (error: any) {
       console.error('Failed to delete server:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to delete server');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to delete server');
     }
   };
 
@@ -167,7 +170,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
 
   const handleCreateServer = async () => {
     if (!newServer.name || !newServer.image) {
-      onMessage?.('error', 'Name and image are required');
+      onMessageRef.current?.('error', 'Name and image are required');
       return;
     }
     setSaving(true);
@@ -183,10 +186,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
         env_vars: [],
         auto_start: false,
       });
-      onMessage?.('success', 'MCP server created');
+      onMessageRef.current?.('success', 'MCP server created');
     } catch (error: any) {
       console.error('Failed to create server:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to create server');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to create server');
     } finally {
       setSaving(false);
     }
@@ -194,7 +197,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
 
   const handleImportManifest = async () => {
     if (!manifestUrl) {
-      onMessage?.('error', 'Manifest URL is required');
+      onMessageRef.current?.('error', 'Manifest URL is required');
       return;
     }
     setSaving(true);
@@ -203,10 +206,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setServers((prev) => [...prev, imported]);
       setShowImportForm(false);
       setManifestUrl('');
-      onMessage?.('success', `Imported MCP server: ${imported.name}`);
+      onMessageRef.current?.('success', `Imported MCP server: ${imported.name}`);
     } catch (error: any) {
       console.error('Failed to import manifest:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to import manifest');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to import manifest');
     } finally {
       setSaving(false);
     }
@@ -214,7 +217,7 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
 
   const handleCreateRule = async (serverId: number) => {
     if (!newRule.pattern) {
-      onMessage?.('error', 'Pattern is required');
+      onMessageRef.current?.('error', 'Pattern is required');
       return;
     }
     try {
@@ -229,10 +232,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
       setShowRuleForm(null);
       setNewRule({ pattern: '', priority: 0 });
-      onMessage?.('success', 'Routing rule added');
+      onMessageRef.current?.('success', 'Routing rule added');
     } catch (error: any) {
       console.error('Failed to create rule:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to create routing rule');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to create routing rule');
     }
   };
 
@@ -241,10 +244,10 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
       await mcpApi.deleteRoutingRule(ruleId);
       const updated = await mcpApi.getServer(serverId);
       setServers((prev) => prev.map((s) => (s.id === serverId ? updated : s)));
-      onMessage?.('success', 'Routing rule deleted');
+      onMessageRef.current?.('success', 'Routing rule deleted');
     } catch (error: any) {
       console.error('Failed to delete rule:', error);
-      onMessage?.('error', error.response?.data?.detail || 'Failed to delete routing rule');
+      onMessageRef.current?.('error', error.response?.data?.detail || 'Failed to delete routing rule');
     }
   };
 

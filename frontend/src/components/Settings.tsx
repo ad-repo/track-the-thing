@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target } from 'lucide-react';
+import { Download, Upload, Settings as SettingsIcon, Clock, Archive, Tag, Trash2, Edit2, Palette, Plus, RotateCcw, ChevronRight, Columns, BookOpen, Target, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { listsApi, entriesApi, goalsApi } from '../api';
 import { useTimezone } from '../contexts/TimezoneContext';
@@ -17,7 +17,7 @@ import TextureSettings from './TextureSettings';
 import GoalCard from './GoalCard';
 import GoalForm from './GoalForm';
 import { useTexture } from '../hooks/useTexture';
-import type { Goal, GoalCreate, GoalUpdate } from '../types';
+import type { Goal, GoalCreate, GoalUpdate, LlmProvider, OpenaiApiType } from '../types';
 
 interface Label {
   id: number;
@@ -269,9 +269,69 @@ const Settings = () => {
   const [showFullRestoreConfirm, setShowFullRestoreConfirm] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
+  // LLM Settings state
+  const [llmProvider, setLlmProvider] = useState<LlmProvider>('openai');
+  const [openaiApiType, setOpenaiApiType] = useState<OpenaiApiType>('chat_completions');
+  const [openaiKeySet, setOpenaiKeySet] = useState(false);
+  const [anthropicKeySet, setAnthropicKeySet] = useState(false);
+  const [geminiKeySet, setGeminiKeySet] = useState(false);
+  const [llmGlobalPrompt, setLlmGlobalPrompt] = useState('');
+  const [openaiKeyInput, setOpenaiKeyInput] = useState('');
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState('');
+  const [geminiKeyInput, setGeminiKeyInput] = useState('');
+  const [savingLlmSettings, setSavingLlmSettings] = useState(false);
+
+  const loadLlmSettings = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/settings`);
+      setLlmProvider(response.data.llm_provider || 'openai');
+      setOpenaiApiType(response.data.openai_api_type || 'chat_completions');
+      setOpenaiKeySet(response.data.openai_api_key_set || false);
+      setAnthropicKeySet(response.data.anthropic_api_key_set || false);
+      setGeminiKeySet(response.data.gemini_api_key_set || false);
+      setLlmGlobalPrompt(response.data.llm_global_prompt || '');
+    } catch (error) {
+      console.error('Error loading LLM settings:', error);
+    }
+  };
+
+  const handleSaveLlmSettings = async () => {
+    setSavingLlmSettings(true);
+    try {
+      const updates: any = {
+        llm_provider: llmProvider,
+        openai_api_type: openaiApiType,
+        llm_global_prompt: llmGlobalPrompt,
+      };
+
+      // Only update keys if they were entered (not empty placeholder)
+      if (openaiKeyInput) updates.openai_api_key = openaiKeyInput;
+      if (anthropicKeyInput) updates.anthropic_api_key = anthropicKeyInput;
+      if (geminiKeyInput) updates.gemini_api_key = geminiKeyInput;
+
+      await axios.patch(`${API_URL}/api/settings`, updates);
+
+      // Refresh to get updated "key set" status
+      await loadLlmSettings();
+
+      // Clear input fields
+      setOpenaiKeyInput('');
+      setAnthropicKeyInput('');
+      setGeminiKeyInput('');
+
+      showMessage('success', 'AI settings saved successfully');
+    } catch (error) {
+      console.error('Error saving LLM settings:', error);
+      showMessage('error', 'Failed to save AI settings');
+    } finally {
+      setSavingLlmSettings(false);
+    }
+  };
+
   useEffect(() => {
     loadLabels();
     loadDailyGoalEndTime();
+    loadLlmSettings();
   }, []);
 
   const loadDailyGoalEndTime = async () => {
@@ -920,6 +980,168 @@ const Settings = () => {
                 )}
               </div>
             ) : null}
+          </div>
+        </section>
+
+        {/* AI Integration Section */}
+        <section className="mb-6">
+          <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Sparkles className="h-5 w-5" />
+            AI Integration
+          </h2>
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+              Configure AI providers for the "Send to LLM" feature in the editor. Your API keys are stored securely and never exposed in the browser.
+            </p>
+
+            {/* Provider Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                Preferred Provider
+              </label>
+              <div className="flex gap-2">
+                {(['openai', 'anthropic', 'gemini'] as LlmProvider[]).map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => setLlmProvider(provider)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize"
+                    style={{
+                      backgroundColor: llmProvider === provider ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                      color: llmProvider === provider ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border-primary)',
+                    }}
+                  >
+                    {provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'Gemini'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* OpenAI API Type Selection */}
+            {llmProvider === 'openai' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                  OpenAI API Format
+                </label>
+                <div className="flex gap-2">
+                  {(['chat_completions', 'responses'] as OpenaiApiType[]).map((apiType) => (
+                    <button
+                      key={apiType}
+                      onClick={() => setOpenaiApiType(apiType)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: openaiApiType === apiType ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                        color: openaiApiType === apiType ? 'var(--color-accent-text)' : 'var(--color-text-primary)',
+                        border: '1px solid var(--color-border-primary)',
+                      }}
+                    >
+                      {apiType === 'chat_completions' ? 'Chat Completions' : 'Responses API'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {openaiApiType === 'chat_completions' 
+                    ? 'Standard chat format (gpt-4o-mini)' 
+                    : 'Newer Responses API format (gpt-4o-mini)'}
+                </p>
+              </div>
+            )}
+
+            {/* API Keys */}
+            <div className="space-y-4 mb-4">
+              {/* OpenAI */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  OpenAI API Key {openaiKeySet && <span className="text-green-500">✓ Configured</span>}
+                </label>
+                <input
+                  type="password"
+                  value={openaiKeyInput}
+                  onChange={(e) => setOpenaiKeyInput(e.target.value)}
+                  placeholder={openaiKeySet ? '••••••••••••••••' : 'sk-...'}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              {/* Anthropic */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  Anthropic API Key {anthropicKeySet && <span className="text-green-500">✓ Configured</span>}
+                </label>
+                <input
+                  type="password"
+                  value={anthropicKeyInput}
+                  onChange={(e) => setAnthropicKeyInput(e.target.value)}
+                  placeholder={anthropicKeySet ? '••••••••••••••••' : 'sk-ant-...'}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+
+              {/* Gemini */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  Gemini API Key {geminiKeySet && <span className="text-green-500">✓ Configured</span>}
+                </label>
+                <input
+                  type="password"
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                  placeholder={geminiKeySet ? '••••••••••••••••' : 'AIza...'}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Global Prompt */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                Global Prompt Rules (Optional)
+              </label>
+              <p className="text-xs mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                These instructions will be prepended to every prompt sent to the AI.
+              </p>
+              <textarea
+                value={llmGlobalPrompt}
+                onChange={(e) => setLlmGlobalPrompt(e.target.value)}
+                placeholder="e.g., Always respond concisely. Use a professional tone."
+                rows={4}
+                className="w-full px-3 py-2 rounded-lg text-sm resize-none"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-primary)',
+                  color: 'var(--color-text-primary)',
+                }}
+              />
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSaveLlmSettings}
+              disabled={savingLlmSettings}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: 'var(--color-accent)',
+                color: 'var(--color-accent-text)',
+                opacity: savingLlmSettings ? 0.5 : 1,
+              }}
+            >
+              {savingLlmSettings ? 'Saving...' : 'Save AI Settings'}
+            </button>
           </div>
         </section>
 

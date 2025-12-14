@@ -25,6 +25,10 @@ import type {
   ReminderUpdate,
   AppSettings,
   AppSettingsUpdate,
+  LlmSendRequest,
+  LlmSendResponse,
+  LlmConversation,
+  LlmSettings,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -386,6 +390,28 @@ export const settingsApi = {
 
   update: async (settings: AppSettingsUpdate): Promise<AppSettings> => {
     const response = await api.patch<AppSettings>('/api/settings', settings);
+    return response.data;
+  },
+};
+
+// LLM API
+export const llmApi = {
+  send: async (request: LlmSendRequest): Promise<LlmSendResponse> => {
+    const response = await api.post<LlmSendResponse>('/api/llm/send', request);
+    return response.data;
+  },
+
+  getConversation: async (entryId: number): Promise<LlmConversation | null> => {
+    const response = await api.get<LlmConversation | null>(`/api/llm/conversation/${entryId}`);
+    return response.data;
+  },
+
+  clearConversation: async (entryId: number): Promise<void> => {
+    await api.delete(`/api/llm/conversation/${entryId}`);
+  },
+
+  getSettings: async (): Promise<LlmSettings> => {
+    const response = await api.get<LlmSettings>('/api/llm/settings');
     return response.data;
   },
 };

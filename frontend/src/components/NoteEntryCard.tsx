@@ -923,6 +923,7 @@ const NoteEntryCard = ({
             content={content}
             onChange={handleContentChange}
             placeholder="Add content..."
+            entryId={entry.id}
           />
         )}
       </div>

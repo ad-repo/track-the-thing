@@ -94,6 +94,13 @@ class AppSettings(Base):
     daily_goal_end_time = Column(String, default='17:00')  # End time for daily goal countdown (HH:MM format)
     texture_enabled = Column(Integer, default=0)  # UI texture system enabled (0/1 as boolean)
     texture_settings = Column(Text, default='{}')  # JSON string for texture configuration
+    # LLM integration settings
+    llm_provider = Column(String, default='openai')  # 'openai', 'anthropic', 'gemini'
+    openai_api_type = Column(String, default='chat_completions')  # 'chat_completions' or 'responses'
+    openai_api_key = Column(String, default='')
+    anthropic_api_key = Column(String, default='')
+    gemini_api_key = Column(String, default='')
+    llm_global_prompt = Column(Text, default='')  # Global prompt rules (markdown)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -243,5 +250,17 @@ class CustomEmoji(Base):
     category = Column(String, default='Custom')  # Category for organization
     keywords = Column(String, default='')  # Comma-separated keywords for search
     is_deleted = Column(Integer, default=0)  # 0 = false, 1 = true (soft delete for backward compatibility)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class LlmConversation(Base):
+    """Model for LLM conversation history per entry"""
+
+    __tablename__ = 'llm_conversations'
+
+    id = Column(Integer, primary_key=True, index=True)
+    entry_id = Column(Integer, ForeignKey('note_entries.id', ondelete='CASCADE'), nullable=False, index=True)
+    messages = Column(Text, default='[]')  # JSON array of {role, content} objects
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

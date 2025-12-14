@@ -138,7 +138,7 @@ describe('Reports', () => {
 
     await waitFor(() => expect(mockAxiosGet).toHaveBeenCalledWith(expect.stringContaining('/api/reports/weeks')));
 
-    const select = screen.getByRole('combobox');
+    const select = await screen.findByRole('combobox');
     fireEvent.change(select, { target: { value: '2025-11-04' } });
 
     await waitFor(() =>

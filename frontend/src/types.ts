@@ -74,6 +74,12 @@ export interface AppSettings {
   daily_goal_end_time: string;
   texture_enabled: boolean;
   texture_settings: string;
+  // LLM settings
+  llm_provider: LlmProvider;
+  openai_api_key_set: boolean;
+  anthropic_api_key_set: boolean;
+  gemini_api_key_set: boolean;
+  llm_global_prompt: string;
   created_at: string;
   updated_at: string;
 }
@@ -90,6 +96,12 @@ export interface AppSettingsUpdate {
   daily_goal_end_time?: string;
   texture_enabled?: boolean;
   texture_settings?: string;
+  // LLM settings
+  llm_provider?: LlmProvider;
+  openai_api_key?: string;
+  anthropic_api_key?: string;
+  gemini_api_key?: string;
+  llm_global_prompt?: string;
 }
 
 // Goal type constants
@@ -255,5 +267,58 @@ export interface ReminderCreate {
 export interface ReminderUpdate {
   reminder_datetime?: string;
   is_dismissed?: boolean;
+}
+
+// ===========================
+// LLM Integration Types
+// ===========================
+
+export type LlmProvider = 'openai' | 'anthropic' | 'gemini';
+
+export type OpenaiApiType = 'chat_completions' | 'responses';
+
+export interface LlmSettings {
+  llm_provider: LlmProvider;
+  openai_api_type: OpenaiApiType;
+  openai_api_key_set: boolean;
+  anthropic_api_key_set: boolean;
+  gemini_api_key_set: boolean;
+  llm_global_prompt: string;
+}
+
+export interface LlmSettingsUpdate {
+  llm_provider?: LlmProvider;
+  openai_api_type?: OpenaiApiType;
+  openai_api_key?: string;
+  anthropic_api_key?: string;
+  gemini_api_key?: string;
+  llm_global_prompt?: string;
+}
+
+export interface LlmMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface LlmSendRequest {
+  entry_id: number;
+  prompt: string;
+  continue_conversation?: boolean;
+}
+
+export interface LlmSendResponse {
+  response: string;
+  conversation_id: number;
+  provider: LlmProvider;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface LlmConversation {
+  id: number;
+  entry_id: number;
+  messages: LlmMessage[];
+  created_at: string;
+  updated_at: string;
 }
 

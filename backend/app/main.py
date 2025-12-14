@@ -14,6 +14,7 @@ from app.routers import (
     labels,
     link_preview,
     lists,
+    llm,
     notes,
     reminders,
     reports,
@@ -54,6 +55,7 @@ app.include_router(custom_emojis.router)
 app.include_router(app_settings.router)
 app.include_router(goals.router)
 app.include_router(reminders.router)
+app.include_router(llm.router)
 
 
 @app.get('/')

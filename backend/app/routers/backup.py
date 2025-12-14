@@ -32,6 +32,7 @@ async def export_data(db: Session = Depends(get_db)):
     sprint_goals = db.query(models.SprintGoal).all()
     quarterly_goals = db.query(models.QuarterlyGoal).all()
     goals = db.query(models.Goal).all()
+    llm_conversations = db.query(models.LlmConversation).all()
 
     export_data = {
         'version': '9.0',
@@ -90,9 +91,22 @@ async def export_data(db: Session = Depends(get_db)):
             'emoji_library': app_settings.emoji_library if app_settings else 'emoji-picker-react',
             'texture_enabled': bool(app_settings.texture_enabled) if app_settings else False,
             'texture_settings': app_settings.texture_settings if app_settings else '{}',
+            'llm_provider': getattr(app_settings, 'llm_provider', None) if app_settings else 'openai',
+            'llm_global_prompt': getattr(app_settings, 'llm_global_prompt', None) if app_settings else '',
+            # Note: API keys are NOT exported for security
             'created_at': app_settings.created_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
             'updated_at': app_settings.updated_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
         },
+        'llm_conversations': [
+            {
+                'id': conv.id,
+                'entry_id': conv.entry_id,
+                'messages': conv.messages,
+                'created_at': conv.created_at.isoformat(),
+                'updated_at': conv.updated_at.isoformat(),
+            }
+            for conv in llm_conversations
+        ],
         'sprint_goals': [
             {
                 'id': goal.id,
@@ -624,6 +638,34 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                         stats['goals_imported'] += 1
                     else:
                         stats['goals_skipped'] += 1
+
+            # Import LLM conversations if present
+            if 'llm_conversations' in data:
+                for conv_data in data['llm_conversations']:
+                    # Check if entry exists
+                    entry_exists = (
+                        db.query(models.NoteEntry).filter(models.NoteEntry.id == conv_data['entry_id']).first()
+                    )
+
+                    if entry_exists:
+                        existing_conv = (
+                            db.query(models.LlmConversation)
+                            .filter(models.LlmConversation.entry_id == conv_data['entry_id'])
+                            .first()
+                        )
+
+                        if not existing_conv:
+                            new_conv = models.LlmConversation(
+                                entry_id=conv_data['entry_id'],
+                                messages=conv_data['messages'],
+                                created_at=datetime.fromisoformat(conv_data['created_at'])
+                                if 'created_at' in conv_data
+                                else datetime.utcnow(),
+                                updated_at=datetime.fromisoformat(conv_data['updated_at'])
+                                if 'updated_at' in conv_data
+                                else datetime.utcnow(),
+                            )
+                            db.add(new_conv)
 
             # Import labels (support both old "tags" and new "labels" format)
             label_id_mapping = {}

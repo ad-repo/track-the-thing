@@ -37,14 +37,17 @@ import {
   Type,
   CaseSensitive,
   CheckSquare,
+  Sparkles,
 } from 'lucide-react';
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
+import { AiResponseExtension } from '../extensions/AiResponse';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
 import { normalizeColorForInput } from '../utils/color';
+import { llmApi } from '../api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -52,6 +55,7 @@ interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
+  entryId?: number; // Needed for LLM conversation context
 }
 
 // Custom extension for preformatted text
@@ -104,7 +108,7 @@ const PreformattedText = Node.create({
   },
 });
 
-const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }: RichTextEditorProps) => {
+const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', entryId }: RichTextEditorProps) => {
   const lowlight = createLowlight(common);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [dictationError, setDictationError] = useState<string | null>(null);
@@ -137,6 +141,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
   const [editingExistingLink, setEditingExistingLink] = useState(false);
   const [linkModalMode, setLinkModalMode] = useState<'link' | 'preview'>('link');
   const linkSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  
+  // LLM state
+  const [isSendingToLlm, setIsSendingToLlm] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -274,6 +282,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
         },
       }),
       LinkPreviewExtension,
+      AiResponseExtension,
       Placeholder.configure({
         placeholder,
       }),
@@ -935,6 +944,64 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
     setLinkModalError(null);
     linkSelectionRef.current = null;
     setShowLinkModal(true);
+  };
+
+  const sendToLlm = async () => {
+    if (!editor || !entryId) return;
+
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      // No selection
+      setLlmError('Please select some text to send to the AI.');
+      setTimeout(() => setLlmError(null), 3000);
+      return;
+    }
+
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    if (!selectedText.trim()) {
+      setLlmError('Please select some text to send to the AI.');
+      setTimeout(() => setLlmError(null), 3000);
+      return;
+    }
+
+    setIsSendingToLlm(true);
+    setLlmError(null);
+
+    try {
+      const response = await llmApi.send({
+        entry_id: entryId,
+        prompt: selectedText,
+        continue_conversation: true,
+      });
+
+      // Insert AI response as a styled block after the selection
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(to)
+        .insertContent([
+          { type: 'paragraph' },
+          {
+            type: 'aiResponse',
+            attrs: {
+              content: response.response,
+              provider: response.provider,
+              inputTokens: response.input_tokens,
+              outputTokens: response.output_tokens,
+            },
+          },
+          { type: 'paragraph' },
+        ])
+        .run();
+    } catch (error: any) {
+      console.error('Failed to send to LLM:', error);
+      const errorMessage =
+        error.response?.data?.detail || 'Failed to get AI response. Check your API key in Settings.';
+      setLlmError(errorMessage);
+      setTimeout(() => setLlmError(null), 8000);
+    } finally {
+      setIsSendingToLlm(false);
+    }
   };
 
   const openCamera = async () => {
@@ -1760,6 +1827,25 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
           </ToolbarButton>
         )}
 
+        {/* Send to LLM Button */}
+        <ToolbarButton
+          onClick={sendToLlm}
+          disabled={isSendingToLlm || !entryId}
+          title={
+            !entryId
+              ? 'Save entry first to use AI'
+              : isSendingToLlm
+              ? 'Sending to AI...'
+              : 'Send selected text to AI'
+          }
+        >
+          {isSendingToLlm ? (
+            <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+        </ToolbarButton>
+
         {/* Separator */}
         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />
 
@@ -1922,6 +2008,33 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...' }:
             <div className="pr-6">
               <strong className="block mb-1">{yamlError.startsWith('✓') ? 'YAML Validation' : 'YAML Validation Error'}</strong>
               <p className="text-sm whitespace-pre-line">{yamlError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LLM Error Alert */}
+      {llmError && (
+        <div
+          className="m-4 p-4 rounded-lg text-sm shadow-lg relative"
+          style={{
+            backgroundColor: '#fef2f2',
+            color: '#991b1b',
+            border: '2px solid #ef4444',
+          }}
+        >
+          <button
+            onClick={() => setLlmError(null)}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-xl leading-none"
+            title="Dismiss"
+          >
+            ×
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-lg">🤖</div>
+            <div className="pr-6">
+              <strong className="block mb-1">AI Error</strong>
+              <p className="text-sm whitespace-pre-line">{llmError}</p>
             </div>
           </div>
         </div>

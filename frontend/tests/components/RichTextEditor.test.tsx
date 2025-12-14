@@ -103,6 +103,22 @@ vi.mock('lucide-react', () => ({
   Minimize2: () => <div>Minimize</div>,
   Type: () => <div>FontSize</div>,
   CaseSensitive: () => <div>FontFamily</div>,
+  Sparkles: () => <div>Sparkles</div>,
+}));
+
+// Mock AiResponse extension
+vi.mock('@/extensions/AiResponse', () => ({
+  AiResponseExtension: {},
+}));
+
+// Mock llmApi
+vi.mock('@/api', () => ({
+  llmApi: {
+    send: vi.fn(),
+    getConversation: vi.fn(),
+    clearConversation: vi.fn(),
+    getSettings: vi.fn(),
+  },
 }));
 
 // Mock speech recognition hook

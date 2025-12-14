@@ -31,6 +31,12 @@ def get_app_settings(db: Session = Depends(get_db)):
             daily_goal_end_time='17:00',
             texture_enabled=0,
             texture_settings='{}',
+            llm_provider='openai',
+            openai_api_type='chat_completions',
+            openai_api_key='',
+            anthropic_api_key='',
+            gemini_api_key='',
+            llm_global_prompt='',
         )
         db.add(settings)
         db.commit()
@@ -49,6 +55,13 @@ def get_app_settings(db: Session = Depends(get_db)):
         'daily_goal_end_time': settings.daily_goal_end_time or '17:00',
         'texture_enabled': bool(settings.texture_enabled),
         'texture_settings': settings.texture_settings or '{}',
+        # LLM settings - mask API keys, only show if set
+        'llm_provider': getattr(settings, 'llm_provider', None) or 'openai',
+        'openai_api_type': getattr(settings, 'openai_api_type', None) or 'chat_completions',
+        'openai_api_key_set': bool(getattr(settings, 'openai_api_key', None)),
+        'anthropic_api_key_set': bool(getattr(settings, 'anthropic_api_key', None)),
+        'gemini_api_key_set': bool(getattr(settings, 'gemini_api_key', None)),
+        'llm_global_prompt': getattr(settings, 'llm_global_prompt', None) or '',
         'created_at': settings.created_at.isoformat(),
         'updated_at': settings.updated_at.isoformat(),
     }
@@ -100,6 +113,19 @@ def update_app_settings(settings_update: schemas.AppSettingsUpdate, db: Session 
             settings.texture_enabled = int(settings_update.texture_enabled)
         if settings_update.texture_settings is not None:
             settings.texture_settings = settings_update.texture_settings
+        # LLM settings
+        if settings_update.llm_provider is not None:
+            settings.llm_provider = settings_update.llm_provider
+        if settings_update.openai_api_type is not None:
+            settings.openai_api_type = settings_update.openai_api_type
+        if settings_update.openai_api_key is not None:
+            settings.openai_api_key = settings_update.openai_api_key
+        if settings_update.anthropic_api_key is not None:
+            settings.anthropic_api_key = settings_update.anthropic_api_key
+        if settings_update.gemini_api_key is not None:
+            settings.gemini_api_key = settings_update.gemini_api_key
+        if settings_update.llm_global_prompt is not None:
+            settings.llm_global_prompt = settings_update.llm_global_prompt
 
     db.commit()
     db.refresh(settings)
@@ -116,6 +142,13 @@ def update_app_settings(settings_update: schemas.AppSettingsUpdate, db: Session 
         'daily_goal_end_time': settings.daily_goal_end_time or '17:00',
         'texture_enabled': bool(settings.texture_enabled),
         'texture_settings': settings.texture_settings or '{}',
+        # LLM settings - mask API keys, only show if set
+        'llm_provider': getattr(settings, 'llm_provider', None) or 'openai',
+        'openai_api_type': getattr(settings, 'openai_api_type', None) or 'chat_completions',
+        'openai_api_key_set': bool(getattr(settings, 'openai_api_key', None)),
+        'anthropic_api_key_set': bool(getattr(settings, 'anthropic_api_key', None)),
+        'gemini_api_key_set': bool(getattr(settings, 'gemini_api_key', None)),
+        'llm_global_prompt': getattr(settings, 'llm_global_prompt', None) or '',
         'created_at': settings.created_at.isoformat(),
         'updated_at': settings.updated_at.isoformat(),
     }

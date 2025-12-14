@@ -28,9 +28,9 @@ $COMPOSE_CMD run --rm frontend sh -c '
   npx tsc --noEmit
 '
 
-# echo ""
-# echo "3. Backend Tests..."
-# $COMPOSE_CMD run --rm backend-test
+echo ""
+echo "3. Backend Tests..."
+$COMPOSE_CMD run --rm backend-test
 
 echo ""
 echo "4. Frontend Tests..."

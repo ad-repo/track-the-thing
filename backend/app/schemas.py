@@ -274,6 +274,13 @@ class AppSettingsUpdate(BaseModel):
     daily_goal_end_time: str | None = None
     texture_enabled: bool | None = None
     texture_settings: str | None = None
+    # LLM settings
+    llm_provider: str | None = None
+    openai_api_type: str | None = None
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    llm_global_prompt: str | None = None
 
 
 class AppSettingsResponse(BaseModel):
@@ -289,6 +296,13 @@ class AppSettingsResponse(BaseModel):
     daily_goal_end_time: str = '17:00'
     texture_enabled: bool = False
     texture_settings: str = '{}'
+    # LLM settings (keys masked)
+    llm_provider: str = 'openai'
+    openai_api_type: str = 'chat_completions'
+    openai_api_key_set: bool = False
+    anthropic_api_key_set: bool = False
+    gemini_api_key_set: bool = False
+    llm_global_prompt: str = ''
     created_at: str
     updated_at: str
 
@@ -400,6 +414,62 @@ class CustomEmojiUpdate(BaseModel):
 class CustomEmojiResponse(CustomEmojiBase):
     id: int
     is_deleted: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===========================
+# LLM Integration Schemas
+# ===========================
+
+
+class LlmSettingsUpdate(BaseModel):
+    llm_provider: str | None = None  # 'openai', 'anthropic', 'gemini'
+    openai_api_type: str | None = None  # 'chat_completions' or 'responses'
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    llm_global_prompt: str | None = None
+
+
+class LlmSettingsResponse(BaseModel):
+    llm_provider: str = 'openai'
+    openai_api_type: str = 'chat_completions'  # 'chat_completions' or 'responses'
+    openai_api_key_set: bool = False  # True if key is configured (never expose actual key)
+    anthropic_api_key_set: bool = False
+    gemini_api_key_set: bool = False
+    llm_global_prompt: str = ''
+
+    class Config:
+        from_attributes = True
+
+
+class LlmMessage(BaseModel):
+    role: str  # 'user', 'assistant', 'system'
+    content: str
+
+
+class LlmSendRequest(BaseModel):
+    entry_id: int
+    prompt: str  # The selected text / user message
+    continue_conversation: bool = True  # Whether to include previous context
+
+
+class LlmSendResponse(BaseModel):
+    response: str  # The AI response text
+    conversation_id: int  # The conversation record ID
+    provider: str  # The LLM provider used (openai, anthropic, gemini)
+    input_tokens: int  # Number of input/prompt tokens used
+    output_tokens: int  # Number of output/completion tokens used
+
+
+class LlmConversationResponse(BaseModel):
+    id: int
+    entry_id: int
+    messages: list[LlmMessage]
     created_at: datetime
     updated_at: datetime
 

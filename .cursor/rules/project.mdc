@@ -36,6 +36,13 @@ scripts/           # Build and utility scripts
 - **LLM**: `backend/app/routers/llm.py`
 - **Backup/Restore**: `backend/app/routers/backup.py`
 
+## Git Workflow
+
+- **NEVER push directly to main** - Always use feature branches
+- **NEVER create PRs to main** - Main is protected
+- Create feature branches: `feature/`, `fix/`, `bugfix/`
+- Push feature branches and create PRs when ready
+
 ## Before Committing
 
 1. Run linter, fix all errors

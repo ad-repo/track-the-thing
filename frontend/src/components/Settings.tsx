@@ -1328,26 +1328,36 @@ const Settings = () => {
             {/* Container Status Row - MCP style */}
             {jupyterStatus && jupyterSettings?.docker_available && (
               <div 
-                className="mb-4 p-3 rounded-lg flex items-center gap-3"
+                className="mb-4 rounded-lg overflow-hidden"
                 style={{
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border-primary)'
+                  backgroundColor: 'var(--color-bg-primary)',
+                  border: '1px solid var(--color-border-primary)',
                 }}
               >
-                {/* Status dot */}
-                <div 
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ 
-                    backgroundColor: jupyterStatus.container_running 
-                      ? 'var(--color-success)' 
-                      : 'var(--color-text-tertiary)'
-                  }}
-                />
+                <div className="p-3 flex items-center gap-3">
+                  {/* Status dot */}
+                  <div 
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ 
+                      backgroundColor: jupyterStatus.container_running 
+                        ? 'var(--color-success)' 
+                        : 'var(--color-text-tertiary)'
+                    }}
+                  />
                 
-                {/* Container info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <FileCode className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                  {/* Container info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {/* Jupyter color indicator - matches MCP server style */}
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor: jupyterStatus.container_running ? '#f97316' : '#64748b',
+                          boxShadow: `0 0 4px ${jupyterStatus.container_running ? '#f97316' : '#64748b'}`,
+                        }}
+                        title="Jupyter Kernel Gateway"
+                      />
+                      <FileCode className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
                     <span className="font-medium text-sm" style={{ color: 'var(--color-text-primary)' }}>
                       Jupyter Kernel Gateway
                     </span>
@@ -1419,6 +1429,7 @@ const Settings = () => {
                   )}
                 </div>
               </div>
+            </div>
             )}
 
             {/* Settings Toggles */}

@@ -174,8 +174,9 @@ const Settings = () => {
   // Goal handlers
   const handleCreateGoal = async (goalData: GoalCreate) => {
     try {
-      await goalsApi.create(goalData);
-      await loadGoals();
+      const newGoal = await goalsApi.create(goalData);
+      // Optimistic update - add to list immediately without reloading
+      setGoals(prev => [...prev, newGoal]);
       setShowGoalForm(false);
       showMessage('success', 'Goal created successfully');
     } catch (error: any) {
@@ -187,8 +188,9 @@ const Settings = () => {
   const handleUpdateGoal = async (goalData: GoalUpdate) => {
     if (!editingGoal) return;
     try {
-      await goalsApi.update(editingGoal.id, goalData);
-      await loadGoals();
+      const updatedGoal = await goalsApi.update(editingGoal.id, goalData);
+      // Optimistic update - update in list immediately without reloading
+      setGoals(prev => prev.map(g => g.id === editingGoal.id ? updatedGoal : g));
       setEditingGoal(null);
       setShowGoalForm(false);
       showMessage('success', 'Goal updated successfully');
@@ -231,12 +233,17 @@ const Settings = () => {
   };
 
   const handleDeleteGoal = async (goalId: number) => {
+    // Optimistic update - remove from list immediately
+    const previousGoals = goals;
+    setGoals(prev => prev.filter(g => g.id !== goalId));
+    
     try {
       await goalsApi.delete(goalId);
-      await loadGoals();
       showMessage('success', 'Goal deleted successfully');
     } catch (error) {
       console.error('Failed to delete goal:', error);
+      // Revert on error
+      setGoals(previousGoals);
       showMessage('error', 'Failed to delete goal');
     }
   };

@@ -22,6 +22,7 @@ from app.routers import (
     llm,
     mcp,
     notes,
+    oembed,
     reminders,
     reports,
     search,
@@ -187,6 +188,7 @@ app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(search.router, prefix='/api/search', tags=['search'])
 app.include_router(search_history.router, prefix='/api/search-history', tags=['search-history'])
 app.include_router(link_preview.router, prefix='/api/link-preview', tags=['link-preview'])
+app.include_router(oembed.router, prefix='/api/oembed', tags=['oembed'])
 app.include_router(background_images.router, prefix='/api/background-images', tags=['background-images'])
 app.include_router(custom_emojis.router)
 app.include_router(app_settings.router)

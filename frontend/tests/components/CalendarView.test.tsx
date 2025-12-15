@@ -3,6 +3,12 @@ import { describe, it, beforeEach, expect, vi } from 'vitest';
 import CalendarView from '@/components/CalendarView';
 import { renderWithRouter } from '../test-utils';
 
+// Mock requestAnimationFrame to resolve synchronously in tests
+global.requestAnimationFrame = (callback: FrameRequestCallback) => {
+  callback(0);
+  return 0;
+};
+
 const mockNotesApi = vi.hoisted(() => ({
   getByMonth: vi.fn(),
 }));
@@ -36,13 +42,13 @@ vi.mock('react-router-dom', async () => {
 vi.mock('react-calendar', () => ({
   default: ({ onClickDay, onActiveStartDateChange, tileContent }: any) => (
     <div data-testid="calendar">
-      <button onClick={() => onClickDay(new Date('2025-11-15'))}>Select Date</button>
+      <button onClick={() => onClickDay(new Date('2025-11-15T12:00:00'))}>Select Date</button>
       <button
-        onClick={() => onActiveStartDateChange({ activeStartDate: new Date('2025-12-01'), action: 'next' })}
+        onClick={() => onActiveStartDateChange({ activeStartDate: new Date('2025-12-01T12:00:00'), action: 'next' })}
       >
         Change Month
       </button>
-      <div data-testid='tile-content'>{tileContent({ date: new Date('2025-11-07') })}</div>
+      <div data-testid='tile-content'>{tileContent({ date: new Date('2025-11-07T12:00:00') })}</div>
     </div>
   ),
 }));
@@ -99,10 +105,11 @@ describe('CalendarView', () => {
 
     await waitFor(() => expect(mockNotesApi.getByMonth).toHaveBeenCalledTimes(3));
 
-    expect(screen.getByText('StarIcon')).toBeInTheDocument();
-    expect(screen.getByText('CheckIcon')).toBeInTheDocument();
-    expect(screen.getByText('BellIcon')).toBeInTheDocument();
-    expect(screen.getByText('🎯')).toBeInTheDocument();
+    // Multiple tiles may render these icons - use getAllByText
+    expect(screen.getAllByText('StarIcon').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('CheckIcon').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('BellIcon').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('🎯').length).toBeGreaterThan(0);
   });
 
   it('invokes onDateSelect and navigates when a day is chosen', async () => {
@@ -117,6 +124,11 @@ describe('CalendarView', () => {
 
   it('reloads month data when the visible month changes', async () => {
     renderCalendar();
+    
+    // Wait for calendar to be rendered (loading complete)
+    await screen.findByTestId('calendar');
+    
+    // Wait for initial API calls to complete
     await waitFor(() => expect(mockNotesApi.getByMonth).toHaveBeenCalledTimes(3));
 
     fireEvent.click(screen.getByText('Change Month'));

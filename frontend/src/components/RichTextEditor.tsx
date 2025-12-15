@@ -45,13 +45,15 @@ import {
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
 import { AiResponseExtension } from '../extensions/AiResponse';
 import { NotebookCellExtension } from '../extensions/NotebookCell';
+import { VideoEmbedExtension } from '../extensions/VideoEmbed';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import TurndownService from 'turndown';
 import { marked } from 'marked';
 import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
 import { normalizeColorForInput } from '../utils/color';
-import { llmApi, jupyterApi } from '../api';
+import { detectVideoProvider } from '../utils/videoProviders';
+import { llmApi, jupyterApi, oembedApi } from '../api';
 import type { McpMatchResult, JupyterStatus, JupyterExportNode } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -299,6 +301,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
       LinkPreviewExtension,
       AiResponseExtension,
       NotebookCellExtension,
+      VideoEmbedExtension,
       Placeholder.configure({
         placeholder,
       }),
@@ -470,9 +473,48 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           const urlRegex = /^https?:\/\/[^\s]+$/;
           if (urlRegex.test(text.trim())) {
             event.preventDefault();
+            const trimmedUrl = text.trim();
             
-            // Try to fetch link preview
-            fetchLinkPreview(text.trim())
+            // Check if it's a video URL first
+            const videoMatch = detectVideoProvider(trimmedUrl);
+            if (videoMatch) {
+              // Insert video embed with basic info, let the component fetch metadata
+              oembedApi.getInfo(trimmedUrl)
+                .then(info => {
+                  if (editor) {
+                    editor.chain().focus().insertContent({
+                      type: 'videoEmbed',
+                      attrs: {
+                        url: trimmedUrl,
+                        embedUrl: info.embed_url || videoMatch.embedUrl,
+                        title: info.title || undefined,
+                        thumbnailUrl: info.thumbnail_url || videoMatch.thumbnailUrl,
+                        providerName: info.provider_name || videoMatch.provider.name,
+                        authorName: info.author_name || undefined,
+                        isExpanded: false,
+                      },
+                    }).run();
+                  }
+                })
+                .catch(() => {
+                  // Fallback to basic video embed
+                  editor?.chain().focus().insertContent({
+                    type: 'videoEmbed',
+                    attrs: {
+                      url: trimmedUrl,
+                      embedUrl: videoMatch.embedUrl,
+                      thumbnailUrl: videoMatch.thumbnailUrl,
+                      providerName: videoMatch.provider.name,
+                      isExpanded: false,
+                    },
+                  }).run();
+                });
+              
+              return true;
+            }
+            
+            // Not a video URL, try to fetch link preview
+            fetchLinkPreview(trimmedUrl)
               .then(preview => {
                 if (preview && editor) {
                   // Insert link preview card (user can click to edit title/description)
@@ -485,11 +527,11 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                   editor?.chain().focus().insertContent({
                     type: 'linkPreview',
                     attrs: {
-                      url: text.trim(),
+                      url: trimmedUrl,
                       title: 'Click to add title',
                       description: 'Click to add description',
                       image: null,
-                      site_name: new URL(text.trim()).hostname,
+                      site_name: new URL(trimmedUrl).hostname,
                     },
                   }).run();
                 }
@@ -499,11 +541,11 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                 editor?.chain().focus().insertContent({
                   type: 'linkPreview',
                   attrs: {
-                    url: text.trim(),
+                    url: trimmedUrl,
                     title: 'Click to add title',
                     description: 'Click to add description',
                     image: null,
-                    site_name: new URL(text.trim()).hostname,
+                    site_name: new URL(trimmedUrl).hostname,
                   },
                 }).run();
               });

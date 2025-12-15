@@ -255,10 +255,9 @@ describe('Archive', () => {
       });
     });
 
-    it('reloads archived items after restore', async () => {
+    it('removes item from UI after restore (optimistic update)', async () => {
       mockListsApi.getArchived.mockResolvedValueOnce([buildArchivedList(1)]);
       mockListsApi.update.mockResolvedValue({});
-      mockListsApi.getArchived.mockResolvedValueOnce([]); // Empty after restore
 
       renderArchive();
 
@@ -269,9 +268,13 @@ describe('Archive', () => {
       const restoreButton = screen.getByTitle('Restore list');
       fireEvent.click(restoreButton);
 
+      // Optimistic update removes item immediately without refetching
       await waitFor(() => {
-        expect(mockListsApi.getArchived).toHaveBeenCalledTimes(2);
+        expect(screen.queryByText('Archived List 1')).not.toBeInTheDocument();
       });
+
+      // Verify update API was called
+      expect(mockListsApi.update).toHaveBeenCalledWith(1, { is_archived: false });
     });
   });
 

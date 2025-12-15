@@ -635,5 +635,25 @@ export const jupyterApi = {
   },
 };
 
+// oEmbed API types
+export interface OEmbedInfo {
+  url: string;
+  title?: string;
+  thumbnail_url?: string;
+  provider_name?: string;
+  author_name?: string;
+  html?: string;
+  video_id?: string;
+  embed_url?: string;
+}
+
+// oEmbed API
+export const oembedApi = {
+  getInfo: async (url: string): Promise<OEmbedInfo> => {
+    const response = await api.post<OEmbedInfo>('/api/oembed/info', { url });
+    return response.data;
+  },
+};
+
 export default api;
 

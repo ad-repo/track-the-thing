@@ -24,6 +24,9 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import EmojiPicker from './EmojiPicker';
+import { VideoEmbedExtension } from '../extensions/VideoEmbed';
+import { detectVideoProvider } from '../utils/videoProviders';
+import { oembedApi } from '../api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -86,6 +89,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
       TaskItem.configure({
         nested: true,
       }),
+      VideoEmbedExtension,
       Placeholder.configure({
         placeholder,
       }),
@@ -98,6 +102,58 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none',
         style: 'min-height: 80px; max-height: 400px; color: var(--color-text-primary);',
+      },
+      handlePaste: (_view, event) => {
+        // Check for URLs in text
+        const text = event.clipboardData?.getData('text/plain');
+        if (text) {
+          // Simple URL detection - matches http(s) URLs
+          const urlRegex = /^https?:\/\/[^\s]+$/;
+          if (urlRegex.test(text.trim())) {
+            const trimmedUrl = text.trim();
+            
+            // Check if it's a video URL
+            const videoMatch = detectVideoProvider(trimmedUrl);
+            if (videoMatch) {
+              event.preventDefault();
+              
+              // Insert video embed
+              oembedApi.getInfo(trimmedUrl)
+                .then(info => {
+                  if (editor) {
+                    editor.chain().focus().insertContent({
+                      type: 'videoEmbed',
+                      attrs: {
+                        url: trimmedUrl,
+                        embedUrl: info.embed_url || videoMatch.embedUrl,
+                        title: info.title || undefined,
+                        thumbnailUrl: info.thumbnail_url || videoMatch.thumbnailUrl,
+                        providerName: info.provider_name || videoMatch.provider.name,
+                        authorName: info.author_name || undefined,
+                        isExpanded: false,
+                      },
+                    }).run();
+                  }
+                })
+                .catch(() => {
+                  // Fallback to basic video embed
+                  editor?.chain().focus().insertContent({
+                    type: 'videoEmbed',
+                    attrs: {
+                      url: trimmedUrl,
+                      embedUrl: videoMatch.embedUrl,
+                      thumbnailUrl: videoMatch.thumbnailUrl,
+                      providerName: videoMatch.provider.name,
+                      isExpanded: false,
+                    },
+                  }).run();
+                });
+              
+              return true;
+            }
+          }
+        }
+        return false;
       },
     },
   });

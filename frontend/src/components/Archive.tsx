@@ -70,11 +70,16 @@ export default function Archive() {
 
   const handleRestoreList = async (listId: number) => {
     setRestoringListId(listId);
+    // Optimistic update - remove from list immediately
+    const previousLists = archivedLists;
+    setArchivedLists(prev => prev.filter(l => l.id !== listId));
+    
     try {
       await listsApi.update(listId, { is_archived: false });
-      await loadArchived();
     } catch (err) {
       console.error('Error restoring list:', err);
+      // Revert on error
+      setArchivedLists(previousLists);
     } finally {
       setRestoringListId(null);
     }
@@ -82,11 +87,16 @@ export default function Archive() {
 
   const handleRestoreEntry = async (entryId: number) => {
     setRestoringEntryId(entryId);
+    // Optimistic update - remove from list immediately
+    const previousEntries = archivedEntries;
+    setArchivedEntries(prev => prev.filter(e => e.id !== entryId));
+    
     try {
       await entriesApi.toggleArchive(entryId);
-      await loadArchived();
     } catch (err) {
       console.error('Error restoring entry:', err);
+      // Revert on error
+      setArchivedEntries(previousEntries);
     } finally {
       setRestoringEntryId(null);
     }

@@ -88,7 +88,7 @@ const CustomEmojiManager = ({ isOpen, onClose, onEmojiAdded }: CustomEmojiManage
       formData.append('category', category);
       formData.append('keywords', keywords);
 
-      await customEmojisApi.create(formData);
+      const newEmoji = await customEmojisApi.create(formData);
 
       // Reset form
       setName('');
@@ -97,8 +97,8 @@ const CustomEmojiManager = ({ isOpen, onClose, onEmojiAdded }: CustomEmojiManage
       setSelectedFile(null);
       setPreviewUrl(null);
 
-      // Reload emojis
-      await loadEmojis();
+      // Optimistic update - add to list without reloading
+      setEmojis(prev => [...prev, newEmoji]);
 
       if (onEmojiAdded) {
         onEmojiAdded();
@@ -116,13 +116,18 @@ const CustomEmojiManager = ({ isOpen, onClose, onEmojiAdded }: CustomEmojiManage
       return;
     }
 
+    // Optimistic update - remove from list immediately
+    const previousEmojis = emojis;
+    setEmojis(prev => prev.filter(e => e.id !== id));
+
     try {
       await customEmojisApi.delete(id, false);
-      await loadEmojis();
       if (onEmojiAdded) {
         onEmojiAdded();
       }
     } catch (err) {
+      // Revert on error
+      setEmojis(previousEmojis);
       setError('Failed to delete emoji');
       console.error(err);
     }

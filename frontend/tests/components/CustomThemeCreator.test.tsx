@@ -2,7 +2,7 @@
  * CustomThemeCreator Component Tests
  * 
  * Tests custom theme creation and editing functionality.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
+ * Per project rules: Tests validate existing behavior without modifying production code.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

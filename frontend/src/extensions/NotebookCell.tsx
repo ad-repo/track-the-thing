@@ -1,7 +1,7 @@
 import { Node } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewProps } from '@tiptap/react';
 import { useState, useCallback } from 'react';
-import { Play, Square, Trash2, RotateCcw, Plus } from 'lucide-react';
+import { Play, Square, Trash2, RotateCcw, Plus, Maximize2, Minimize2 } from 'lucide-react';
 import { jupyterApi } from '../api';
 
 // Component for rendering notebook cells
@@ -16,6 +16,11 @@ const NotebookCellComponent = ({ node, updateAttributes, deleteNode, editor, get
 
   const [isExecuting, setIsExecuting] = useState(false);
   const [localCode, setLocalCode] = useState(code);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Calculate height based on content when expanded
+  const lineCount = localCode.split('\n').length;
+  const expandedHeight = Math.max(150, lineCount * 21 + 24); // 21px per line + padding
 
   // Add a new cell below this one
   const addCellBelow = useCallback(() => {
@@ -70,11 +75,21 @@ const NotebookCellComponent = ({ node, updateAttributes, deleteNode, editor, get
   }, [localCode, updateAttributes]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Allow copy/paste/cut/select-all to work normally
+    if ((e.metaKey || e.ctrlKey) && ['c', 'v', 'x', 'a', 'z', 'y'].includes(e.key.toLowerCase())) {
+      e.stopPropagation(); // Prevent TipTap from intercepting
+      return;
+    }
+    
     // Shift+Enter to run cell
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
       executeCode();
+      return;
     }
+    
+    // Stop propagation for all other keys to keep focus in textarea
+    e.stopPropagation();
   }, [executeCode]);
 
   const handleInterrupt = useCallback(async () => {
@@ -166,6 +181,23 @@ const NotebookCellComponent = ({ node, updateAttributes, deleteNode, editor, get
               <RotateCcw className="h-4 w-4" />
             </button>
             <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              title={isExpanded ? 'Collapse cell' : 'Expand cell'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0.25rem',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderRadius: '0.25rem',
+                color: isExpanded ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              }}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button
               onClick={addCellBelow}
               title="Add cell below"
               style={{
@@ -238,16 +270,19 @@ const NotebookCellComponent = ({ node, updateAttributes, deleteNode, editor, get
           onKeyDown={handleKeyDown}
           style={{
             width: '100%',
-            minHeight: '60px',
+            minHeight: isExpanded ? `${expandedHeight}px` : '60px',
+            maxHeight: isExpanded ? 'none' : '150px',
+            height: isExpanded ? `${expandedHeight}px` : 'auto',
             padding: '0.75rem',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
             fontSize: '0.875rem',
             border: 'none',
             backgroundColor: 'transparent',
             color: 'var(--color-text-primary)',
-            resize: 'vertical',
+            resize: isExpanded ? 'vertical' : 'none',
             outline: 'none',
             lineHeight: '1.5',
+            overflow: isExpanded ? 'auto' : 'hidden',
           }}
           placeholder="# Enter Python code... (Shift+Enter to run)"
         />

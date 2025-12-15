@@ -2,7 +2,7 @@
  * RichTextEditor Component Tests
  * 
  * Tests TipTap editor, toolbar, formatting, media insertion, and voice dictation.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
+ * Per project rules: Tests validate existing behavior without modifying production code.
  * 
  * Note: This is a complex component with 1300+ lines. Tests focus on key features.
  */
@@ -94,6 +94,7 @@ vi.mock('lucide-react', () => ({
   Image: () => <div>Image</div>,
   Code2: () => <div>CodeBlock</div>,
   FileText: () => <div>PreText</div>,
+  FileCode: () => <div>FileCode</div>,
   Paperclip: () => <div>Attachment</div>,
   ExternalLink: () => <div>ExternalLink</div>,
   Mic: () => <div>Mic</div>,
@@ -104,6 +105,8 @@ vi.mock('lucide-react', () => ({
   Type: () => <div>FontSize</div>,
   CaseSensitive: () => <div>FontFamily</div>,
   Sparkles: () => <div>Sparkles</div>,
+  Upload: () => <div>Upload</div>,
+  Download: () => <div>Download</div>,
 }));
 
 // Mock AiResponse extension

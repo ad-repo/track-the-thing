@@ -1,7 +1,7 @@
 """
 Integration tests for Backup & Restore API endpoints
 
-Per .cursorrules: These tests do not modify production code.
+Per project rules: These tests do not modify production code.
 Tests validate existing backup/restore functionality.
 """
 

@@ -39,6 +39,8 @@ import {
   CheckSquare,
   Sparkles,
   FileCode,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
 import { AiResponseExtension } from '../extensions/AiResponse';
@@ -50,7 +52,7 @@ import * as yaml from 'js-yaml';
 import EmojiPicker from './EmojiPicker';
 import { normalizeColorForInput } from '../utils/color';
 import { llmApi, jupyterApi } from '../api';
-import type { McpMatchResult, JupyterStatus } from '../types';
+import type { McpMatchResult, JupyterStatus, JupyterExportNode } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -152,6 +154,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
   const [hasTextSelection, setHasTextSelection] = useState(false);
   const [jupyterStatus, setJupyterStatus] = useState<JupyterStatus | null>(null);
   const [jupyterLoading, setJupyterLoading] = useState(false);
+  const [isImportingNotebook, setIsImportingNotebook] = useState(false);
+  const [isExportingNotebook, setIsExportingNotebook] = useState(false);
+  const [notebookError, setNotebookError] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importUrlValue, setImportUrlValue] = useState('');
+  const [pyprojectUrlValue, setPyprojectUrlValue] = useState('');
   
   // Camera/video/mic support detection
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -1036,6 +1044,173 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         },
       })
       .run();
+  };
+
+  const openImportModal = () => {
+    setShowImportModal(true);
+    setImportUrlValue('');
+    setNotebookError(null);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportUrlValue('');
+    setPyprojectUrlValue('');
+  };
+
+  const importNotebookFromFile = async () => {
+    if (!editor) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ipynb';
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImportingNotebook(true);
+      setNotebookError(null);
+      closeImportModal();
+
+      try {
+        const result = await jupyterApi.importNotebook(file);
+
+        if (result.nodes.length === 0) {
+          setNotebookError('Notebook imported but contains no cells.');
+          setTimeout(() => setNotebookError(null), 5000);
+          return;
+        }
+
+        // Insert all nodes at cursor position
+        editor.chain().focus().insertContent(result.nodes).run();
+      } catch (error) {
+        console.error('Failed to import notebook:', error);
+        setNotebookError('Failed to import notebook. Please check the file format.');
+        setTimeout(() => setNotebookError(null), 5000);
+      } finally {
+        setIsImportingNotebook(false);
+      }
+    };
+
+    input.click();
+  };
+
+  const importNotebookFromUrl = async () => {
+    if (!editor || !importUrlValue.trim()) return;
+
+    setIsImportingNotebook(true);
+    setNotebookError(null);
+    const pyprojectUrl = pyprojectUrlValue.trim() || undefined;
+    closeImportModal();
+
+    try {
+      const result = await jupyterApi.importNotebookFromUrl(importUrlValue.trim(), pyprojectUrl);
+
+      if (result.nodes.length === 0) {
+        setNotebookError('Notebook imported but contains no cells.');
+        setTimeout(() => setNotebookError(null), 5000);
+        return;
+      }
+
+      // Insert all nodes at cursor position
+      editor.chain().focus().insertContent(result.nodes).run();
+    } catch (error: unknown) {
+      console.error('Failed to import notebook from URL:', error);
+      // Extract error message from axios response or fallback
+      let errorMessage = 'Failed to import notebook from URL.';
+      if (error && typeof error === 'object') {
+        const axiosError = error as { response?: { data?: { detail?: string } }; message?: string };
+        if (axiosError.response?.data?.detail) {
+          errorMessage = axiosError.response.data.detail;
+        } else if (axiosError.message) {
+          errorMessage = axiosError.message;
+        }
+      }
+      setNotebookError(errorMessage);
+      setTimeout(() => setNotebookError(null), 8000);
+    } finally {
+      setIsImportingNotebook(false);
+    }
+  };
+
+  const exportNotebook = async () => {
+    if (!editor) return;
+
+    setIsExportingNotebook(true);
+    setNotebookError(null);
+
+    try {
+      const nodes: JupyterExportNode[] = [];
+      let textBuffer = '';
+
+      // Iterate through all nodes in the document
+      editor.state.doc.forEach((node) => {
+        if (node.type.name === 'notebookCell') {
+          // Flush text buffer as markdown cell
+          if (textBuffer.trim()) {
+            nodes.push({
+              type: 'markdown',
+              content: textBuffer.trim(),
+            });
+            textBuffer = '';
+          }
+
+          // Add code cell
+          const code = node.attrs.code as string || '';
+          const outputs = node.attrs.outputs ? JSON.parse(node.attrs.outputs as string) : [];
+          const executionCount = node.attrs.executionCount as number | null;
+
+          nodes.push({
+            type: 'code',
+            content: code,
+            outputs,
+            execution_count: executionCount,
+          });
+        } else {
+          // Accumulate text content
+          const text = node.textContent;
+          if (text) {
+            textBuffer += text + '\n\n';
+          }
+        }
+      });
+
+      // Flush remaining text buffer
+      if (textBuffer.trim()) {
+        nodes.push({
+          type: 'markdown',
+          content: textBuffer.trim(),
+        });
+      }
+
+      // If no nodes, add a placeholder
+      if (nodes.length === 0) {
+        setNotebookError('No content to export.');
+        setTimeout(() => setNotebookError(null), 3000);
+        setIsExportingNotebook(false);
+        return;
+      }
+
+      // Export and download
+      const blob = await jupyterApi.exportMixedNotebook(nodes, 'notebook.ipynb');
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'notebook.ipynb';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export notebook:', error);
+      setNotebookError('Failed to export notebook.');
+      setTimeout(() => setNotebookError(null), 5000);
+    } finally {
+      setIsExportingNotebook(false);
+    }
   };
 
   const sendToLlm = async () => {
@@ -2016,6 +2191,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           </div>
         </button>
 
+        {/* Separator */}
+        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />
+
+        {/* Notebook Group */}
         {/* Jupyter Notebook Cell Button */}
         <ToolbarButton
           onClick={insertNotebookCell}
@@ -2049,6 +2228,78 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                 style={{ backgroundColor: '#22c55e' }}
                 title="Jupyter container running"
               />
+            )}
+          </div>
+        </ToolbarButton>
+
+        {/* Import Notebook Button */}
+        <ToolbarButton
+          onClick={openImportModal}
+          disabled={isImportingNotebook}
+          title={isImportingNotebook ? 'Importing notebook...' : 'Import .ipynb notebook (file or URL)'}
+        >
+          <div className="relative">
+            <Upload
+              className="h-4 w-4"
+              style={isImportingNotebook ? {
+                animation: 'pulse-slow 1.5s ease-in-out infinite',
+                color: 'var(--color-accent)',
+              } : undefined}
+            />
+            {/* Import processing indicator - glowing pulsing dot */}
+            {isImportingNotebook && (
+              <>
+                <style>{`
+                  @keyframes notebook-pulse-glow {
+                    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px var(--color-accent), 0 0 16px var(--color-accent); }
+                    50% { opacity: 0.7; transform: scale(1.3); box-shadow: 0 0 16px var(--color-accent), 0 0 32px var(--color-accent); }
+                  }
+                `}</style>
+                <div
+                  className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    animation: 'notebook-pulse-glow 1.5s ease-in-out infinite',
+                    border: '2px solid white',
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </ToolbarButton>
+
+        {/* Export Notebook Button */}
+        <ToolbarButton
+          onClick={exportNotebook}
+          disabled={isExportingNotebook}
+          title={isExportingNotebook ? 'Exporting notebook...' : 'Export as .ipynb notebook'}
+        >
+          <div className="relative">
+            <Download
+              className="h-4 w-4"
+              style={isExportingNotebook ? {
+                animation: 'pulse-slow 1.5s ease-in-out infinite',
+                color: 'var(--color-accent)',
+              } : undefined}
+            />
+            {/* Export processing indicator - glowing pulsing dot */}
+            {isExportingNotebook && (
+              <>
+                <style>{`
+                  @keyframes notebook-export-glow {
+                    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px var(--color-accent), 0 0 16px var(--color-accent); }
+                    50% { opacity: 0.7; transform: scale(1.3); box-shadow: 0 0 16px var(--color-accent), 0 0 32px var(--color-accent); }
+                  }
+                `}</style>
+                <div
+                  className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full"
+                  style={{
+                    backgroundColor: 'var(--color-accent)',
+                    animation: 'notebook-export-glow 1.5s ease-in-out infinite',
+                    border: '2px solid white',
+                  }}
+                />
+              </>
             )}
           </div>
         </ToolbarButton>
@@ -2247,6 +2498,33 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         </div>
       )}
 
+      {/* Notebook Error Alert */}
+      {notebookError && (
+        <div
+          className="m-4 p-4 rounded-lg text-sm shadow-lg relative"
+          style={{
+            backgroundColor: '#fef2f2',
+            color: '#991b1b',
+            border: '2px solid #ef4444',
+          }}
+        >
+          <button
+            onClick={() => setNotebookError(null)}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-xl leading-none"
+            title="Dismiss"
+          >
+            ×
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-lg">📓</div>
+            <div className="pr-6">
+              <strong className="block mb-1">Notebook Error</strong>
+              <p className="text-sm whitespace-pre-line">{notebookError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Link Modal */}
       {showLinkModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -2330,6 +2608,128 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Notebook Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div
+            className="rounded-lg shadow-2xl w-full max-w-md p-6"
+            style={{
+              backgroundColor: 'var(--color-card-bg)',
+              border: '1px solid var(--color-border-primary)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Import Notebook</h3>
+              <button
+                onClick={closeImportModal}
+                className="text-2xl leading-none text-gray-500 hover:text-gray-700"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* File Upload Option */}
+              <div>
+                <button
+                  type="button"
+                  onClick={importNotebookFromFile}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-dashed text-sm font-medium transition-colors hover:border-solid"
+                  style={{
+                    borderColor: 'var(--color-border-primary)',
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                >
+                  <Upload className="h-5 w-5 inline mr-2" />
+                  Choose .ipynb File
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: 'var(--color-border-primary)' }} />
+                <span className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>or</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: 'var(--color-border-primary)' }} />
+              </div>
+
+              {/* URL Import Option */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Import from URL</label>
+                <input
+                  type="text"
+                  value={importUrlValue}
+                  onChange={(e) => setImportUrlValue(e.target.value)}
+                  placeholder="https://github.com/.../notebook.ipynb"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    border: '1px solid var(--color-border-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && importUrlValue.trim()) {
+                      e.preventDefault();
+                      importNotebookFromUrl();
+                    }
+                  }}
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Supports GitHub URLs (blob or raw)
+                </p>
+              </div>
+
+              {/* Optional pyproject.toml for dependencies */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  Dependencies (optional)
+                </label>
+                <input
+                  type="text"
+                  value={pyprojectUrlValue}
+                  onChange={(e) => setPyprojectUrlValue(e.target.value)}
+                  placeholder="https://github.com/.../pyproject.toml"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    border: '1px solid var(--color-border-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Path or URL to pyproject.toml — installs dependencies in Jupyter
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeImportModal}
+                  className="px-4 py-2 rounded-lg border text-sm font-medium"
+                  style={{
+                    borderColor: 'var(--color-border-primary)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={importNotebookFromUrl}
+                  disabled={!importUrlValue.trim()}
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{
+                    backgroundColor: importUrlValue.trim() ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                    color: importUrlValue.trim() ? 'var(--color-accent-text)' : 'var(--color-text-tertiary)',
+                    cursor: importUrlValue.trim() ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  Import from URL
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

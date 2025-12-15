@@ -45,6 +45,8 @@ import type {
   JupyterSettingsUpdate,
   JupyterExecuteResponse,
   JupyterExportCell,
+  JupyterExportNode,
+  JupyterImportResponse,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -602,6 +604,33 @@ export const jupyterApi = {
     const response = await api.post('/api/jupyter/export', { cells, filename: filename || 'notebook.ipynb' }, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+
+  exportMixedNotebook: async (nodes: JupyterExportNode[], filename?: string): Promise<Blob> => {
+    const response = await api.post('/api/jupyter/export-mixed', { nodes, filename: filename || 'notebook.ipynb' }, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  importNotebook: async (file: File): Promise<JupyterImportResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<JupyterImportResponse>('/api/jupyter/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  importNotebookFromUrl: async (url: string, pyprojectUrl?: string): Promise<JupyterImportResponse> => {
+    const body: { url: string; pyproject_url?: string } = { url };
+    if (pyprojectUrl) {
+      body.pyproject_url = pyprojectUrl;
+    }
+    const response = await api.post<JupyterImportResponse>('/api/jupyter/import-url', body);
     return response.data;
   },
 };

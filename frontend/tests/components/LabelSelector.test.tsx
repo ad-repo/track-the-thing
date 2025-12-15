@@ -2,7 +2,7 @@
  * LabelSelector Component Tests
  * 
  * Tests label management, emoji detection, search, and API interactions.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
+ * Per project rules: Tests validate existing behavior without modifying production code.
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

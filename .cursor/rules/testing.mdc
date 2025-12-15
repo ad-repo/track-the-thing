@@ -1,0 +1,59 @@
+---
+description: Testing rules and patterns
+globs:
+  - tests/**/*.py
+  - "*.test.ts"
+  - "*.test.tsx"
+---
+
+# Testing Rules
+
+## Critical
+
+- **NEVER change program code to fix tests** - fix the test or understand why it fails
+- **NEVER run tests directly** - use containerized `./run_all_tests.sh`
+- **ALWAYS add tests** for new functionality
+
+## Running Tests
+
+```bash
+# Full test suite (containerized) - REQUIRED before commit
+./test_ci_locally.sh
+
+# All tests with coverage
+./run_all_tests.sh
+```
+
+## Test Location
+
+- Backend tests: `tests/backend/`
+- E2E tests: `tests/e2e/`
+- Keep tests in the top-level `tests/` folder, not in `backend/` or `frontend/`
+
+## Backend Testing Patterns
+
+```python
+# Use pytest fixtures
+def test_endpoint(client, db_session):
+    response = client.get("/api/endpoint")
+    assert response.status_code == 200
+
+# Mock external services
+@patch('app.services.docker_bridge.DockerBridge')
+def test_with_mock(mock_bridge):
+    mock_bridge.return_value.is_available.return_value = (True, None, None)
+```
+
+## Test Workflow
+
+### Adding a Feature
+1. Write test for expected behavior
+2. Implement feature
+3. Verify test passes
+4. Check for regressions
+
+### Fixing a Bug
+1. Write test that reproduces the bug
+2. Fix the code (minimal change)
+3. Verify test passes
+4. Check for regressions

@@ -2,7 +2,7 @@
 
 This directory contains database migration scripts for upgrading the Track the Thing database schema.
 
-## ⚠️ CRITICAL REQUIREMENTS (from .cursorrules)
+## ⚠️ CRITICAL REQUIREMENTS
 
 **BEFORE running ANY migration:**
 

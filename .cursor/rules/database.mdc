@@ -1,0 +1,45 @@
+---
+description: Database and migration rules
+globs:
+  - backend/app/models.py
+  - backend/migrations/**/*.py
+  - backend/app/routers/backup.py
+---
+
+# Database Rules
+
+## Schema Changes
+
+1. **Create migration** in `backend/migrations/` for any schema change
+2. **Update backup.py** - `backend/app/routers/backup.py` must handle new fields
+3. **Test migrations** - verify they can upgrade from previous versions
+
+## Models
+
+- Define models in `backend/app/models.py`
+- Use SQLAlchemy ORM patterns
+- Add sensible defaults for new nullable fields
+
+## Migration Pattern
+
+```python
+# backend/migrations/versions/xxx_description.py
+def upgrade():
+    op.add_column('table_name', sa.Column('new_field', sa.String(), nullable=True))
+
+def downgrade():
+    op.drop_column('table_name', 'new_field')
+```
+
+## Backup Compatibility
+
+When adding new fields to models:
+1. Add field with `nullable=True` or provide default
+2. Update export in `backup.py` to include new field
+3. Update import in `backup.py` to handle missing field (backwards compat)
+
+## Don't
+
+- Change column types without migration
+- Remove columns without migration
+- Forget to update backup.py for new fields

@@ -107,7 +107,9 @@ async def export_data(db: Session = Depends(get_db)):
             # Jupyter settings
             'jupyter_enabled': bool(getattr(app_settings, 'jupyter_enabled', 0)) if app_settings else False,
             'jupyter_auto_start': bool(getattr(app_settings, 'jupyter_auto_start', 0)) if app_settings else False,
-            'jupyter_python_version': getattr(app_settings, 'jupyter_python_version', '3.11') or '3.11' if app_settings else '3.11',
+            'jupyter_python_version': getattr(app_settings, 'jupyter_python_version', '3.11') or '3.11'
+            if app_settings
+            else '3.11',
             'jupyter_custom_image': getattr(app_settings, 'jupyter_custom_image', '') or '' if app_settings else '',
             # Note: API keys are NOT exported for security
             'created_at': app_settings.created_at.isoformat() if app_settings else datetime.utcnow().isoformat(),
@@ -586,7 +588,9 @@ async def import_data(file: UploadFile = File(...), replace: bool = False, db: S
                     existing_settings.mcp_fallback_to_llm = 1 if settings_data.get('mcp_fallback_to_llm', True) else 0
                     existing_settings.jupyter_enabled = 1 if settings_data.get('jupyter_enabled', False) else 0
                     existing_settings.jupyter_auto_start = 1 if settings_data.get('jupyter_auto_start', False) else 0
-                    existing_settings.jupyter_python_version = settings_data.get('jupyter_python_version', '3.11') or '3.11'
+                    existing_settings.jupyter_python_version = (
+                        settings_data.get('jupyter_python_version', '3.11') or '3.11'
+                    )
                     existing_settings.jupyter_custom_image = settings_data.get('jupyter_custom_image', '') or ''
                 else:
                     new_settings = models.AppSettings(

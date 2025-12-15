@@ -2,7 +2,7 @@
 """
 Pre-Migration Backup Script
 
-MUST be run before ANY migration as per .cursorrules:
+MUST be run before ANY migration as per project rules:
 "Any change involving database schema modifications MUST include:
  - Test migration on a copy of the database before committing"
 

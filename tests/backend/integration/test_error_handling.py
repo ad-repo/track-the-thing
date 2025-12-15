@@ -1,7 +1,7 @@
 """
 Integration tests for API Error Handling and Edge Cases
 
-Per .cursorrules: These tests validate existing error behavior without modifying production code.
+Per project rules: These tests validate existing error behavior without modifying production code.
 """
 
 import pytest

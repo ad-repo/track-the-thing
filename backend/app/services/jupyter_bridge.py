@@ -223,6 +223,7 @@ class JupyterBridge:
                 command=['bash', '-c', install_and_run_cmd],
                 mem_limit='1g',
                 network=self.DOCKER_NETWORK,  # Join same network as backend
+                restart_policy={'Name': 'unless-stopped'},  # Auto-restart on failure/reboot
             )
 
             logger.info(f'Started Jupyter container: {container.id}')
@@ -368,7 +369,9 @@ class JupyterBridge:
             return None, 'websockets package not installed'
 
         # Connect via WebSocket
-        ws_url = f'ws://{self.JUPYTER_HOST}:{self.DEFAULT_PORT}/api/kernels/{kernel_id}/channels?token={self._jupyter_token}'
+        ws_url = (
+            f'ws://{self.JUPYTER_HOST}:{self.DEFAULT_PORT}/api/kernels/{kernel_id}/channels?token={self._jupyter_token}'
+        )
 
         try:
             result = {

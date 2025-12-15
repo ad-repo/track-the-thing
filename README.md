@@ -6,11 +6,14 @@ A focused daily workspace for capturing notes, tasks, and decisions without losi
 
 ## Why People Use It
 
-- **Capture everything** – Rich text, code, voice dictation, camera shots, video, uploads, JSON/YAML helpers, and link previews live inside one editor.
-- **Organize on your terms** – Daily notes, pinned entries, Trello-style lists, Kanban boards, day labels, and custom emojis stay in sync.
-- **Report instantly** – Weekly reports and the Selected Entries Report turn any tagged entry into shareable Markdown.
-- **Control the UI** – Built-in themes, custom themes, backgrounds, textures, and condensed display toggles give you a workspace that fits.
-- **Deploy anywhere** – Docker, local dev, or the desktop/Tauri build all share the same codebase and backup/restore format.
+- **Capture everything** – Rich text, code blocks, voice dictation, camera/video capture, file uploads, JSON/YAML tools, and link previews in one editor.
+- **Run code inline** – Jupyter notebook cells execute Python directly in your notes. Import and export `.ipynb` files.
+- **AI-assisted editing** – Send selected text to OpenAI, Anthropic, or Gemini. Route queries to local MCP servers with pattern matching.
+- **Organize on your terms** – Daily notes, pinned entries, Trello-style lists, Kanban boards, labels, reminders, and custom emojis.
+- **Report instantly** – Weekly reports and Selected Entries Report export tagged content to Markdown or Jira format.
+- **Control the UI** – 30+ themes, custom backgrounds, textures, and display toggles for a workspace that fits.
+- **Own your data** – SQLite database and local storage keep notes on your machine. Full JSON backup/restore.
+- **Deploy anywhere** – Docker, local dev, or desktop app share the same codebase and data format.
 
 ---
 
@@ -62,27 +65,44 @@ npm run dev
 
 Full desktop documentation: **[`desktop/README-desktop.md`](desktop/README-desktop.md)**
 
-**Quick start:**
+**Prerequisites (macOS):**
+
+| Dependency | Install Command |
+|------------|-----------------|
+| Node.js 18+ | `brew install node` |
+| Rust toolchain | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| Python 3.11+ | `brew install python@3.11` |
+| PyInstaller | `pip3 install pyinstaller` |
+| Xcode CLI Tools | `xcode-select --install` |
+
+**Build the desktop app:**
 
 ```bash
-cp .tourienv.example .tourienv            # Configure desktop settings
-./desktop/pyinstaller/build_backend.sh    # Build backend sidecar
-npm --prefix desktop/tauri run tauri:dev  # Run desktop app
+cp .tourienv.example .tourienv    # Configure desktop settings
+./scripts/build-desktop-macos.sh  # Build complete macOS app (.app + .dmg)
 ```
 
-**Prerequisites:**
-- Node.js 18+ and npm
-- Rust toolchain (`rustup`) with `cargo`
-- Python 3.11 with `pyinstaller` installed
-- macOS Command Line Tools (for macOS builds)
+The build script automatically:
+- Validates all dependencies
+- Builds the backend sidecar (PyInstaller)
+- Builds the frontend (Vite)
+- Packages the Tauri desktop bundle
+
+**Development mode:**
+
+```bash
+cp .tourienv.example .tourienv                # Configure settings
+./desktop/pyinstaller/build_backend.sh        # Build backend sidecar
+npm --prefix desktop/tauri run tauri:dev      # Run with hot reload
+```
 
 **Installing the DMG on macOS:**
 
-Due to macOS Gatekeeper, you may need to clear the quarantine flag before opening:
+Due to macOS Gatekeeper, clear the quarantine flag before opening:
 
 ```bash
 # Before opening DMG
-xattr -cr ~/Downloads/Track\ the\ Thing_0.1.0_aarch64.dmg
+xattr -cr ~/Downloads/Track\ the\ Thing_*.dmg
 
 # If app shows "damaged and can't be opened" after install
 xattr -cr /Applications/Track\ the\ Thing.app
@@ -125,38 +145,89 @@ track-the-thing/
 
 ## Key Features
 
-### Capture & Edit
-- Daily notes with timeline and optional entry titles
-- TipTap rich text editor (headings, task lists, fonts, colors, markdown preview, JSON formatter, YAML validator, link previews)
-- Voice dictation, camera capture, and video recording
-- Code editor with syntax highlighting
-- Entry states: ⭐ important, ✓ completed, 📌 pinned, 📄 add to report, 🔔 reminders
+### Editor Toolbar Reference
 
-### Organize & Plan
-- Labels with emoji support and autocomplete
-- Trello-style lists with drag-and-drop
-- Kanban board with custom columns and mini-map navigation
-- Daily, Sprint, and Quarterly goals with rich text and countdown timers
-- Pinned entries that auto-copy to future days
+The rich text editor toolbar uses [Lucide icons](https://lucide.dev/), organized by function:
 
-### Report & Share
-- Weekly reports (Wednesday-to-Wednesday) with Markdown export
-- Selected Entries Report with compact cards
-- Global search across entries, lists, and Kanban
-- Copy as Markdown or Jira/Confluence format
+| Icon | Name | Description |
+|:-----|:-----|:------------|
+| ↶ ↷ | Undo / Redo | History navigation |
+| **B** | Bold | Bold text |
+| *I* | Italic | Italic text |
+| ~~S~~ | Strikethrough | Strikethrough text |
+| ■ | Text Color | Color picker |
+| T | Font Family | 14 font choices (Type icon) |
+| Aa | Font Size | 10px–72px (CaseSensitive icon) |
+| H₁ | Headings | H1–H6 + Normal (Heading1 icon) |
+| „ | Block Quote | Indented quote (Quote icon) |
+| ≡ | Bullet List | Unordered list (List icon) |
+| 1≡ | Numbered List | Ordered list (ListOrdered icon) |
+| ☐ | Task List | Checkboxes (CheckSquare icon) |
+| </> | Inline Code | Monospace text (Code icon) |
+| {/} | Code Block | Syntax highlighted (Code2 icon) |
+| ☰ | Preformatted | Preserve whitespace (FileText icon) |
+| 🔗 | Link | Add hyperlink (Link2 icon) |
+| ↗ | Link Preview | Rich preview card (ExternalLink icon) |
+| 🖼 | Image | Upload image (Image icon) |
+| 📎 | Attach File | Upload any file (Paperclip icon) |
+| 😊 | Emoji | Unicode + custom emoji picker |
+| 🎤 | Voice Dictation | Speech-to-text (Mic icon) |
+| 📷 | Camera | Capture photo (Camera icon) |
+| 🎥 | Video | Record video (Video icon) |
+| ✦ | Send to AI | Route to LLM/MCP (Sparkles icon) |
+| ⟨⟩ | Jupyter Cell | Insert Python cell (FileCode icon) |
+| ↑ | Import Notebook | Load `.ipynb` from file or URL (Upload icon) |
+| ↓ | Export Notebook | Save `.ipynb` (Download icon) |
+| **M** | Markdown Preview | Render markdown |
+| **J** | JSON Format | Prettify and validate |
+| **Y** | YAML Validate | Check syntax |
+| ⤢ | Expand/Collapse | Toggle editor size (Maximize2 icon) |
 
-### Customize
-- 30+ built-in themes + custom theme editor
-- Custom backgrounds with auto-rotate and tiling
-- UI textures (20+ patterns with blend modes)
-- Custom emoji upload and management
+### Entry Cards
+
+Each note entry supports these states and actions:
+
+| Icon | State/Action |
+|------|--------------|
+| ⭐ | Important (highlights entry) |
+| ✓ | Completed (strikethrough) |
+| 📌 | Pinned (auto-copies to future days) |
+| 📄 | Include in Report |
+| 🔔 | Reminder (date/time notification) |
+| 🏷️ | Labels (tags with colors and emojis) |
+| 📋 | Add to List |
+
+### Organization
+- **Daily Notes**: Timeline view with fire rating and daily goals
+- **Labels**: Color-coded tags with emoji support and autocomplete
+- **Lists**: Trello-style collections with drag-and-drop ordering
+- **Kanban Board**: Custom columns with mini-map navigation
+- **Goals**: Daily, Sprint, Quarterly, and custom goal types with countdown timers
+
+### Reporting
+- **Weekly Reports**: Wednesday-to-Wednesday with Markdown export
+- **Selected Entries Report**: Compact cards for flagged entries
+- **Global Search**: Search across entries, lists, and Kanban
+- **Copy Formats**: Markdown or Jira/Confluence format
+
+### Customization
+- **Themes**: 30+ built-in themes + custom theme editor
+- **Backgrounds**: Custom images with auto-rotate and tiling
+- **Textures**: 20+ UI patterns with blend modes
+- **Custom Emojis**: Upload and manage custom emoji images
 
 ### AI Integration
-- **Send to AI**: Select text and send to OpenAI, Anthropic, or Google Gemini
-- **MCP Servers**: Docker-based or remote AI processing with pattern-based routing
-- **Conversation Context**: Maintains conversation history per entry
-- **Global Prompt Rules**: Configure system prompts applied to all AI requests
-- **Graceful Fallback**: MCP failures automatically fall back to cloud LLMs
+- **LLM Providers**: OpenAI, Anthropic, or Google Gemini
+- **MCP Servers**: Docker-based or remote AI processing with regex routing
+- **Conversation Context**: Maintains history per entry
+- **Global Prompts**: System prompts applied to all AI requests
+- **Fallback**: MCP failures automatically use cloud LLMs
+
+### Jupyter Notebooks
+- **Insert Cells**: Add executable Python cells inline with notes
+- **Run Code**: Execute code with Shift+Enter, view outputs inline
+- **Import**: Load `.ipynb` from file upload or URL (supports GitHub links)
+- **Export**: Save editor content as `.ipynb` notebook
 
 ### MCP Server Configuration
 
@@ -276,6 +347,7 @@ Key endpoint groups:
 - `/api/uploads/` – File uploads
 - `/api/llm/` – LLM integration and AI chat
 - `/api/mcp/` – MCP server management and routing
+- `/api/jupyter/` – Jupyter kernel execution, notebook import/export
 
 ---
 

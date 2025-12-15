@@ -1,0 +1,46 @@
+---
+description: Frontend rules for React/TypeScript code
+globs:
+  - frontend/**/*.tsx
+  - frontend/**/*.ts
+  - frontend/**/*.css
+---
+
+# Frontend Rules (React/TypeScript)
+
+## Styling
+
+- **Use theme variables**: `var(--color-*)` - never hardcode colors
+- Theme colors are defined in CSS and applied via `data-theme` attribute
+- Over 30 themes available - test changes in multiple themes
+
+## TypeScript
+
+- Keep TypeScript strict - avoid `any`
+- Define types in `frontend/src/types.ts`
+- Use existing type patterns
+
+## Components
+
+- Reuse existing hooks from `frontend/src/hooks/`
+- Reuse existing contexts from `frontend/src/contexts/`
+- Clean up effects and event listeners in useEffect cleanup
+
+## TipTap Extensions
+
+- Custom extensions in `frontend/src/extensions/`
+- Follow existing extension patterns (NotebookCell, AiResponse, LinkPreview)
+- Use `NodeViewWrapper` for custom node rendering
+
+## API Calls
+
+- Use functions from `frontend/src/api.ts`
+- Handle loading and error states
+- Show user feedback for async operations
+
+## Don't
+
+- Leave `console.log` in production code
+- Hardcode colors (use CSS variables)
+- Create new patterns when existing ones work
+- Skip loading/error states for async operations

@@ -675,3 +675,33 @@ class JupyterExportCell(BaseModel):
 class JupyterExportRequest(BaseModel):
     cells: list[JupyterExportCell]
     filename: str = 'notebook.ipynb'
+
+
+# New mixed export schemas for code + markdown cells
+class JupyterExportNode(BaseModel):
+    type: str  # 'code' or 'markdown'
+    content: str
+    execution_count: int | None = None
+    outputs: list[dict] = []
+
+
+class JupyterMixedExportRequest(BaseModel):
+    nodes: list[JupyterExportNode]
+    filename: str = 'notebook.ipynb'
+
+
+# Import response schema
+class JupyterImportNode(BaseModel):
+    type: str  # 'notebookCell', 'heading', 'paragraph', etc.
+    attrs: dict | None = None
+    content: list[dict] | None = None
+
+
+class JupyterImportResponse(BaseModel):
+    nodes: list[JupyterImportNode]
+    filename: str
+
+
+class JupyterImportUrlRequest(BaseModel):
+    url: str
+    pyproject_url: str | None = None  # Optional URL/path to pyproject.toml for dependencies

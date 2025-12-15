@@ -2,7 +2,7 @@
  * Context Provider Tests
  * 
  * Tests critical Context providers for state management.
- * Per .cursorrules: Tests validate existing behavior without modifying production code.
+ * Per project rules: Tests validate existing behavior without modifying production code.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';

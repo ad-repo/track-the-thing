@@ -504,3 +504,27 @@ export interface JupyterExportCell {
   execution_count: number | null;
 }
 
+// Mixed export types for code + markdown cells
+export interface JupyterExportNode {
+  type: 'code' | 'markdown';
+  content: string;
+  execution_count?: number | null;
+  outputs?: JupyterOutput[];
+}
+
+// Import types
+export interface JupyterImportNode {
+  type: string;  // 'notebookCell' or 'paragraph'
+  attrs?: Record<string, unknown>;
+  content?: { type: string; text: string }[];
+}
+
+export interface JupyterImportResponse {
+  nodes: JupyterImportNode[];
+  filename: string;
+}
+
+export interface JupyterImportUrlRequest {
+  url: string;
+}
+

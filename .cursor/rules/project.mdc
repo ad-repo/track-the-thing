@@ -1,0 +1,53 @@
+---
+description: Core project rules - always applied to Track the Thing codebase
+globs:
+alwaysApply: true
+---
+
+# Track the Thing - Core Rules
+
+## Golden Rules (Never Violate)
+
+1. **Never break working code** - Understand before modifying
+2. **Follow existing patterns** - Search codebase first (`grep -r "pattern"`)
+3. **Run CI before commit** - `./test_ci_locally.sh` must exit 0
+4. **Never change code to fix tests** - Fix the test or understand why it fails
+
+## Project Structure
+
+```
+backend/           # Python/FastAPI API
+├── app/routers/   # API endpoints
+├── app/models.py  # SQLAlchemy models
+├── migrations/    # Alembic migrations
+frontend/          # React/TypeScript UI
+├── src/components/
+├── src/contexts/
+├── src/hooks/
+├── src/extensions/ # TipTap extensions
+tests/             # All tests (backend/, e2e/)
+scripts/           # Build and utility scripts
+```
+
+## Key Integrations
+
+- **Jupyter Notebooks**: `backend/app/routers/jupyter.py`, `backend/app/services/jupyter_bridge.py`
+- **MCP Servers**: `backend/app/routers/mcp.py`, `backend/app/services/docker_bridge.py`
+- **LLM**: `backend/app/routers/llm.py`
+- **Backup/Restore**: `backend/app/routers/backup.py`
+
+## Before Committing
+
+1. Run linter, fix all errors
+2. Run `./test_ci_locally.sh` - must pass
+3. Check `git diff` - only relevant changes
+4. Update docs if behavior changed
+5. Create migrations if schema changed
+
+## Don't Do
+
+- "While I'm here..." - stay focused on the task
+- Refactor unrelated code
+- Add unrequested features
+- Skip documentation or tests
+- Introduce new patterns when existing ones work

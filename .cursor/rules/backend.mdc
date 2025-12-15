@@ -1,0 +1,47 @@
+---
+description: Backend rules for Python/FastAPI code
+globs:
+  - backend/**/*.py
+---
+
+# Backend Rules (Python/FastAPI)
+
+## Code Style
+
+- Follow existing router patterns in `backend/app/routers/`
+- Use existing session/dependency patterns
+- Consistent error handling with `HTTPException`
+- Keep functions under 50 lines
+- No debug code or `print()` statements in production
+
+## Database Changes
+
+1. Create migrations in `backend/migrations/` for schema changes
+2. Update `backend/app/routers/backup.py` for data model changes
+3. Test that migrations can upgrade from previous versions
+4. Use SQLAlchemy ORM patterns consistently
+
+## API Patterns
+
+```python
+# Router pattern
+@router.get('/endpoint', response_model=schemas.ResponseModel)
+async def endpoint_name(
+    db: Session = Depends(get_db),
+    # other dependencies
+):
+    """Docstring describing the endpoint."""
+    # implementation
+```
+
+## Services
+
+- Docker containers: Use `docker_bridge.py` patterns
+- Jupyter: Use `jupyter_bridge.py` patterns
+- External APIs: Use `httpx` for async, `requests` for sync
+
+## Testing
+
+- Tests go in `tests/backend/`
+- Use pytest fixtures from `conftest.py`
+- Mock external services (Docker, APIs)

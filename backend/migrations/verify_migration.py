@@ -3,7 +3,7 @@
 Migration Verification Script
 
 Run this before and after migrations to ensure data integrity.
-Follows .cursorrules requirement: "Test migration on a copy of the database before committing"
+Follows project requirement: "Test migration on a copy of the database before committing"
 """
 
 import sqlite3

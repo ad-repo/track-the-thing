@@ -1,7 +1,7 @@
 """
 Migration Tests - Critical Path Testing
 
-Per .cursorrules: Tests verify migrations work without modifying production code.
+Per project rules: Tests verify migrations work without modifying production code.
 Tests critical upgrade paths: v14→v15, idempotency, data preservation.
 """
 

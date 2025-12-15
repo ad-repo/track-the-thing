@@ -602,3 +602,106 @@ class McpProcessRequest(BaseModel):
 class McpProcessResponse(BaseModel):
     output: str
     metadata: dict = {}
+
+
+# ===========================
+# Jupyter Integration Schemas
+# ===========================
+
+
+class JupyterStatusResponse(BaseModel):
+    docker_available: bool
+    container_running: bool
+    kernel_id: str | None = None
+    error: str | None = None
+
+
+class JupyterSettingsResponse(BaseModel):
+    jupyter_enabled: bool = False
+    jupyter_auto_start: bool = False
+    jupyter_python_version: str = '3.11'
+    jupyter_custom_image: str = ''
+    docker_available: bool = False
+
+
+class JupyterSettingsUpdate(BaseModel):
+    jupyter_enabled: bool | None = None
+    jupyter_auto_start: bool | None = None
+    jupyter_python_version: str | None = None
+    jupyter_custom_image: str | None = None
+
+
+class JupyterExecuteRequest(BaseModel):
+    code: str
+
+
+class JupyterOutput(BaseModel):
+    type: str  # 'stdout', 'stderr', 'display_data', 'execute_result', 'error'
+    text: str | None = None
+    data: dict | None = None  # For rich outputs (images, HTML, etc.)
+    mime_type: str | None = None
+
+
+class JupyterExecuteResponse(BaseModel):
+    outputs: list[JupyterOutput] = []
+    execution_count: int = 0
+    status: str = 'ok'  # 'ok' or 'error'
+    error_name: str | None = None
+    error_value: str | None = None
+    traceback: list[str] | None = None
+
+
+class JupyterStartResponse(BaseModel):
+    success: bool
+    kernel_id: str | None = None
+    error: str | None = None
+
+
+class JupyterStopResponse(BaseModel):
+    success: bool
+    error: str | None = None
+
+
+class JupyterLogsResponse(BaseModel):
+    logs: str
+
+
+class JupyterExportCell(BaseModel):
+    code: str
+    outputs: list[dict] = []
+    execution_count: int | None = None
+
+
+class JupyterExportRequest(BaseModel):
+    cells: list[JupyterExportCell]
+    filename: str = 'notebook.ipynb'
+
+
+# New mixed export schemas for code + markdown cells
+class JupyterExportNode(BaseModel):
+    type: str  # 'code' or 'markdown'
+    content: str
+    execution_count: int | None = None
+    outputs: list[dict] = []
+
+
+class JupyterMixedExportRequest(BaseModel):
+    nodes: list[JupyterExportNode]
+    filename: str = 'notebook.ipynb'
+
+
+# Import response schema
+class JupyterImportNode(BaseModel):
+    type: str  # 'notebookCell', 'heading', 'paragraph', etc.
+    attrs: dict | None = None
+    content: list[dict] | None = None
+
+
+class JupyterImportResponse(BaseModel):
+    nodes: list[JupyterImportNode]
+    filename: str
+
+
+class JupyterImportUrlRequest(BaseModel):
+    url: str
+    pyproject_url: str | None = None  # Optional URL/path to pyproject.toml for dependencies

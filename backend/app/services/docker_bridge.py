@@ -833,6 +833,9 @@ class DockerBridge:
             container_name = self._get_container_name(server)
             image_to_use = self._get_image_name(server)
 
+            # Use restart policy if auto_start is enabled
+            restart_policy = {'Name': 'unless-stopped'} if getattr(server, 'auto_start', False) else {'Name': 'no'}
+
             container = self._docker_client.containers.run(
                 image_to_use,
                 name=container_name,
@@ -843,6 +846,7 @@ class DockerBridge:
                 mem_limit='512m',
                 cpu_quota=50000,  # 50% CPU
                 security_opt=['no-new-privileges:true'],
+                restart_policy=restart_policy,
             )
 
             # Update server status

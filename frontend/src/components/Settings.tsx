@@ -1362,13 +1362,8 @@ const Settings = () => {
                       Jupyter Kernel Gateway
                     </span>
                     <span
-                      className="text-xs px-1.5 py-0.5 rounded"
+                      className="text-xs"
                       style={{
-                        backgroundColor: jupyterActionLoading === 'start' || jupyterActionLoading === 'stop'
-                          ? 'var(--color-warning-bg, rgba(234, 179, 8, 0.2))'
-                          : jupyterStatus.container_running 
-                            ? 'var(--color-success-bg, rgba(34, 197, 94, 0.2))'
-                            : 'var(--color-tertiary-bg, rgba(148, 163, 184, 0.2))',
                         color: jupyterActionLoading === 'start' || jupyterActionLoading === 'stop'
                           ? 'var(--color-warning)'
                           : jupyterStatus.container_running 

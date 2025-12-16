@@ -24,7 +24,7 @@ const DailyView = () => {
   const { showDayLabels } = useDayLabels();
   const [note, setNote] = useState<DailyNote | null>(null);
   const [entries, setEntries] = useState<NoteEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [dailyGoal, setDailyGoal] = useState('');
   const [dailyGoalEndTime, setDailyGoalEndTime] = useState('17:00');
   const [dailyGoalTimeRemaining, setDailyGoalTimeRemaining] = useState('');
@@ -397,6 +397,46 @@ const DailyView = () => {
   const currentDate = parse(date, 'yyyy-MM-dd', new Date());
   const isToday = format(new Date(), 'yyyy-MM-dd') === date;
 
+  // Skeleton loader for entries section
+  const EntrySkeleton = () => (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-xl p-6 animate-pulse"
+          style={{
+            backgroundColor: 'var(--color-card-bg)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          {/* Title skeleton */}
+          <div
+            className="h-5 rounded mb-4"
+            style={{
+              backgroundColor: 'var(--color-bg-tertiary)',
+              width: `${40 + i * 15}%`,
+            }}
+          />
+          {/* Content lines skeleton */}
+          <div className="space-y-2">
+            <div
+              className="h-3 rounded"
+              style={{ backgroundColor: 'var(--color-bg-tertiary)', width: '100%' }}
+            />
+            <div
+              className="h-3 rounded"
+              style={{ backgroundColor: 'var(--color-bg-tertiary)', width: '85%' }}
+            />
+            <div
+              className="h-3 rounded"
+              style={{ backgroundColor: 'var(--color-bg-tertiary)', width: '70%' }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="w-full max-w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto page-fade-in" style={{ position: 'relative', zIndex: 1 }}>
       <div className={`${isFullScreen ? 'max-w-full' : 'w-full max-w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl'} mx-auto`} style={{ position: 'relative', zIndex: 20 }}>
@@ -649,18 +689,10 @@ const DailyView = () => {
       {/* Entries */}
       <div className="space-y-6">
         {loading ? (
-          <div 
-            className="rounded-2xl shadow-lg p-8 text-center"
-            style={{ 
-              backgroundColor: 'var(--color-bg-primary)',
-              color: 'var(--color-text-secondary)'
-            }}
-          >
-            Loading...
-          </div>
+          <EntrySkeleton />
         ) : entries.length === 0 ? (
           <div 
-            className="rounded-2xl shadow-lg p-8"
+            className="rounded-2xl shadow-lg p-8 animate-fade-in"
             style={{ backgroundColor: 'var(--color-bg-primary)' }}
           >
             <p className="mb-4 text-center" style={{ color: 'var(--color-text-secondary)' }}>No entries for this day yet.</p>
@@ -687,7 +719,7 @@ const DailyView = () => {
             </button>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in">
             <div className="flex gap-3 items-center" style={{ minHeight: '52px' }}>
               {!selectionMode ? (
                 <>
@@ -815,7 +847,7 @@ const DailyView = () => {
                 />
               </div>
             ))}
-          </>
+          </div>
         )}
       </div>
 

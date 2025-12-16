@@ -1290,67 +1290,65 @@ const McpServerManager = ({ onMessage }: McpServerManagerProps) => {
         </div>
       )}
 
-      {/* Logs Modal */}
+      {/* Logs Modal - No overlay background */}
       {showLogsModal !== null && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          className="fixed inset-0 z-50 overflow-y-auto flex items-start justify-center pt-16"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowLogsModal(null);
           }}
         >
-          <div className="min-h-full px-4 py-8">
+          <div
+            className="w-full max-w-3xl mx-4 rounded-2xl shadow-2xl animate-fade-in"
+            style={{
+              backgroundColor: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border-primary)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            {/* Header */}
             <div
-              className="w-full max-w-3xl mx-auto rounded-2xl shadow-2xl"
+              className="flex items-center justify-between p-4 border-b rounded-t-2xl"
               style={{
-                backgroundColor: 'var(--color-bg-primary)',
-                border: '1px solid var(--color-border-primary)',
+                borderColor: 'var(--color-border-primary)',
+                backgroundColor: 'var(--color-bg-secondary)',
               }}
             >
-              {/* Header */}
-              <div
-                className="flex items-center justify-between p-4 border-b rounded-t-2xl"
-                style={{
-                  borderColor: 'var(--color-border-primary)',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                }}
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  Server Logs
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLogsModal(null)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: 'var(--color-text-tertiary)' }}
               >
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Server Logs
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLogsModal(null)}
-                  className="p-2 rounded-lg transition-colors"
-                  style={{ color: 'var(--color-text-tertiary)' }}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* Content */}
-              <div className="p-4 max-h-[60vh] overflow-auto">
-                {logsLoading ? (
-                  <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-                    Loading logs...
-                  </div>
-                ) : (
-                  <pre
-                    className="text-xs whitespace-pre-wrap font-mono"
-                    style={{
-                      color: 'var(--color-text-primary)',
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      padding: '1rem',
-                      borderRadius: '0.5rem',
-                    }}
-                  >
-                    {logs || 'No logs available'}
-                  </pre>
-                )}
-              </div>
+            {/* Content */}
+            <div className="p-4 max-h-[60vh] overflow-auto">
+              {logsLoading ? (
+                <div className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
+                  Loading logs...
+                </div>
+              ) : (
+                <pre
+                  className="text-xs whitespace-pre-wrap font-mono"
+                  style={{
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    padding: '1rem',
+                    borderRadius: '0.5rem',
+                  }}
+                >
+                  {logs || 'No logs available'}
+                </pre>
+              )}
             </div>
           </div>
         </div>

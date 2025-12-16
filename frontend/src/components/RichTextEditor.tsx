@@ -2150,6 +2150,9 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           </ToolbarButton>
         )}
 
+        {/* Separator before AI tools */}
+        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border-primary)', margin: '0 4px' }} />
+
         {/* Send to LLM/MCP Button - Custom to avoid disabled cursor during processing */}
         <button
           onMouseDown={(e) => {

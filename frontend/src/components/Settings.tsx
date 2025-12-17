@@ -96,9 +96,86 @@ const ConfirmationDialog = ({
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Skeleton component for loading state
+const SettingsSkeleton = () => (
+  <div className="space-y-6">
+    {/* General Settings Skeleton */}
+    <section className="animate-pulse">
+      <div className="h-7 w-32 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+          <div className="h-4 w-24 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-8 w-40 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+        </div>
+        <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+          <div className="h-4 w-32 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-8 w-24 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+        </div>
+      </div>
+    </section>
+
+    {/* Goals Skeleton */}
+    <section className="animate-pulse">
+      <div className="h-7 w-24 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="space-y-3">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+              <div className="flex-1">
+                <div className="h-4 w-48 rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+                <div className="h-3 w-32 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* Theme Skeleton */}
+    <section className="animate-pulse">
+      <div className="h-7 w-28 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="flex flex-wrap gap-3">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="w-20 h-20 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }} />
+        ))}
+      </div>
+    </section>
+
+    {/* Labels Skeleton */}
+    <section className="animate-pulse">
+      <div className="h-7 w-20 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="space-y-2">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+              <div className="h-4 w-24 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+            </div>
+            <div className="h-4 w-12 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* AI Settings Skeleton */}
+    <section className="animate-pulse">
+      <div className="h-7 w-36 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+          <div className="h-4 w-28 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-8 w-32 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+        </div>
+        <div className="h-24 w-full rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }} />
+      </div>
+    </section>
+  </div>
+);
+
 const Settings = () => {
   const navigate = useNavigate();
   const textureStyles = useTexture('settings');
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isDownloadingFiles, setIsDownloadingFiles] = useState(false);
   const [isRestoringFiles, setIsRestoringFiles] = useState(false);
@@ -150,10 +227,6 @@ const Settings = () => {
     }
   }, []);
   
-  useEffect(() => {
-    loadArchivedData();
-  }, [loadArchivedData]);
-  
   // Load goals
   const loadGoals = useCallback(async () => {
     setLoadingGoals(true);
@@ -166,10 +239,6 @@ const Settings = () => {
       setLoadingGoals(false);
     }
   }, []);
-
-  useEffect(() => {
-    loadGoals();
-  }, [loadGoals]);
 
   // Goal handlers
   const handleCreateGoal = async (goalData: GoalCreate) => {
@@ -465,12 +534,26 @@ const Settings = () => {
     }
   };
 
+  // Unified initial data loading
   useEffect(() => {
-    loadLabels();
-    loadDailyGoalEndTime();
-    loadLlmSettings();
-    loadJupyterSettings();
-  }, [loadJupyterSettings]);
+    const loadInitialData = async () => {
+      try {
+        await Promise.all([
+          loadArchivedData(),
+          loadGoals(),
+          loadLabels(),
+          loadDailyGoalEndTime(),
+          loadLlmSettings(),
+          loadJupyterSettings(),
+        ]);
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    loadInitialData();
+  }, [loadArchivedData, loadGoals, loadJupyterSettings]);
 
   const loadDailyGoalEndTime = async () => {
     try {
@@ -870,6 +953,10 @@ const Settings = () => {
           </div>
         )}
 
+        {initialLoading ? (
+          <SettingsSkeleton />
+        ) : (
+          <div className="animate-fade-in">
         {/* General Settings Section */}
         <section className="mb-6">
           <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
@@ -2479,6 +2566,8 @@ const Settings = () => {
             Track the Thing v{__APP_VERSION__}
           </p>
         </div>
+          </div>
+        )}
       </div>
 
       {/* Custom Theme Creator Modal */}

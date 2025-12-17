@@ -171,21 +171,12 @@ const SettingsSkeleton = () => (
     </section>
 
     {/* Archive Skeleton */}
-    <section 
-      className="animate-pulse rounded-xl p-6"
-      style={{
-        backgroundColor: 'var(--color-bg-secondary)',
-        border: '1px solid var(--color-border-primary)',
-      }}
-    >
-      <div className="h-7 w-24 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+    <section className="animate-pulse mb-6">
+      <div className="h-7 w-24 rounded mb-3" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
       <div className="grid grid-cols-2 gap-4">
         <div 
           className="rounded-lg p-4 text-center"
-          style={{
-            backgroundColor: 'var(--color-background)',
-            border: '1px solid var(--color-border-primary)',
-          }}
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
         >
           <div className="h-4 w-4 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
           <div className="h-8 w-8 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
@@ -193,10 +184,7 @@ const SettingsSkeleton = () => (
         </div>
         <div 
           className="rounded-lg p-4 text-center"
-          style={{
-            backgroundColor: 'var(--color-background)',
-            border: '1px solid var(--color-border-primary)',
-          }}
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
         >
           <div className="h-4 w-4 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
           <div className="h-8 w-8 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
@@ -2534,15 +2522,9 @@ const Settings = () => {
         </section>
 
         {/* Archive Section */}
-        <section
-          className="rounded-xl p-6"
-          style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            border: '1px solid var(--color-border-primary)',
-          }}
-        >
+        <section className="mb-6">
           <h2
-            className="text-xl font-semibold mb-4 flex items-center gap-2"
+            className="text-xl font-semibold mb-3 flex items-center gap-2"
             style={{ color: 'var(--color-text-primary)' }}
           >
             <Archive className="w-5 h-5" />

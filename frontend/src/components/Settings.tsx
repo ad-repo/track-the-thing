@@ -169,6 +169,41 @@ const SettingsSkeleton = () => (
         <div className="h-24 w-full rounded-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }} />
       </div>
     </section>
+
+    {/* Archive Skeleton */}
+    <section 
+      className="animate-pulse rounded-xl p-6"
+      style={{
+        backgroundColor: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border-primary)',
+      }}
+    >
+      <div className="h-7 w-24 rounded mb-4" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+      <div className="grid grid-cols-2 gap-4">
+        <div 
+          className="rounded-lg p-4 text-center"
+          style={{
+            backgroundColor: 'var(--color-background)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          <div className="h-4 w-4 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-8 w-8 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-4 w-24 mx-auto rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+        </div>
+        <div 
+          className="rounded-lg p-4 text-center"
+          style={{
+            backgroundColor: 'var(--color-background)',
+            border: '1px solid var(--color-border-primary)',
+          }}
+        >
+          <div className="h-4 w-4 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-8 w-8 mx-auto rounded mb-2" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+          <div className="h-4 w-24 mx-auto rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
+        </div>
+      </div>
+    </section>
   </div>
 );
 

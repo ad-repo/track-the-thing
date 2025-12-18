@@ -203,7 +203,7 @@ export default function Kanban() {
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-x-auto pb-20" 
+          className="flex-1 overflow-x-auto pt-4 pb-20" 
           style={{ position: 'relative' }}
         >
         {isRefreshing && (

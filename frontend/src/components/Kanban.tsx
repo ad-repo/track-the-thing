@@ -203,7 +203,7 @@ export default function Kanban() {
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-x-auto pt-4 pb-20" 
+          className="flex-1 overflow-x-auto pb-20" 
           style={{ position: 'relative' }}
         >
         {isRefreshing && (
@@ -242,7 +242,7 @@ export default function Kanban() {
           </div>
         ) : (
           <div 
-            className="flex gap-6 py-6 items-start justify-start"
+            className="flex gap-6 pb-6 items-start justify-start"
             style={{
               paddingLeft: '3rem',
               paddingRight: '3rem',

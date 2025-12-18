@@ -247,7 +247,7 @@ export default function Lists() {
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-x-auto py-6 pb-20" 
+          className="flex-1 overflow-x-auto pb-20" 
           style={{ position: 'relative' }}
         >
         {isRefreshing && (

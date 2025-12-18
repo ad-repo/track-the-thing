@@ -719,8 +719,8 @@ const DailyView = () => {
             </button>
           </div>
         ) : (
-          <div className="animate-fade-in">
-            <div className="flex gap-3 items-center" style={{ minHeight: '52px' }}>
+          <div className="animate-fade-in space-y-6">
+            <div className="flex gap-3 items-center">
               {!selectionMode ? (
                 <>
                   <button

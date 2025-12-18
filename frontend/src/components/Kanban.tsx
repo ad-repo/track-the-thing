@@ -198,7 +198,7 @@ export default function Kanban() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="flex flex-col page-fade-in" style={{ minHeight: 'calc(100vh - 120px)' }}>
         {/* Kanban Board Container */}
         <div 
           ref={scrollContainerRef}

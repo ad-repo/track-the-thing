@@ -242,12 +242,12 @@ export default function Lists() {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col page-fade-in" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="flex flex-col page-fade-in" style={{ minHeight: 'calc(100vh - 120px)' }}>
         {/* Lists Container */}
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-x-auto py-6 pb-20" 
+          className="flex-1 overflow-x-auto pb-20" 
           style={{ position: 'relative' }}
         >
         {isRefreshing && (
@@ -276,7 +276,7 @@ export default function Lists() {
           </div>
         ) : (
           <div 
-            className="flex gap-6 py-6 items-start justify-start"
+            className="flex gap-6 pb-6 items-start justify-start"
             style={{
               paddingLeft: '3rem',
               paddingRight: '3rem',

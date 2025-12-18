@@ -2408,7 +2408,7 @@ const Settings = () => {
         </section>
 
         {/* Timezone Section */}
-        <section>
+        <section className="mb-6">
           <h2 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
             <Clock className="h-5 w-5" />
             Timezone

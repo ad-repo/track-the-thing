@@ -41,6 +41,7 @@ import {
   FileCode,
   Upload,
   Download,
+  Copy,
 } from 'lucide-react';
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
 import { AiResponseExtension } from '../extensions/AiResponse';
@@ -2780,18 +2781,46 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         </div>
       )}
 
+      {/* Image viewer - full size, no overlay */}
       {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            alt="Preview"
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setLightboxSrc(null)}
           />
-        </div>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999 }}>
+            <img
+              src={lightboxSrc}
+              alt="Full size"
+              style={{ maxWidth: 'none', maxHeight: 'none', width: 'auto', height: 'auto', margin: 0 }}
+            />
+            <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
+              <button
+                onClick={async () => {
+                  const res = await fetch(lightboxSrc);
+                  const blob = await res.blob();
+                  await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                }}
+                style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Copy"
+              >
+                <Copy style={{ width: 16, height: 16 }} />
+              </button>
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = lightboxSrc;
+                  a.download = lightboxSrc.split('/').pop() || 'image';
+                  a.click();
+                }}
+                style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Download"
+              >
+                <Download style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Camera Modal */}

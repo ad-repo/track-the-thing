@@ -254,7 +254,7 @@ code {
   font-size: 0.8rem;
 }
 
-.ProseMirror img {
+.ProseMirror img:not(.inline-emoji) {
   width: 100%;
   height: auto;
   border-radius: 0.5rem;

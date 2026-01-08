@@ -367,6 +367,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
+        spellcheck: 'true',
       },
         handleClick: (_view, _pos, event) => {
           const target = event.target as HTMLElement | null;

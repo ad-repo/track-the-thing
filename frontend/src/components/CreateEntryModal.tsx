@@ -17,15 +17,19 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const entryRef = useRef<NoteEntry | null>(null);
+  const createdRef = useRef(false);
 
   const setEntryState = (value: NoteEntry | null) => {
     entryRef.current = value;
     setEntry(value);
   };
 
-  // Create entry on mount
+  // Create entry on mount (with guard against StrictMode double-run)
   useEffect(() => {
-    createInitialEntry();
+    if (!createdRef.current) {
+      createdRef.current = true;
+      createInitialEntry();
+    }
   }, []);
 
   // Add Escape key support
@@ -83,6 +87,8 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
   const handleClose = () => {
     // If entry exists and is empty, delete it
     const currentEntry = entryRef.current;
+    let hasContent = false;
+    
     if (currentEntry) {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = currentEntry.content;
@@ -93,9 +99,17 @@ const CreateEntryModal = ({ list, onClose, onSuccess }: CreateEntryModalProps) =
         entriesApi.delete(currentEntry.id).catch(err => {
           console.error('Error deleting empty entry:', err);
         });
+      } else {
+        hasContent = true;
       }
     }
+    
     onClose();
+    
+    // Refresh the list if entry has content
+    if (hasContent) {
+      onSuccess();
+    }
   };
 
   const handleEntryUpdate = async (id: number, content: string) => {

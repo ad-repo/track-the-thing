@@ -224,7 +224,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           return ['img', {
             ...HTMLAttributes,
             src,
-            class: 'w-full h-auto rounded-lg',
+            class: 'max-w-full h-auto rounded-lg',
           }];
         },
       }),

@@ -172,7 +172,7 @@ const ListCard = ({ entry, onRemoveFromList, listId, list, isKanbanView, onArchi
           <div className="flex items-center gap-2 text-sm mb-3" style={{ color: 'var(--color-text-tertiary)' }}>
             <Clock className="h-4 w-4" />
             <span>
-              {formatTimestamp(entry.created_at, timezone, 'h:mm a zzz')}
+              {formatTimestamp(entry.created_at, timezone, "M/d/yy h:mma")}
             </span>
           </div>
 

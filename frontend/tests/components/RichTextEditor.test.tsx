@@ -107,6 +107,8 @@ vi.mock('lucide-react', () => ({
   Sparkles: () => <div>Sparkles</div>,
   Upload: () => <div>Upload</div>,
   Download: () => <div>Download</div>,
+  Wand2: () => <div>Wand2</div>,
+  Copy: () => <div>Copy</div>,
 }));
 
 // Mock AiResponse extension

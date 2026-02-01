@@ -1,7 +1,7 @@
 """Tests for StdioMcpConnection class."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -232,33 +232,30 @@ class TestStdioMcpConnectionProtocol:
         mock_connection.initialize.assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
     async def test_call_tool_extracts_text_content(self, mock_connection):
         """Test that call_tool properly extracts text content from response."""
         mock_connection._initialized = True
-        mock_connection.send_request = AsyncMock(
-            return_value=(
-                {
-                    'content': [
-                        {'type': 'text', 'text': 'Result 1'},
-                        {'type': 'text', 'text': 'Result 2'},
-                    ]
-                },
-                None,
-            )
+        mock_response = (
+            {
+                'content': [
+                    {'type': 'text', 'text': 'Result 1'},
+                    {'type': 'text', 'text': 'Result 2'},
+                ]
+            },
+            None,
         )
-
-        result, error = await mock_connection.call_tool('test_tool', {'arg': 'value'})
-
-        assert error is None
-        assert result == 'Result 1\nResult 2'
+        with patch.object(mock_connection, 'send_request', new=AsyncMock(return_value=mock_response)):
+            result, error = await mock_connection.call_tool('test_tool', {'arg': 'value'})
+            assert error is None
+            assert result == 'Result 1\nResult 2'
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(5)
     async def test_call_tool_returns_raw_result_when_no_text_content(self, mock_connection):
         """Test that call_tool returns raw result when no text content."""
         mock_connection._initialized = True
-        mock_connection.send_request = AsyncMock(return_value=({'some_data': 'value'}, None))
-
-        result, error = await mock_connection.call_tool('test_tool', {})
-
-        assert error is None
-        assert result == {'some_data': 'value'}
+        with patch.object(mock_connection, 'send_request', new=AsyncMock(return_value=({'some_data': 'value'}, None))):
+            result, error = await mock_connection.call_tool('test_tool', {})
+            assert error is None
+            assert result == {'some_data': 'value'}

@@ -63,6 +63,16 @@ npm run dev
 
 ### 🖥️ Desktop App (Tauri)
 
+> **⚠️ macOS "Damaged App" Fix**
+>
+> If macOS says the app "is damaged and can't be opened" or "can't be opened because Apple cannot check it for malicious software", run this command in Terminal:
+>
+> ```bash
+> xattr -cr /Applications/Track\ the\ Thing.app
+> ```
+>
+> Then right-click the app and select **Open**. This only needs to be done once after installation.
+
 Full desktop documentation: **[`desktop/README-desktop.md`](desktop/README-desktop.md)**
 
 **Prerequisites (macOS):**
@@ -95,20 +105,6 @@ cp .tourienv.example .tourienv                # Configure settings
 ./desktop/pyinstaller/build_backend.sh        # Build backend sidecar
 npm --prefix desktop/tauri run tauri:dev      # Run with hot reload
 ```
-
-**Installing the DMG on macOS:**
-
-Due to macOS Gatekeeper, clear the quarantine flag before opening:
-
-```bash
-# Before opening DMG
-xattr -cr ~/Downloads/Track\ the\ Thing_*.dmg
-
-# If app shows "damaged and can't be opened" after install
-xattr -cr /Applications/Track\ the\ Thing.app
-```
-
-> **Why?** macOS quarantines files from the internet. Since the app isn't signed with an Apple Developer certificate, the `xattr -cr` command removes the quarantine attribute.
 
 The desktop app uses separate ports and data directories from Docker, so both can run simultaneously.
 

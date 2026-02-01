@@ -38,9 +38,11 @@ import {
   CaseSensitive,
   CheckSquare,
   Sparkles,
+  Wand2,
   FileCode,
   Upload,
   Download,
+  Copy,
 } from 'lucide-react';
 import { LinkPreviewExtension, fetchLinkPreview } from '../extensions/LinkPreview';
 import { AiResponseExtension } from '../extensions/AiResponse';
@@ -151,6 +153,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
   
   // LLM state
   const [isSendingToLlm, setIsSendingToLlm] = useState(false);
+  const [isFormattingForLlm, setIsFormattingForLlm] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
   const [mcpMatch, setMcpMatch] = useState<McpMatchResult | null>(null);
   const [hasTextSelection, setHasTextSelection] = useState(false);
@@ -224,7 +227,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           return ['img', {
             ...HTMLAttributes,
             src,
-            class: 'w-full h-auto rounded-lg',
+            class: 'max-w-full h-auto rounded-lg',
           }];
         },
       }),
@@ -367,6 +370,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
+        spellcheck: 'true',
       },
         handleClick: (_view, _pos, event) => {
           const target = event.target as HTMLElement | null;
@@ -469,6 +473,15 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         // Check for URLs in text
         const text = event.clipboardData?.getData('text/plain');
         if (text) {
+          // Don't create previews when pasting into preformatted/code blocks
+          const isInCodeBlock = editor?.isActive('codeBlock') || 
+                                editor?.isActive('preformattedText') ||
+                                editor?.isActive('code') ||
+                                editor?.isActive('notebookCell');
+          if (isInCodeBlock) {
+            return false; // Let default paste behavior handle it
+          }
+          
           // Simple URL detection - matches http(s) URLs
           const urlRegex = /^https?:\/\/[^\s]+$/;
           if (urlRegex.test(text.trim())) {
@@ -1327,6 +1340,81 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
     }
   };
 
+  const formatForLlm = async () => {
+    if (!editor || !entryId) return;
+
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      setLlmError('Please select some text to format.');
+      setTimeout(() => setLlmError(null), 3000);
+      return;
+    }
+
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    if (!selectedText.trim()) {
+      setLlmError('Please select some text to format.');
+      setTimeout(() => setLlmError(null), 3000);
+      return;
+    }
+
+    setIsFormattingForLlm(true);
+    setLlmError(null);
+
+    try {
+      const insertPosition = to;
+      
+      const formattingPrompt = `Reformat this text for optimal LLM consumption. Requirements:
+- Minimize token count while preserving all meaning
+- Use concise markdown: headers, bullets, code blocks
+- Remove filler words, redundancy, and verbose phrasing
+- Structure logically for easy parsing
+- Output ONLY the formatted text
+
+Text:
+${selectedText}`;
+
+      const response = await llmApi.send({
+        entry_id: entryId,
+        prompt: formattingPrompt,
+        continue_conversation: false,
+      });
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          editor
+            .chain()
+            .setTextSelection(insertPosition)
+            .insertContent([
+              { type: 'paragraph' },
+              {
+                type: 'aiResponse',
+                attrs: {
+                  content: response.response,
+                  provider: `${response.provider} (formatted)`,
+                  inputTokens: response.input_tokens,
+                  outputTokens: response.output_tokens,
+                },
+              },
+              { type: 'paragraph' },
+            ])
+            .run();
+          
+          setTimeout(() => {
+            editor.commands.focus();
+            setIsFormattingForLlm(false);
+          }, 50);
+        });
+      });
+    } catch (error: any) {
+      console.error('Failed to format for LLM:', error);
+      const errorMessage =
+        error.response?.data?.detail || 'Failed to format text. Check your API key in Settings.';
+      setLlmError(errorMessage);
+      setTimeout(() => setLlmError(null), 8000);
+      setIsFormattingForLlm(false);
+    }
+  };
+
   const openCamera = async () => {
     try {
       console.log('[Camera] Opening camera with web API');
@@ -1655,7 +1743,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           e.currentTarget.style.backgroundColor = 'transparent';
         }
       }}
-      title={title}
+      data-tip={title}
       disabled={disabled}
       type="button"
     >
@@ -1665,7 +1753,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
 
   return (
     <div 
-      className="rounded-lg overflow-hidden"
+      className="rounded-lg"
       style={{
         border: '1px solid var(--color-border-primary)',
         backgroundColor: 'var(--color-bg-primary)'
@@ -1676,9 +1764,38 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         className="editor-toolbar flex flex-wrap gap-1 items-center p-2"
         style={{
           borderBottom: '1px solid var(--color-border-primary)',
-          backgroundColor: 'var(--color-bg-tertiary)'
+          backgroundColor: 'var(--color-bg-tertiary)',
+          overflow: 'visible',
         }}
       >
+        <style>{`
+          .editor-toolbar [data-tip] {
+            position: relative;
+          }
+          .editor-toolbar [data-tip]::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 400;
+            white-space: nowrap;
+            border-radius: 4px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s, visibility 0.15s;
+            z-index: 9999;
+            pointer-events: none;
+          }
+          .editor-toolbar [data-tip]:hover::after {
+            opacity: 1;
+            visibility: visible;
+          }
+        `}</style>
         {/* History Group */}
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
@@ -2107,7 +2224,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                 e.currentTarget.style.backgroundColor = 'transparent';
               }
             }}
-            title={
+            data-tip={
               isRecording 
                 ? 'Stop Recording' 
                 : !isSecureContext && !isLocalhost && isMobile
@@ -2175,7 +2292,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';
           }}
-          title={
+          data-tip={
             !entryId
               ? 'Save entry first to use AI'
               : isSendingToLlm
@@ -2228,9 +2345,70 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
                     ? `0 0 6px ${mcpMatch.server_color || '#22c55e'}, 0 0 12px ${mcpMatch.server_color || '#22c55e'}`
                     : '0 0 6px #22c55e, 0 0 12px #22c55e',
                 }}
-                title={mcpMatch?.matched && mcpMatch.server_status === 'running' 
-                  ? `Will route to MCP: ${mcpMatch.server_name}` 
-                  : 'Click to send selected text to AI'}
+              />
+            )}
+          </div>
+        </button>
+
+        {/* Format for LLMs Button */}
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (isFormattingForLlm || !entryId) return;
+            formatForLlm();
+          }}
+          className="p-2 rounded transition-colors relative"
+          style={{
+            backgroundColor: 'transparent',
+            color: !entryId ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+            opacity: !entryId ? 0.5 : 1,
+            cursor: !entryId ? 'not-allowed' : 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            if (entryId && !isFormattingForLlm) {
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+          data-tip={
+            !entryId
+              ? 'Save entry first to use AI formatting'
+              : isFormattingForLlm
+              ? 'Formatting for LLM...'
+              : 'Format selected text for optimal LLM parsing'
+          }
+          type="button"
+        >
+          <div className="relative">
+            <Wand2 
+              className="h-4 w-4" 
+              style={isFormattingForLlm ? {
+                animation: 'pulse-slow 1.5s ease-in-out infinite',
+                color: '#8b5cf6',
+              } : undefined}
+            />
+            {/* Formatting indicator */}
+            {isFormattingForLlm && (
+              <div
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full"
+                style={{
+                  backgroundColor: '#8b5cf6',
+                  animation: 'pulse-glow 1.5s ease-in-out infinite',
+                  border: '2px solid white',
+                }}
+              />
+            )}
+            {/* Text selected indicator */}
+            {!isFormattingForLlm && hasTextSelection && entryId && (
+              <div
+                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+                style={{
+                  backgroundColor: '#8b5cf6',
+                  boxShadow: '0 0 6px #8b5cf6, 0 0 12px #8b5cf6',
+                }}
+                title="Click to format selected text for LLMs"
               />
             )}
           </div>
@@ -2779,18 +2957,71 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Start writing...', e
         </div>
       )}
 
+      {/* Image viewer - full size, scrollable */}
       {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            alt="Preview"
-          />
-        </div>
+        <>
+          <div
+            style={{ 
+              position: 'fixed', 
+              inset: 0, 
+              zIndex: 9998,
+              overflow: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20,
+            }}
+            onClick={() => setLightboxSrc(null)}
+          >
+            <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+              <img
+                src={lightboxSrc}
+                alt="Full size"
+                style={{ display: 'block', maxWidth: 'none', maxHeight: 'none', width: 'auto', height: 'auto', margin: 0 }}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+              <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
+                <button
+                  onClick={async () => {
+                    const res = await fetch(lightboxSrc);
+                    const blob = await res.blob();
+                    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                  }}
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Copy"
+                >
+                  <Copy style={{ width: 16, height: 16 }} />
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(lightboxSrc);
+                      const blob = await res.blob();
+                      const filename = lightboxSrc.split('/').pop() || 'image.png';
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = filename;
+                      a.style.display = 'none';
+                      document.body.appendChild(a);
+                      a.click();
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }, 100);
+                    } catch (err) {
+                      console.error('Download failed:', err);
+                    }
+                  }}
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Download"
+                >
+                  <Download style={{ width: 16, height: 16 }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Camera Modal */}

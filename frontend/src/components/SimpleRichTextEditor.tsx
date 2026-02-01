@@ -80,7 +80,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
           return ['img', {
             ...HTMLAttributes,
             src,
-            class: 'w-full h-auto rounded-lg',
+            class: 'max-w-full h-auto rounded-lg',
           }];
         },
       }),
@@ -102,6 +102,7 @@ const SimpleRichTextEditor = ({ content, onChange, placeholder = 'Start writing.
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none',
         style: 'min-height: 80px; max-height: 400px; color: var(--color-text-primary);',
+        spellcheck: 'true',
       },
       handlePaste: (_view, event) => {
         // Check for URLs in text

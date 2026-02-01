@@ -292,14 +292,13 @@ const useWebSpeechRecognition = ({
           }
           
           // After retries failed, show detailed error
-          let networkErrorMsg = '⚠️ Chrome Speech Recognition API Failed\n\n';
-          networkErrorMsg += 'This is a known bug in Chrome 130-141 where the Speech API fails immediately.\n\n';
-          networkErrorMsg += 'Your microphone and internet work fine, but Chrome cannot connect to Google\'s speech service.\n\n';
+          let networkErrorMsg = '⚠️ Speech Recognition Network Error\n\n';
+          networkErrorMsg += 'Could not connect to the speech recognition service.\n\n';
           networkErrorMsg += 'Solutions:\n';
+          networkErrorMsg += '• Update your browser to the latest version\n';
           networkErrorMsg += '• Try Safari or Microsoft Edge instead\n';
-          networkErrorMsg += '• Try Chrome Canary (beta version)\n';
-          networkErrorMsg += '• Wait for Chrome to fix this bug\n';
-          networkErrorMsg += '• Use a different computer/Chrome profile';
+          networkErrorMsg += '• Check your internet connection\n';
+          networkErrorMsg += '• Try a different browser profile';
           setError(networkErrorMsg);
           break;
         }

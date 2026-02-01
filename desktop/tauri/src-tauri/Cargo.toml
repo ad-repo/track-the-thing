@@ -1,6 +1,6 @@
 [package]
 name = "track_the_thing_desktop"
-version = "0.1.0"
+version = "0.9.0"
 description = "Track the Thing desktop shell"
 authors = ["Track the Thing"]
 license = "MIT"

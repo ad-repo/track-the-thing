@@ -171,6 +171,7 @@ The rich text editor toolbar uses [Lucide icons](https://lucide.dev/), organized
 | 📷 | Camera | Capture photo (Camera icon) |
 | 🎥 | Video | Record video (Video icon) |
 | ✦ | Send to AI | Route to LLM/MCP (Sparkles icon) |
+| ✨ | Format for LLMs | Optimize selected text for token efficiency (Wand2 icon) |
 | ⟨⟩ | Jupyter Cell | Insert Python cell (FileCode icon) |
 | ↑ | Import Notebook | Load `.ipynb` from file or URL (Upload icon) |
 | ↓ | Export Notebook | Save `.ipynb` (Download icon) |
@@ -215,6 +216,7 @@ Each note entry supports these states and actions:
 ### AI Integration
 - **LLM Providers**: OpenAI, Anthropic, or Google Gemini
 - **MCP Servers**: Docker-based or remote AI processing with regex routing
+- **Format for LLMs**: Select text and click the wand icon to optimize for token efficiency (removes filler, structures with markdown)
 - **Conversation Context**: Maintains history per entry
 - **Global Prompts**: System prompts applied to all AI requests
 - **Fallback**: MCP failures automatically use cloud LLMs
